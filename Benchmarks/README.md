@@ -93,7 +93,9 @@ Measured on Claude Code 2.1.286, 1 Oct 2026:
   at `.build/bench/run/corpus`, so arm B ran with its hook inert in every run recorded before then.
 - **The hook is checked live before any model call.** Once per session (and in `bench.py validate`), arm B
   is installed in a clone at the run path and its hook, through the wrapper and scratch home, judges one
-  whole-file `Read` of the corpus's largest tracked Swift file (`swift-sure replay-hook`). Unless the verdict is
+  whole-file `Read` of the corpus's largest tracked Swift file (`swift-sure replay-hook`). A file whose answer is
+  withheld only for its size (rule `overSize`: firefox-ios's 608 KB `Strings.swift`) proves nothing either way, so
+  the next largest is tried, up to five. Unless the verdict is
   an answer in place the session halts with exit 3, printing the verdict and rule; otherwise `session.json`
   records `hook_live: true`, the rule (`hook_live_rule`), and the Read's and the answer's characters.
 - `run.sh` deletes `.build/bench`, the checkout's cache directory and Claude Code's per-project state for
@@ -145,7 +147,10 @@ other file changed" checks, and arm A's tree has neither the store nor the setti
 every arm B run starts cold from the same store. For an iOS app the command needs a generic destination,
 `xcodebuild … -destination 'generic/platform=iOS Simulator' ARCHS=arm64 build-for-testing`, so no simulator
 is created or booted, and `build-for-testing` on each scheme whose tests should be indexed (an app and a local
-package are two schemes): a plain `build` leaves the tests out of every caller list. `session.json` records `corpus_indexed`, `index_store_bytes` and `index_build_seconds`;
+package are two schemes): a plain `build` leaves the tests out of every caller list. Xcode indexes while
+building only an unoptimised build by default, and a scheme's Test configuration can build its packages with
+`-O`, so the command also passes `COMPILER_INDEX_STORE_ENABLE=YES`; the harness halts when the build log shows a
+Swift module compiled without an index. `session.json` records `corpus_indexed`, `index_store_bytes` and `index_build_seconds`;
 `validate` skips the build.
 
 ## Threats to validity

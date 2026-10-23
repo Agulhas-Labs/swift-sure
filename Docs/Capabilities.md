@@ -466,7 +466,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 - **Sample:**
 
   ```
-  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.2.0","name":"swift-sure"}},"jsonrpc":"2.0"}
+  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.2.1","name":"swift-sure"}},"jsonrpc":"2.0"}
   ```
 
 - **Mentioned in:** Guide §3, §4, §11, DocC (Installing, Troubleshooting).
@@ -519,7 +519,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
   claude hooks: pass — registered for SessionStart, SubagentStart, PreToolUse, PostToolUse, PostToolUseFailure, Stop, SubagentStop
   claude server: pass — swift-sure — ~/.local/bin/swift-sure mcp
   claude binary: pass — ~/.local/bin/swift-sure runs
-  claude version: pass — registered 0.2.0, running 0.2.0
+  claude version: pass — registered 0.2.1, running 0.2.1
   claude hook SessionStart: pass — exit 0, silent
   claude hook SubagentStart: pass — exit 0, silent
   ```

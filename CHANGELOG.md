@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Fixed: the bench counts a run whose failed Bash call fired swift-sure's own `PostToolUseFailure` hook as valid, its list of swift-sure's hook events now held by a test to the events `swift-sure install` registers, where it threw the run out for firing a hook that is not swift-sure's.
+- Fixed: the bench's corpus index build halts, naming the module, when its log shows a Swift module compiled without an index, as an optimised local package is unless the build passes `COMPILER_INDEX_STORE_ENABLE=YES`, where it went on with a store missing those modules and arm B's semantic answers came back partial.
+- Fixed: the bench scores a correct fix to an injected file whose path holds a space as a success, reading `git status` unquoted, where the quoted path counted as another file changed and every such run failed.
+- Fixed: the bench's live hook check tries the next largest Swift file, up to five, when the largest is withheld only for its size, where a corpus whose largest file is over the read budget halted before its first task.
+
 ## 0.2.0
 
 - Changed: the product is SwiftSure. Its binary is `swift-sure` (so `swift sure …` runs it too), its rule `SwiftSure.md`, its MCP server `swift-sure` (tools `mcp__swift-sure__…`), its state `.swift-sure/` and its variables `SWIFT_SURE_*`; `swift-sure install` replaces the hooks, server and rule an earlier install registered, and for one release `sift` stays installed as an alias and `SIFT_*`, `.sift/`, `.sift.json` and `mcp__sift__` are still read, where it was Sift, run as `sift`.

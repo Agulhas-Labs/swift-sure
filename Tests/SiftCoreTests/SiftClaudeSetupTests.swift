@@ -78,6 +78,22 @@ struct SiftClaudeSetupTests {
         #expect(rule.noSourceReason(exists: false) == "no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)")
         #expect(rule.noSourceReason(exists: true) == "no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)")
     }
+
+    /// The benchmark marks an arm-B run invalid for any hook event outside its list, so a registered event missing from it throws out every run that fires it.
+    @Test
+    func theBenchmarkAllowsEveryEventSiftRegisters() throws {
+        let root = URL(filePath: #filePath)
+            .deletingLastPathComponent() // SiftCoreTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent()
+        let bench = try String(contentsOf: root.appendingPathComponent("Benchmarks/bench.py"), encoding: .utf8)
+        let line = try #require(bench.split(separator: "\n").first { $0.hasPrefix("SIFT_HOOK_EVENTS = {") })
+        let listed = line.drop { $0 != "{" }.dropFirst().prefix { $0 != "}" }
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\" ")) }
+
+        #expect(Set(listed) == Set(SiftClaudeSetup.events.map(\.name)))
+    }
 }
 
 extension SiftClaudeSetupTests {

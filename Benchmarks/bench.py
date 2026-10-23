@@ -47,6 +47,8 @@ DERIVED = WORK / "derived"
 STORE = WORK / "index-store"
 SCRATCH_HOME = WORK / "home"
 WRAPPER_DIR = WORK / "bin"
+# How many of the corpus's largest Swift files the hook probe tries, largest first, past files withheld for size.
+PROBE_FILES = 5
 
 
 class Product:
@@ -367,6 +369,19 @@ def write_tree(tasks: dict, source):
         shutil.copyfile(Path(tasks["_path"]).parent / origin, target)
 
 
+def unindexed_modules(log: Path) -> list:
+    """The Swift modules an xcodebuild log compiles without `-index-store-path`, sorted. Xcode indexes while
+    building only an unoptimised build by default, and a scheme's Test configuration can build its packages
+    optimised. A log with no compile lines (`swift build`, `-quiet`) yields none."""
+    modules = set()
+    for line in log.read_text(errors="replace").splitlines():
+        if "builtin-Swift-Compilation -- " in line and "-index-store-path" not in line:
+            match = re.search(r" -module-name (\S+)", line)
+            if match:
+                modules.add(match.group(1))
+    return sorted(modules)
+
+
 def build_index_store(command: list, tasks: dict, source, env: dict, log: Path) -> dict:
     """The corpus's index store, built at the fixed run path (a store records absolute source paths) with
     its DerivedData outside the corpus, at BENCH_DERIVED_DATA. Only the store is kept, at STORE; the rest of
@@ -381,6 +396,11 @@ def build_index_store(command: list, tasks: dict, source, env: dict, log: Path) 
     store = DERIVED / "Index.noindex" / "DataStore"
     if code != 0 or not store.is_dir():
         raise Halt("the index build failed (exit %s%s); see %s" % (code, ", timed out" if timed_out else "", log))
+    unindexed = unindexed_modules(log)
+    if unindexed:
+        raise Halt("the index build compiled %d Swift module(s) without an index (%s), so the store holds no units for "
+                   "them and arm B's answers there would be partial; an optimised configuration is indexed only when "
+                   "the command passes COMPILER_INDEX_STORE_ENABLE=YES; see %s" % (len(unindexed), ", ".join(unindexed), log))
     store.rename(STORE)
     shutil.rmtree(DERIVED)
     shutil.rmtree(RUN)
@@ -865,8 +885,8 @@ def native_swift_lookup(block: dict) -> bool:
 # The events install-hook registers. The stream names a hook's event, never its command, so a hook is
 # attributed to sift by its event: arm B's only hook source is the project settings, whose every command
 # install_sift asserts is the wrapper's, and arm A, run under the same sources, must fire none at all
-# (unless it runs sift too, with --rule-a).
-SIFT_HOOK_EVENTS = {"SessionStart", "SubagentStart", "PreToolUse", "PostToolUse", "Stop", "SubagentStop"}
+# (unless it runs sift too, with --rule-a). SiftClaudeSetupTests pins this set to SiftClaudeSetup.events.
+SIFT_HOOK_EVENTS = {"SessionStart", "SubagentStart", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "SubagentStop"}
 
 
 def hook_events(messages: list) -> list:
@@ -1070,8 +1090,17 @@ def answer_value(text: str):
 def unchanged(paths: list, env: dict) -> list:
     if not paths:
         return []
-    status = checked(["git", "-C", RUN, "status", "--porcelain", "--untracked-files=all", "--"] + paths, env=env)
-    return [line for line in status.splitlines() if line.strip()]
+    # -z, because plain porcelain quotes a path holding a space (` M "Data Controllers/X.swift"`), and a
+    # `restored` check matches the injected file by how the line ends. Under -z a rename or copy writes its
+    # source path as the next field, which is skipped.
+    status = checked(["git", "-C", RUN, "status", "--porcelain", "-z", "--untracked-files=all", "--"] + paths, env=env)
+    lines, fields = [], iter(status.split("\0"))
+    for field in fields:
+        if field.strip():
+            lines.append(field)
+            if field[0] in "RC":
+                next(fields, None)
+    return lines
 
 
 def with_reply_lines(parsed: dict) -> dict:
@@ -1441,7 +1470,9 @@ def probe_hook(base_path: str, sift_binary: str, rule: Path) -> dict:
     """Proof that arm B's hook is live, before any model call: arm B installed in a clone of the template at
     the run path, exactly as a run installs it, and the hook, through the wrapper and its scratch home, fed one
     whole-file Read of the corpus's largest tracked Swift file. The verdict must be an answer in place; any
-    other (a corpus the hook judges outside the sources, say) halts the session. The clone, the scratch home
+    other (a corpus the hook judges outside the sources, say) halts the session. One exception: a file whose
+    answer is withheld only for its size (rule overSize, as for a 600 KB file of string constants) proves
+    nothing either way, so the next largest is tried, up to PROBE_FILES files. The clone, the scratch home
     and the replay's state are gone when it returns."""
     state = WORK / "hook-probe"
     arm_env = clean_env(str(WRAPPER_DIR) + os.pathsep + base_path)
@@ -1457,22 +1488,26 @@ def probe_hook(base_path: str, sift_binary: str, rule: Path) -> dict:
         files = [RUN / name for name in tracked if name]
         if not files:
             raise Halt("the hook probe found no tracked Swift file in the corpus")
-        largest = max(files, key=lambda f: f.stat().st_size)
-        state.mkdir(parents=True)
-        payload = json.dumps({"session_id": "bench-hook-probe", "hook_event_name": "PreToolUse", "tool_name": "Read",
-                              "tool_input": {"file_path": str(largest)}, "cwd": str(RUN)})
-        replay = subprocess.run([str(WRAPPER), "replay-hook", "--state", str(state), "--cwd", str(RUN), "--show"],
-                                input=payload, capture_output=True, text=True, cwd=str(RUN), env=arm_env,
-                                timeout=600)
-        first, _, answer = replay.stdout.partition("\n")
-        try:
-            verdict = json.loads(first)
-        except Exception:  # not JSON: the replay failed
-            verdict = {}
+        for largest in sorted(files, key=lambda f: f.stat().st_size, reverse=True)[:PROBE_FILES]:
+            shutil.rmtree(state, ignore_errors=True)
+            state.mkdir(parents=True)
+            payload = json.dumps({"session_id": "bench-hook-probe", "hook_event_name": "PreToolUse",
+                                  "tool_name": "Read", "tool_input": {"file_path": str(largest)}, "cwd": str(RUN)})
+            replay = subprocess.run([str(WRAPPER), "replay-hook", "--state", str(state), "--cwd", str(RUN), "--show"],
+                                    input=payload, capture_output=True, text=True, cwd=str(RUN), env=arm_env,
+                                    timeout=600)
+            first, _, answer = replay.stdout.partition("\n")
+            try:
+                verdict = json.loads(first)
+            except Exception:  # not JSON: the replay failed
+                verdict = {}
+            if replay.returncode != 0 or verdict.get("rule") != "overSize":
+                break
         if replay.returncode != 0 or verdict.get("token") != "in-place":
-            raise Halt("arm B's hook is inert: a whole-file Read of the corpus's largest Swift file came back "
-                       "verdict %s, rule %s, not an answer in place (exit %s)\n%s%s" % (
-                           verdict.get("token"), verdict.get("rule"), replay.returncode, first, replay.stderr))
+            raise Halt("arm B's hook is inert: a whole-file Read of %s came back verdict %s, rule %s, not an answer "
+                       "in place (exit %s)\n%s%s" % (
+                           largest.relative_to(RUN), verdict.get("token"), verdict.get("rule"), replay.returncode,
+                           first, replay.stderr))
         answer = answer.partition("--- answer ---\n")[2]
         return {"hook_live": True, "hook_live_rule": verdict.get("rule"),
                 "hook_probe_read_chars": len(largest.read_text(errors="replace")), "hook_probe_answer_chars": len(answer)}
