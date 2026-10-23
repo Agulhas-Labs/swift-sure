@@ -1,0 +1,624 @@
+//
+// Copyright © Agulhas Labs
+//
+
+import Foundation
+
+/// The one value most of a run's failures read, where they read one at all — the claim a census of signatures structurally cannot make.
+///
+/// **A signature elides exactly the thing this counts.** ``RunFailureSignature`` replaces every string literal with `"…"` so that failures written differently collapse onto one another, which is what turns 434 distinct messages into 210 kinds — and it is also what makes `labels → ""` and `labels → "Sprockets"` the same kind. So a run whose whole suite compared against an empty accessibility tree renders as hundreds of signatures with nothing in common, while the one fact that explains all of them is the value sitting inside each message, elided from every line the block prints.
+///
+/// **That case is the most expensive false alarm this command has measured.** A package run after a simulator boot failed 466 tests over 215 signatures; the answer compressed 14,920 lines to 31, and all 31 said the same thing in different words. The reader's next step was three more suite runs. What was missing was one line: *461 of these 466 compare against an empty read, and that is consistent with the device's accessibility preference having been off for the run*.
+///
+/// **It is stated generally and the accessibility clause is the special case.** What the detection asserts is arithmetic — N of M failures read one and the same value — and the value may be an empty string, an empty array, `nil`, or the same timeout sentence. Only where the shared value is an *empty* one, read as the subject of the expectation by an expression that names an accessibility tree, on a simulator this run's own restore found the preference switched off on, spread over more files than a block can illustrate and landing in nothing this working tree has changed, does the line go on to offer a reading of the empty value and whatever the reader has left to do: five independent markers, because even a *possible* device fault stated over a real regression costs the reader the suite runs this exists to save.
+///
+/// **What that clause offers is a consistency, never a cause**, because both readings the device marker rests on are taken after the wrapped command has returned. See ``line`` for the claim it is allowed to make and ``DeviceFault`` for the two things the reader may have left to do.
+public struct RunDominantFailureClass: Sendable, Equatable {
+    /// The shared value, exactly as the framework expanded it — `""`, `[]`, `nil`, a timeout sentence.
+    public let value: String
+    /// The expression that read it in most of those failures, which is what makes the value legible.
+    ///
+    /// Most rather than first, because the first is an accident of the order the run printed its failures while the commonest is the reading the reader is being asked to recognise.
+    public let expression: String
+    /// How many of the run's failures read it.
+    public let count: Int
+    /// How many failures the run recorded in all.
+    public let total: Int
+    /// How many distinct signatures those failures are spread over — the number that says this crosses the census rather than restating one row of it.
+    public let signatures: Int
+    /// Whether the failures have the shape of an empty in-process accessibility tree, whatever the device read: every marker ``deviceFault`` rests on except the device itself.
+    ///
+    /// Held apart from the device because the answer asks it of a simulator whose preference read on: such a device earns no clause here, but the line about it is owed only where the failures look like this.
+    public let readsEmptyTree: Bool
+    /// The device fault every marker of an empty in-process accessibility tree is consistent with, or `nil` where they do not all hold — which is what earns the line its reading of the empty value and whatever is left to do about it.
+    public let deviceFault: DeviceFault?
+}
+
+public extension RunDominantFailureClass {
+    /// What this run's own restore found on the simulator whose accessibility preference the empty reads are consistent with, and which of two things the reader has left to do.
+    ///
+    /// Both cases say the preference was off *when the run ended*, because that is what the restore read on the device, and the restore reads only once the wrapped command has returned; they differ only in whether it is off still. Neither says it was off *while the tests ran* — a session teardown switches it off as it ends, which reads the same — and ``line`` is worded to that limit. A run that never put a test on a simulator has neither, and that is the marker that keeps this clause off a package run entirely.
+    enum DeviceFault: Sendable, Equatable {
+        /// This run found the preference off and switched it back on, so nothing is left to do but run the suite again.
+        case reArmed(udid: String?)
+        /// This run could not switch it back on, or could not see that the write held, so the reader has to.
+        case stillOff(udid: String?)
+    }
+}
+
+public extension RunDominantFailureClass {
+    /// The dominant class of `messages`, measured against the census taken over the same failures in the same order, or `nil` where there is no one value to lead with.
+    ///
+    /// **Three terms, and each is a boundary rather than a tuned constant.** *More than half the failures* is the first: it is the only non-arbitrary point on that axis, since below it the majority of the run disagrees with the line and the line would be describing a faction. *More than ``RunFailureCensus/signatureCap`` failures* is the floor, the same one ``RunFailureCensus/isChieflyRepetition`` takes, because a run small enough for the block to name every failure has the values themselves on the page. And *more than one signature* is the term that keeps this from being a second printing of a line the block already has: within a single signature the `↳ top:` line above already names the shape, and a run that is chiefly one message does not need to be told twice.
+    ///
+    /// **Every tally here is over each failure's *distinct* readings**, so a message comparing `""` against `""` counts once rather than twice, a value is never made dominant by one failure mentioning it repeatedly, and — the part that decides which expression gets named — one compound `#expect(a.labels.isEmpty && b.labels.isEmpty)` casts one vote for `labels` rather than two. Counting occurrences instead would let a handful of compound assertions outvote a majority of simple ones and name the wrong expression, which is the expression the accessibility test is then applied to. Ties are broken on the value's own text so the same run always renders the same way.
+    ///
+    /// **A failure's readings are the ones its message carries inline and the ones its `↳` expansions print beneath it, in print order.** An older Swift Testing expands inside the message, `(labels → "").contains(bay.signage → "Sprockets")`; a newer one prints each expansion as a `↳` line of its own, `<expression> → <value>`, starting with the whole expression the message names. That first expansion's `true` or `false` is the failed expectation itself rather than a value it read, so it is not a reading — counted, it would make `false` the one value of any run of failed comparisons — while a whole expression reading anything else, `nil` from a `#require`, is the read. See ``expansions(beneath:in:)``.
+    ///
+    /// **Among the values past the half, the one read as the failure's subject comes first.** A failure's subject is its first reading, the left operand of a comparison, and a value that most of the failures it is in read as their subject is what the code returned, where a value read in the same number of failures further down is more often a named constant on the expected side, `expected → "q"`, printed beneath every failure alike. The order is then the higher count, then the value's text. It adds no threshold: it only orders values already past the half. Its limit is known: a constant that is the only value past the half still leads, because a constant cannot be told from a read by its text.
+    ///
+    /// - Parameter markedLines: Each failure's `↳` lines, one array per message in the same order; empty where the failures carry none.
+    /// - Parameter accessibility: What re-arming the preference found on each simulator this run put its tests on, in argv order — empty for a run that named no simulator at all. See ``DeviceFault`` for why the clause about a device is withheld without it.
+    static func of(
+        _ messages: [String],
+        markedLines: [[String]] = [],
+        census: RunFailureCensus,
+        accessibility: [SimulatorAccessibility.Restoration] = []
+    ) -> RunDominantFailureClass? {
+        guard census.count > RunFailureCensus.signatureCap else {
+            return nil
+        }
+        var signatureOfPosition: [Int: Int] = [:]
+        for (rank, signature) in census.signatures.enumerated() {
+            for position in signature.positions {
+                signatureOfPosition[position] = rank
+            }
+        }
+        var positions: [String: [Int]] = [:]
+        var expressions: [String: [String: Int]] = [:]
+        var subjects: [String: [String: Int]] = [:]
+        for (position, message) in messages.enumerated() {
+            var countedValues: Set<String> = []
+            var countedReadings: Set<Reading> = []
+            let beneath = markedLines.indices.contains(position) ? expansions(beneath: message, in: markedLines[position]) : []
+            for (rank, reading) in (readings(in: message) + beneath).enumerated() {
+                if countedValues.insert(reading.value).inserted {
+                    positions[reading.value, default: []].append(position)
+                }
+                if countedReadings.insert(reading).inserted {
+                    expressions[reading.value, default: [:]][reading.expression, default: 0] += 1
+                }
+                if rank == 0 {
+                    subjects[reading.value, default: [:]][reading.expression, default: 0] += 1
+                }
+            }
+        }
+        guard let value = leadingValue(
+            positions: positions,
+            subjects: subjects,
+            signatureOfPosition: signatureOfPosition,
+            failureCount: census.count
+        ),
+            let shared = positions[value],
+            let expression = commonest(of: expressions[value] ?? [:])
+        else {
+            return nil
+        }
+        let spread = Set(shared.compactMap { signatureOfPosition[$0] })
+        let readsEmptyTree = readsEmptyTree(
+            value,
+            read: expression,
+            subjectOf: subjects[value]?[expression] ?? 0,
+            among: shared.count,
+            over: census
+        )
+        return RunDominantFailureClass(
+            value: value,
+            expression: expression,
+            count: shared.count,
+            total: census.count,
+            signatures: spread.count,
+            readsEmptyTree: readsEmptyTree,
+            deviceFault: readsEmptyTree ? fault(among: accessibility) : nil
+        )
+    }
+
+    /// The one line, printed above the examples rather than in place of them.
+    ///
+    /// **It leads and never suppresses.** The signatures it covers are listed underneath exactly as they were, because a failure is identified by its name and this line carries none: a reader who has just been told that 461 of 466 failures are one fault still needs somewhere to start reading, and the five the block would have shown are as good a start as they ever were. The whole of what this changes is that the first thing read is the fault rather than the fifth spelling of it.
+    ///
+    /// **The device clause claims a consistency and names what it cannot rule out.** Both readings behind ``deviceFault`` are taken after the wrapped command has returned — ``SimulatorAccessibility/restore(after:run:pause:now:)`` polls for the teardown once the run ends — so a preference that was off for the whole run and one a session teardown switched off as that run ended are the same reading. Nearly every wrapped simulator run produces the second, which is why the line may say the empty reads are *consistent with* the preference having been off and may not say the preference is why they are empty, still less that the code is not: a genuine regression on a clean tree passes every marker here, and a line blaming the device over one talks the reader out of a true failure and costs the suite runs this whole clause exists to save.
+    ///
+    /// **What follows the clause is whatever the reader has left to do, and never what this run has already done.** Wherever this clause is earned the answer leads its failures with the device's own accessibility line, which says what the restore did and, where the preference is off still, carries the one command that re-arms it. So the device a run re-armed is named and the reader is asked to re-run, and a device left off points at that line's command rather than printing a second copy of it a line below the first.
+    var line: String {
+        let reading = RunFailureCensus.clipped("\(expression) → \(value)")
+        guard let deviceFault else {
+            return "  ↳ \(count) of \(total) failures read one and the same value (\(reading)), across \(signatures) signatures"
+        }
+        let clause = "  ↳ \(count) of \(total) compare against an EMPTY accessibility read (\(reading)) — consistent with the simulator's accessibility preference having been off for this run, though it was read only after the tests finished, so a teardown that switched it off at the end reads the same."
+        return switch deviceFault {
+        case let .reArmed(udid):
+            "\(clause) This run switched it back on for \(udid ?? "<udid>"), so re-run as it stands"
+        case .stillOff:
+            "\(clause) Re-arm it with the command in the accessibility line leading these failures, and re-run"
+        }
+    }
+}
+
+private extension RunDominantFailureClass {
+    /// One expanded subexpression as the framework printed it: what was read, and what it read.
+    ///
+    /// Hashable because the tallies are over a failure's *distinct* readings, and two readings are the same reading only where both halves match.
+    struct Reading: Hashable {
+        let expression: String
+        let value: String
+    }
+
+    /// The marker Swift Testing puts between a subexpression and the value it evaluated to.
+    static var expansion: Character {
+        "→"
+    }
+
+    /// The values that say a read came back empty.
+    ///
+    /// An empty string, an empty array and an empty dictionary, and deliberately not `nil`: an accessibility tree that was never built reads as an empty collection, while `nil` is what an ordinary optional lookup misses with and is far too common a value to hang a diagnosis on. The general line still names a dominant `nil`; only the clause about the device is withheld from it.
+    static var emptyReads: Set<String> {
+        ["\"\"", "[]", "[:]"]
+    }
+
+    /// The names an in-process accessibility read goes by, matched on the last component of the expression.
+    ///
+    /// The vocabulary of the tree itself rather than of any one project: an expression holding `accessibility` anywhere along its dotted path qualifies outright, and beyond that the three plural nouns a hosted view's tree is read into. A singular `label` is pointedly absent — one label reading empty is an ordinary expectation about one view, and it is the *collection* coming back empty that says no tree was built.
+    ///
+    /// **These three nouns alone are the weakest marker in the set, and they carry the clause only because a device marker stands beside them.** `elements` is an XML node's children and a collection's contents as readily as a tree's; `labels` is a chart's axis and a form's fields. On their own they name a regression as often as a device, which is why nothing here decides anything without the device reading the guard below it takes.
+    static var accessibilityReads: Set<String> {
+        ["elements", "identifiers", "labels"]
+    }
+
+    /// Whether the value, the expression that read it and the spread of the failures together have the shape of an empty in-process accessibility tree — four of the five markers the device clause rests on, the device being the fifth, which ``fault(among:)`` reads.
+    ///
+    /// **Five markers, and all five are required, because the line they unlock offers the reader a reading of their whole run.** The value is empty; it was read as the *subject* of most of the failures that share it, by an expression that names an accessibility read; this run put its tests on a simulator whose accessibility preference it found switched off; the failures landed in nothing this working tree has changed; and they are spread over more files than the block could illustrate. What the five buy is a clause worth printing, not a cause: the reading behind the third is taken after the wrapped command has returned, so ``line`` states the consistency and says outright that it cannot tell a preference off for the whole run from a teardown that switched it off at the end.
+    ///
+    /// **The device is the marker that does the discriminating, and the only one a package run cannot satisfy by accident.** A `swift test` run names no simulator, so ``SimulatorAccessibility/restore(after:run:pause:now:)`` returns nothing for it and this clause is unreachable however its expressions are spelled — which matters because `elements`, `identifiers` and `labels` are ordinary names for ordinary collections. Nor is a simulator enough on its own: a device whose preference read on throughout, or whose domain no session has ever written, is a device the empty tree is *not* explained by, and those restorations are passed over here exactly like a run with none.
+    ///
+    /// **The subject marker is what keeps an expected value from being read as a reading.** Swift Testing expands both sides of a comparison, so `(bay.name → "Alpha") == (labels → "")` offers `labels → ""` to a tally that cannot see it is the value the test was *hoping for*. The empty read that says a tree was never built is the thing the expectation is about, which is the first expansion the framework printed; a constant on the far side of an `==` may still make the general line, and may not make this one.
+    ///
+    /// **`0 in changed files` is read strictly, and only where it is a count at all.** A signal that could not be established is never read as zero, and one failure in a changed file is enough to withhold the clause. It is the weakest of the five in the case that matters, though: a clean tree is what CI and a freshly committed branch both have, so it discriminates nothing there and the device is what the answer rests on.
+    static func readsEmptyTree(
+        _ value: String,
+        read expression: String,
+        subjectOf subjects: Int,
+        among shared: Int,
+        over census: RunFailureCensus
+    ) -> Bool {
+        emptyReads.contains(value)
+            && subjects * 2 > shared
+            && namesAnAccessibilityRead(expression)
+            && census.inChangedFiles == .count(0)
+            && census.fileCount > RunFailureCensus.signatureCap
+    }
+
+    /// Whether the expression names an accessibility read: `accessibility` anywhere along its dotted path, or one of ``accessibilityReads`` as the name it ends on.
+    ///
+    /// The whole path rather than the last component, because a path may spell the tree out halfway along it and end on a name this set does not carry.
+    static func namesAnAccessibilityRead(_ expression: String) -> Bool {
+        let lowered = expression.lowercased()
+        guard !lowered.contains("accessibility") else {
+            return true
+        }
+        return accessibilityReads.contains(lowered.split(separator: ".").last.map(String.init) ?? lowered)
+    }
+
+    /// What this run's restores amount to as one fault, or `nil` where nothing they found says the preference was off when the run ended.
+    ///
+    /// **Only the two states that *read* the preference off count.** A device this run restored was seen off and put back; a device it failed to restore is known off. Everything else is a device the empty tree is not evidence about — read on, never switched off, out of reach, or a reading that could not be taken at all — and not even a clause claiming a consistency may be built on any of them. A device that was never reached is the clearest of those: an unreachable device says nothing whatever about the preference, so widening the set to admit it would print the clause over a reading that does not exist. The cost of leaving it out is named in `Docs/Design.md`.
+    ///
+    /// A device left off outranks one this run re-armed, however argv ordered them, because it is the one the reader still has to do something about.
+    static func fault(among restorations: [SimulatorAccessibility.Restoration]) -> DeviceFault? {
+        var reArmed: DeviceFault?
+        for restoration in restorations {
+            switch restoration.state {
+            case .failed:
+                return .stillOff(udid: restoration.udid)
+            case .restored:
+                if reArmed == nil {
+                    reArmed = .reArmed(udid: restoration.udid)
+                }
+            case .alreadyOn, .neverSwitchedOff, .unreached, .unconfirmed, .undetermined:
+                continue
+            }
+        }
+        return reArmed
+    }
+
+    /// The value to lead with: of those more than half the failures read across more than one signature, one read as the subject in more than half of the failures sharing it, then the higher count, then the text.
+    ///
+    /// The spread is part of the choice, so a value confined to one signature never displaces one that spans several; with no value past both tests there is no value to lead with.
+    static func leadingValue(
+        positions: [String: [Int]],
+        subjects: [String: [String: Int]],
+        signatureOfPosition: [Int: Int],
+        failureCount: Int
+    ) -> String? {
+        let past = positions.filter { entry in
+            entry.value.count * 2 > failureCount && Set(entry.value.compactMap { signatureOfPosition[$0] }).count > 1
+        }
+        func isSubject(_ value: String) -> Bool {
+            let asSubject = subjects[value]?.values.reduce(0, +) ?? 0
+            return asSubject * 2 > past[value]?.count ?? 0
+        }
+        let preferred = past.filter { isSubject($0.key) }
+        return commonest(of: (preferred.isEmpty ? past : preferred).mapValues(\.count))
+    }
+
+    /// The commonest key of `tally`, ties broken on the key's own text so one run always renders one way.
+    static func commonest<Key: Comparable>(of tally: [Key: Int]) -> Key? {
+        tally.max { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }?.key
+    }
+
+    /// Every `subexpression → value` the framework expanded inside `message`, in the order it printed them.
+    ///
+    /// **Bounded by the parentheses the framework already put there.** Swift Testing prints an expansion inside the parentheses of the expression it belongs to — `(labels → "").contains(bay.signage → "Sprockets")` — so the open paren enclosing the marker is where the subexpression starts and its matching close is where the value ends. Reading the value forward to the end of the line instead would make every expansion in a compound expectation a value of its own, none of which any other failure could share.
+    ///
+    /// String literals, raw ones included, are skipped whole, because a parenthesis or a marker inside one is text rather than structure. A marker with no enclosing paren, and a paren that never closes, are both passed over: interleaved output is the only way either arrives, and there is no bound to read a value to.
+    static func readings(in message: String) -> [Reading] {
+        var readings: [Reading] = []
+        var frames: [(open: String.Index, marker: String.Index?)] = []
+        var index = message.startIndex
+        while index < message.endIndex {
+            switch message[index] {
+            case "\"", "#":
+                index = afterLiteral(in: message, openingAt: index)
+                continue
+            case "(":
+                frames.append((open: message.index(after: index), marker: nil))
+            case ")":
+                if let frame = frames.popLast(), let marker = frame.marker {
+                    readings.append(Reading(
+                        expression: trimmed(message[frame.open ..< marker]),
+                        value: trimmed(message[message.index(after: marker) ..< index])
+                    ))
+                }
+            case Self.expansion:
+                if let frame = frames.last, frame.marker == nil {
+                    frames[frames.count - 1].marker = index
+                }
+            default:
+                break
+            }
+            index = message.index(after: index)
+        }
+        return readings
+    }
+
+    /// The readings of the `↳` expansions Swift Testing printed beneath `message`, in print order, the failed expectation's own `true` or `false` left out.
+    ///
+    /// **The expansions start at the line that repeats the message's expression up to its marker**, the match ``RunFailureShape/merging(_:with:)`` makes, and run while each line still reads as `<expression> → <value>`. Where the lines carry their depth, an unindented line after the start is another expectation's whole expression, printed there by a parallel run, and ends the run; where none is indented, the depth is unknown and the run goes on as before. A comment is printed first, as a `↳` line of its own, so a line above that one is never read even where it carries a marker: `expected → really` is the author's sentence, not a value.
+    static func expansions(beneath message: String, in lines: [String]) -> [Reading] {
+        guard message.hasPrefix(failedExpectation) else {
+            return []
+        }
+        let expression = trimmed(message.dropFirst(failedExpectation.count))
+        guard let start = lines.firstIndex(where: { reading(of: $0)?.expression == expression }) else {
+            return []
+        }
+        var readings: [Reading] = []
+        let whole = reading(of: lines[start])
+        let depthKnown = RunExpansionDepth.areIndented(lines[(start + 1)...])
+        for (position, line) in lines[start...].enumerated() {
+            guard let reading = reading(of: line), !(depthKnown && position > 0 && !RunExpansionDepth.isIndented(line)) else {
+                break
+            }
+            if reading.expression == expression, ["true", "false"].contains(reading.value) {
+                continue
+            }
+            if let whole, impliesBoolean(reading, whereWholeReads: whole) {
+                continue
+            }
+            if restatesAnOperand(reading.expression, reading: reading.value, writtenIn: expression) {
+                continue
+            }
+            readings.append(reading)
+        }
+        return readings
+    }
+
+    /// One `↳` line read as `<expression> → <value>`, split at its first marker outside a string literal (a raw one included), or `nil` where it carries none or either side is empty.
+    ///
+    /// The depth Swift Testing indents a nested expansion by is whitespace on either side of the text, so it is trimmed away with the rest.
+    static func reading(of line: String) -> Reading? {
+        var index = line.startIndex
+        while index < line.endIndex {
+            switch line[index] {
+            case "\"", "#":
+                index = afterLiteral(in: line, openingAt: index)
+            case Self.expansion:
+                let expression = trimmed(line[..<index])
+                let value = trimmed(line[line.index(after: index)...])
+                return expression.isEmpty || value.isEmpty ? nil : Reading(expression: expression, value: value)
+            default:
+                index = line.index(after: index)
+            }
+        }
+        return nil
+    }
+
+    /// Whether `reading` is a Boolean the failure itself implies, so it is no read: the expression with a leading `!` stripped has the opposite of the whole's value, and a member name that ends the whole expression (`isEmpty` in `list.isEmpty`) or that stripped one restates the value it belongs to.
+    ///
+    /// A Boolean read of any other subexpression stays a read, since it can be the cause the failures share.
+    static func impliesBoolean(_ reading: Reading, whereWholeReads whole: Reading) -> Bool {
+        guard ["true", "false"].contains(whole.value), ["true", "false"].contains(reading.value) else {
+            return false
+        }
+        var implied = [(expression: whole.expression, value: whole.value)]
+        if whole.expression.hasPrefix("!") {
+            implied.append((trimmed(whole.expression.dropFirst()), whole.value == "true" ? "false" : "true"))
+        }
+        return implied.contains { expression, value in
+            reading.value == value && (reading.expression == expression || reading.expression == lastMember(of: expression))
+        }
+    }
+
+    /// The name after the final `.` of `expression` that sits outside brackets and string literals, or `nil` where there is none.
+    static func lastMember(of expression: String) -> String? {
+        var depth = 0
+        var dot: String.Index?
+        var index = expression.startIndex
+        while index < expression.endIndex {
+            switch expression[index] {
+            case "\"", "#":
+                index = afterLiteral(in: expression, openingAt: index)
+                continue
+            case "(", "[", "{":
+                depth += 1
+            case ")", "]", "}":
+                depth -= 1
+            case "." where depth == 0:
+                dot = index
+            default:
+                break
+            }
+            index = expression.index(after: index)
+        }
+        guard let dot else {
+            return nil
+        }
+        let member = trimmed(expression[expression.index(after: dot)...])
+        return member.isEmpty ? nil : member
+    }
+
+    static func trimmed(_ text: Substring) -> String {
+        text.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+extension RunDominantFailureClass {
+    /// Whether an expansion only restates an operand the source wrote rather than a value the code under test returned: Swift Testing expands the expected side of a comparison too, as `some → "ok"`, `Optional("ok") → "ok"` or `.none → nil`, and counting any of them names the expected value as the one most failures read.
+    ///
+    /// **An expression restates when it names nothing but literal syntax**: once every string literal without an interpolation is skipped, what remains may hold only numeric literals in any Swift spelling, the words `true`, `false`, `nil`, `some`, `none` and `Optional`, implicit members with no receiver (`.blue`), and operators, parentheses, brackets, commas, colons and whitespace. Any other identifier is a read, and so is an interpolation, an explicit type member (`Color.blue`, a static read of real state) and an argument to an implicit member (`.some(x)` reads `x`). The exception is a local named `some` or `none`: where the expectation's own expression writes that word bare (outside a string literal, and not straight after a `.`), the expansion is the local's read, unless the value it shows is literal syntax the expression also wrote, which makes it the wrapper around that literal after all. The known limit: a local named `Optional` is taken for the word and loses its read.
+    static func restatesAnOperand(_ expression: String, reading value: String? = nil, writtenIn source: String = "") -> Bool {
+        if let value, isLocalRead(expression, showing: value, writtenIn: source) {
+            return false
+        }
+        var index = expression.startIndex
+        while index < expression.endIndex {
+            let character = expression[index]
+            if character == "\"" || character == "#" {
+                guard let literal = literal(in: expression, openingAt: index), !literal.interpolates else {
+                    return false
+                }
+                index = literal.end
+            } else if ("0" ... "9").contains(character) {
+                let end = numberEnd(in: expression, from: index)
+                guard isNumericLiteral(expression[index ..< end]) else {
+                    return false
+                }
+                index = end
+            } else if character.isLetter || character == "_" {
+                let end = expression[index...].firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? expression.endIndex
+                guard literalWords.contains(String(expression[index ..< end])) || isImplicitMember(at: index, in: expression) else {
+                    return false
+                }
+                index = end
+            } else if character.isWhitespace || "+-*/%=<>!&|^~?.()[],:".contains(character) {
+                index = expression.index(after: index)
+            } else {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Whether an expansion of the bare word `some` or `none` is a local of that name read, because `source` writes the word bare and the value is not literal syntax `source` also wrote.
+    ///
+    /// The value counts as written only as a whole token, so a `1` is not found inside `10`.
+    private static func isLocalRead(_ expression: String, showing value: String, writtenIn source: String) -> Bool {
+        let word = expression.trimmingCharacters(in: .whitespaces)
+        guard word == "some" || word == "none", writesBareWord(word, in: source) else {
+            return false
+        }
+        return !(restatesAnOperand(value) && writesToken(value, in: source))
+    }
+
+    /// Whether `source` writes `value` as a whole token: the characters either side are no letter, digit, `_` or `.`, and a string value's own quotes bound it.
+    private static func writesToken(_ value: String, in source: String) -> Bool {
+        guard !value.isEmpty else {
+            return false
+        }
+        let isString = value.hasPrefix("\"") || value.hasPrefix("#")
+        func joins(_ character: Character?) -> Bool {
+            guard let character else {
+                return false
+            }
+            return character.isLetter || character.isNumber || character == "_" || character == "."
+        }
+        var searchStart = source.startIndex
+        while let range = source.range(of: value, range: searchStart ..< source.endIndex) {
+            let before = range.lowerBound == source.startIndex ? nil : source[source.index(before: range.lowerBound)]
+            let after = range.upperBound == source.endIndex ? nil : source[range.upperBound]
+            if isString || (!joins(before) && !joins(after)) {
+                return true
+            }
+            searchStart = source.index(after: range.lowerBound)
+        }
+        return false
+    }
+
+    /// Whether `source` writes `word` as an identifier of its own, outside string literals, not straight after a `.` and not as an argument label (followed directly by a colon).
+    private static func writesBareWord(_ word: String, in source: String) -> Bool {
+        var index = source.startIndex
+        while index < source.endIndex {
+            let character = source[index]
+            if character == "\"" || character == "#" {
+                index = afterLiteral(in: source, openingAt: index)
+            } else if character.isLetter || character == "_" {
+                let end = source[index...].firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? source.endIndex
+                if source[index ..< end] == word, index == source.startIndex || source[source.index(before: index)] != ".", end == source.endIndex || source[end] != ":" {
+                    return true
+                }
+                index = end
+            } else {
+                index = source.index(after: index)
+            }
+        }
+        return false
+    }
+
+    /// What Swift Testing opens a failed `#expect` or `#require` on, ahead of the expression it failed on.
+    static var failedExpectation: String {
+        "Expectation failed: "
+    }
+
+    /// Everything after the closing delimiter of the literal opening at `index`, or the character after the opening itself where it never closes.
+    static func afterLiteral(in message: String, openingAt index: String.Index) -> String.Index {
+        literal(in: message, openingAt: index)?.end ?? message.index(after: index)
+    }
+}
+
+extension RunDominantFailureClass {
+    /// Where a string literal ends and whether it interpolates anything.
+    struct LiteralExtent {
+        let end: String.Index
+        let interpolates: Bool
+    }
+
+    /// The string literal opening at `index`, regular, raw (`#"…"#`, with any number of `#`) or multi-line, or `nil` where none opens there or it never closes.
+    ///
+    /// A literal's escape is a backslash followed by its own number of `#`, so `\(` interpolates in `"…"` and `\#(` in `#"…"#`, while a bare backslash in a raw literal is text. An interpolation's body, nested literals and all, is part of the literal, so a delimiter inside it never closes the literal.
+    static func literal(in text: String, openingAt index: String.Index) -> LiteralExtent? {
+        let hashes = String(text[index...].prefix { $0 == "#" })
+        let quote = text.index(index, offsetBy: hashes.count)
+        guard quote < text.endIndex, text[quote] == "\"" else {
+            return nil
+        }
+        let delimiter = text[quote...].hasPrefix("\"\"\"") ? "\"\"\"" : "\""
+        let closing = delimiter + hashes
+        let escape = "\\" + hashes
+        var interpolates = false
+        var scan = text.index(quote, offsetBy: delimiter.count)
+        while scan < text.endIndex {
+            let rest = text[scan...]
+            if rest.hasPrefix(closing) {
+                return LiteralExtent(end: text.index(scan, offsetBy: closing.count), interpolates: interpolates)
+            }
+            if rest.hasPrefix(escape) {
+                let escaped = text.index(scan, offsetBy: escape.count)
+                guard escaped < text.endIndex else {
+                    return nil
+                }
+                if text[escaped] == "(" {
+                    interpolates = true
+                    guard let bodyEnd = interpolationEnd(in: text, from: text.index(after: escaped)) else {
+                        return nil
+                    }
+                    scan = bodyEnd
+                } else {
+                    scan = text.index(after: escaped)
+                }
+            } else {
+                scan = text.index(after: scan)
+            }
+        }
+        return nil
+    }
+}
+
+private extension RunDominantFailureClass {
+    /// The index after the `)` closing an interpolation whose body starts at `index`, or `nil` where it never closes.
+    ///
+    /// Parentheses nest, and a string literal inside the body is skipped whole, so its quotes and parentheses are text.
+    static func interpolationEnd(in text: String, from index: String.Index) -> String.Index? {
+        var depth = 1
+        var scan = index
+        while scan < text.endIndex {
+            let character = text[scan]
+            if character == "(" {
+                depth += 1
+            } else if character == ")" {
+                depth -= 1
+                if depth == 0 {
+                    return text.index(after: scan)
+                }
+            } else if character == "\"" || character == "#" {
+                if let nested = literal(in: text, openingAt: scan) {
+                    scan = nested.end
+                    continue
+                }
+                if text[scan...].drop(while: { $0 == "#" }).first == "\"" {
+                    return nil
+                }
+            }
+            scan = text.index(after: scan)
+        }
+        return nil
+    }
+
+    /// The words that are literal syntax rather than a name the code under test resolves, `some` and `none` only while the expectation writes no local of that name.
+    static var literalWords: Set<String> {
+        ["true", "false", "nil", "some", "none", "Optional"]
+    }
+
+    /// Whether the word at `index` is an implicit member, `.name` with no receiver ahead of its dot: whitespace, an operator, an opening bracket, a comma or a colon, or nothing at all.
+    static func isImplicitMember(at index: String.Index, in text: String) -> Bool {
+        guard index > text.startIndex else {
+            return false
+        }
+        let dot = text.index(before: index)
+        guard text[dot] == "." else {
+            return false
+        }
+        guard dot > text.startIndex else {
+            return true
+        }
+        let before = text[text.index(before: dot)]
+        return before.isWhitespace || "+-*/%=<&|^~([,:".contains(before)
+    }
+
+    /// Where the numeric literal starting at `index` ends: its digits, letters and `_`, a `.` only ahead of a digit, and a sign only after an exponent's `e`, or a hexadecimal one's `p`.
+    static func numberEnd(in text: String, from index: String.Index) -> String.Index {
+        let exponents: Set<Character> = text[index...].hasPrefix("0x") ? ["p", "P"] : ["e", "E"]
+        var scan = text.index(after: index)
+        while scan < text.endIndex {
+            let character = text[scan]
+            let next = text.index(after: scan)
+            if character.isLetter || character.isNumber || character == "_" {
+                scan = next
+            } else if character == ".", next < text.endIndex, text[next].isHexDigit {
+                scan = next
+            } else if "+-".contains(character), exponents.contains(text[text.index(before: scan)]) {
+                scan = next
+            } else {
+                break
+            }
+        }
+        return scan
+    }
+
+    /// Whether `token` is a whole Swift numeric literal: decimal with an optional fraction and exponent, hexadecimal with an optional fraction and `p` exponent, octal or binary, each with `_` separators.
+    static func isNumericLiteral(_ token: Substring) -> Bool {
+        token.wholeMatch(of: /[0-9][0-9_]*(\.[0-9][0-9_]*)?([eE][+-]?[0-9][0-9_]*)?/) != nil
+            || token.wholeMatch(of: /0x[0-9a-fA-F][0-9a-fA-F_]*(\.[0-9a-fA-F][0-9a-fA-F_]*)?([pP][+-]?[0-9][0-9_]*)?/) != nil
+            || token.wholeMatch(of: /0o[0-7][0-7_]*/) != nil
+            || token.wholeMatch(of: /0b[01][01_]*/) != nil
+    }
+}

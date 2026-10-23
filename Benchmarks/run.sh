@@ -1,0 +1,51 @@
+#!/bin/sh
+# Runs the paired benchmark (Benchmarks/README.md): every task, or each --task named, in both arms,
+# --repeats times, then prints the paired table. Results go to Benchmarks/results/<session>/.
+#
+# Usage:  sh Benchmarks/run.sh [--task <id>]... [--repeats N] [--paths K] [--session NAME] [--effort LEVEL]
+#                              [--timeout SECONDS] [--budget USD] [--binary PATH] [--claude PATH]
+#                              [--rule-b PATH] [--rule-a PATH | --mod-b DIR [--mod-env NAME=VALUE]... | --plugin-b DIR]
+#        --binary is the swift-sure binary under test (--sift is still accepted); the arms are set up
+#        under its name.
+#        --paths spreads the repeats over K run paths (--repeats is per path), pairing A with B at each, and the
+#        analysis bootstraps over paths, since the run path is part of the prompt and one path samples one mode.
+#        --rule-a runs arm A with SwiftSure too, under that rule file, so the table is rule A against rule B.
+#        --mod-b runs both arms with SwiftSure and loads that Claude Code plugin in arm B only: mod against none.
+#        --plugin-b runs both arms with SwiftSure: arm A installed (hooks, MCP server, rule), arm B from that Claude Code
+#        plugin alone, so the table is the plugin route against the installer route.
+#        --mod-env sets a variable in arm B's environment only (SWIFT_SURE_MOD_BASH=on, say).
+#
+# Exit:  0  every run finished (an invalid or failed run is a result, not an error)
+#        3  the harness stopped: the corpus would not build, an injection did not match once, claude is
+#           not logged in, arm B's hook did not answer a whole-file Read in place, or a run for this
+#           checkout is already in progress
+#
+# Everything a run writes outside the results lives under .build/bench, under this checkout's directory
+# in ~/Library/Caches/swift-sure-bench-run/ (the corpus, kept out of any build directory so SwiftSure's hook reads
+# it), or in Claude Code's state for the run path; all three are deleted when this script exits, however
+# it exits. It refuses to start while either directory exists, since the run path is fixed per checkout
+# and two runners would share it.
+set -u
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+paths="$(/usr/bin/python3 "$HERE/bench.py" paths)" || exit 3
+eval "$paths"
+
+for leftover in "$WORK" "$RUN_HOME" "$PROJECT_STATE"-[0-9]*; do
+    if [ -e "$leftover" ]; then
+        echo "error: $leftover exists: another run is using it, or one was killed; remove it by hand" >&2
+        exit 3
+    fi
+done
+child=
+trap 'rm -rf "$WORK" "$RUN_HOME" "$PROJECT_STATE" "$PROJECT_STATE"-[0-9]*' EXIT
+# The runner goes in the background so a signal reaches this trap at once, rather than after the run: it is
+# forwarded, and the runner unwinds (stopping whatever it started) before the directories go.
+trap 'if [ -n "$child" ]; then kill -TERM "$child" 2>/dev/null; wait "$child"; fi; exit 130' INT TERM
+
+/usr/bin/python3 "$HERE/bench.py" run "$@" &
+child=$!
+wait "$child"
+status=$?
+child=
+exit $status

@@ -1,0 +1,263 @@
+//
+// Copyright © Agulhas Labs
+//
+
+import Fieldwork
+import Foundation
+
+/// Runs a wrapped toolchain command, tees its output to the raw log, and filters it when the command is one this tool knows.
+///
+/// stdout and stderr share one pipe, exactly as `2>&1` does: the kernel then orders the two streams as the tool wrote them, which is what keeps a multi-line linker block contiguous and makes the log a faithful transcript rather than an approximate merge.
+public struct RunLauncher: Sendable {
+    private let workingDirectory: URL
+    /// The repository root when the caller has already looked for it — `.some(nil)` for a directory in no repository — so one run asks git for it once.
+    private let knownRoot: URL??
+    /// Where this run's transcript is written, when that is not the directory the command runs in.
+    ///
+    /// `nil` — every real invocation — files the transcript under the repository root the run resolved, beside the index and every other `.swift-sure/` file, even when the command runs in a nested package; only where no repository encloses the directory does it fall back to the working directory. That is what makes `swift-sure run` leave a receipt in the repository it just ran in, where its readers look. A caller driving this launcher *inside* another repository's test process is not a real invocation: it inherits that process's working directory and would otherwise write into, and prune, a run log that is nothing to do with it.
+    private let runLogDirectory: URL?
+    /// The run this launcher's transcript belongs to when its caller starts several launchers for one run (``RunLog/newRunToken()``), so the count that prunes transcripts reads them as one.
+    private let runToken: String?
+    /// Where the wrapped command's own time is read from, so a test can say what it measured without a wall-clock bound.
+    private let clock: @Sendable () -> Date
+
+    public init(workingDirectory: URL) {
+        self.workingDirectory = workingDirectory
+        knownRoot = nil
+        runLogDirectory = nil
+        runToken = nil
+        clock = { Date() }
+    }
+
+    /// A launcher for a directory whose repository root — or the absence of one — the caller has already found, writing its transcript under `runLogDirectory` where the caller names one.
+    public init(workingDirectory: URL, repositoryRoot: URL?, runLogDirectory: URL? = nil, runToken: String? = nil, clock: @escaping @Sendable () -> Date = { Date() }) {
+        self.workingDirectory = workingDirectory
+        knownRoot = .some(repositoryRoot)
+        self.runLogDirectory = runLogDirectory
+        self.runToken = runToken
+        self.clock = clock
+    }
+}
+
+extension RunLauncher {
+    /// Runs `arguments`, calling `sink` with each raw chunk when nothing is being filtered.
+    ///
+    /// The command is launched through `/usr/bin/env` so a bare name resolves on `PATH` and a missing one exits 127 the way a shell would, rather than throwing where the exit code is the contract.
+    ///
+    /// `children`, when given, starts the command as one of a set-aside's children — in a session of its own, announced to the watcher before it runs, with `/dev/null` for its input — so that neither it nor anything it starts can outlive a run killed outright and write into a tree already put back. `launched` is handed its process id, which is also its session's. `environment` is what the command is given, and is this process's own unless the caller says otherwise.
+    ///
+    /// **The wrapped command's environment is otherwise unchanged** — see ``ProcessEnvironment/withoutGit(from:)``. It is the caller's own command, run exactly as their shell would have run it; this tool's own git reads carry `GIT_OPTIONAL_LOCKS=0` themselves (``GitContext/readEnvironment()``), but forcing it onto the wrapped command too would mask a regression in the command's own git usage under a green `swift-sure run`.
+    ///
+    /// Reading the event stream asks a `swift test` that executes tests for its Swift Testing event stream as well, in a file under `.swift-sure/` removed once it is read, and reads the endings and failing tests its console lost from it (see ``RunEventStreamFold``). Only the command started carries the option: its recognition, its filter and the key it is filed under are all read from `arguments` as the caller wrote them.
+    ///
+    /// `progress`, when given, is begun before the command starts and fed every chunk of its output beside the filter; the caller ends it with SwiftSure's own exit code once that is known, and resets it on any path that throws.
+    ///
+    /// Once the command has exited, reading stops when its output goes quiet for `patience`, even where something it left running still holds the output open; the outcome then says what was left running (see ``RunHeldOutput``), which is never ended.
+    ///
+    /// A `swift test` that has not exited, has no live child after a test process was seen and has been quiet for `stall`'s window is stopped by its own pid, never its group (see ``RunTestStall``); the outcome then carries ``RunStoppedTest`` and the stopped command's own exit code.
+    ///
+    /// `heard`, when given, is called on every chunk of output as it is read — the moment the reader's own last-heard time moves — which is how a shard's supervisor tells a shard still printing from a stuck one.
+    public func run(
+        _ arguments: [String],
+        passingThrough sink: ((Data) -> Void)? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        children: SetAsideChildren? = nil,
+        readingEventStream: Bool = false,
+        progress: RunProgress? = nil,
+        patience: RunOutputPatience = .standard,
+        stall: RunTestStall = .standard,
+        heard: (() -> Void)? = nil,
+        launched: ((Int32) -> Void)? = nil
+    ) throws -> RunOutcome {
+        guard !arguments.isEmpty else {
+            throw RunError.nothingToRun
+        }
+        // The root is resolved before the command is recognised, not after: the extra linter names live in
+        // the repository's config, so recognition here is the one place that can read them, and every other
+        // caller of `recognize` reads argv alone.
+        let repositoryRoot = knownRoot ?? GitContext.discoverRoot(from: workingDirectory)
+        let linters = RunCommandKind.configuredLinters(inRepositoryAt: repositoryRoot)
+        let kind = RunCommandKind.recognize(arguments, linters: linters)
+        // `run` is the one entry point that writes into `.swift-sure/` without building an engine, so a repo
+        // that has never been indexed would otherwise gain an untracked transcript with no ignore coverage.
+        // The same exclusion the engine applies, called rather than restated.
+        if let repositoryRoot {
+            GitContext(repoRoot: repositoryRoot).ensureCacheExcluded()
+        }
+        // The option is asked of the command that will run, never of `PATH`'s `swift`: the caller may have named
+        // another toolchain's, and one that does not know the option fails the run it is given to.
+        let streams = readingEventStream && Self.asksForEventStream(arguments, kind: kind)
+            ? EventStreamDirectory.make(
+                in: runLogDirectory ?? repositoryRoot ?? workingDirectory,
+                for: "run-events",
+                asking: Self.testCommand(of: arguments),
+                from: workingDirectory,
+                environment: environment
+            ) : nil
+        defer {
+            streams?.remove()
+        }
+        let started = streams.map { Self.arguments(arguments, writingTo: $0) } ?? arguments
+        let log = RunLog.open(inDirectory: runLogDirectory ?? repositoryRoot ?? workingDirectory, run: runToken)
+        progress?.begin(arguments, kind: kind, logPath: log?.partURL.path)
+        let pipe = Pipe()
+        // After the option probe, the sweep and the transcript are done: the milliseconds are the command's own.
+        let launchedAt = clock()
+        let finish: @Sendable () -> Int32
+        let child: Int32
+        let terminating = TerminatingSignal()
+        if let children {
+            let null = open("/dev/null", O_RDONLY | O_CLOEXEC)
+            defer { close(null) }
+            let writer = pipe.fileHandleForWriting.fileDescriptor
+            let pid = try children.spawn(
+                "/usr/bin/env",
+                started,
+                in: workingDirectory,
+                environment: environment,
+                streams: SetAsideChildren.Streams(input: null, output: writer, error: writer),
+                forwardingSignals: true
+            )
+            try? pipe.fileHandleForWriting.close()
+            launched?(pid)
+            child = pid
+            finish = {
+                let ended = SetAsideChildren.termination(waitingFor: pid)
+                terminating.record(ended.signal)
+                return ended.exitCode
+            }
+        } else {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = started
+            process.currentDirectoryURL = workingDirectory
+            process.environment = environment
+            process.standardOutput = pipe
+            process.standardError = pipe
+            do {
+                try process.run()
+            } catch {
+                ProcessStreams.abandon(pipe)
+                throw error
+            }
+            launched?(process.processIdentifier)
+            child = process.processIdentifier
+            finish = {
+                process.waitUntilExit()
+                terminating.record(process.terminationReason == .uncaughtSignal ? process.terminationStatus : nil)
+                return exitCode(of: process)
+            }
+        }
+
+        // A command this tool does not wrap has no contract, and the filter is never fed one line of its
+        // output — but `.unreadable` is what that has to mean if it ever were, since a contract with
+        // nothing owed accepts whichever verdict literal the log carries. The same argv says whether
+        // `xcodebuild` was asked for `-quiet`, the one invocation whose clean run prints no verdict at all.
+        var filter = RunOutputFilter(invokedAs: arguments, linters: linters)
+        filter.insertedStreamOption = streams.map { $0.arguments(writing: Self.eventStreamFile).joined(separator: " ") }
+        let reader = pipe.fileHandleForReading
+        let watch = kind == .swiftTest ? RunTestStallWatch(pid: child, rule: stall) : nil
+        let ending = RunOutputReader(patience: patience, stall: watch).read(reader.fileDescriptor, waitingFor: finish) { chunk in
+            log?.append(chunk)
+            progress?.consume(chunk)
+            heard?()
+            if kind.isFiltered {
+                filter.consume(chunk)
+            } else {
+                sink?(chunk)
+            }
+        }
+        try? reader.close()
+        let milliseconds = Int(clock().timeIntervalSince(launchedAt) * 1000)
+        // A stop is the command's exit by the signal sent it, and only that: one that exited by itself, 0 above all, was not stopped.
+        let stopped = watch.flatMap { watch in
+            watch.stopped(exitCode: ending.exitCode)
+                ? RunStoppedTest(quiet: stall.quiet, crash: stall.crashReports.newest(since: launchedAt, testProcesses: watch.testProcesses, parent: child))
+                : nil
+        }
+        let code = ending.exitCode
+        // Looked for once reading has stopped, and only then: what the command left running is named, never ended.
+        // A stopped command's holders were named before it was stopped.
+        let held: RunHeldOutput? = if !ending.heldOpen {
+            nil
+        } else if stopped != nil {
+            watch?.holders
+        } else {
+            RunHeldOutput.left(by: child)
+        }
+        log?.close()
+        progress?.endOutput()
+        if let stream = streams?.read(Self.eventStreamFile) {
+            filter.read(eventStream: ShardEventStream.read(stream))
+        }
+
+        return RunOutcome(
+            kind: kind,
+            logKey: RunCommandKind.logKey(of: arguments),
+            exitCode: code,
+            report: kind.isFiltered ? filter.finish(exitCode: code) : nil,
+            log: log,
+            repositoryRoot: repositoryRoot,
+            heldOutput: held,
+            milliseconds: milliseconds,
+            stoppedTest: stopped,
+            terminatingSignal: terminating.signal
+        )
+    }
+
+    /// A signalled child has no exit status of its own, so it reports the shell's `128 + signal` instead.
+    private func exitCode(of process: Process) -> Int32 {
+        process.terminationReason == .uncaughtSignal ? 128 + process.terminationStatus : process.terminationStatus
+    }
+}
+
+extension RunLauncher {
+    /// The signal that ended the command, recorded by the thread that waited for it and read once reading has stopped, which is after that wait.
+    final class TerminatingSignal: @unchecked Sendable {
+        private let gate = NSLock()
+        private var recorded: Int32?
+
+        var signal: Int32? {
+            gate.withLock { recorded }
+        }
+
+        func record(_ signal: Int32?) {
+            gate.withLock { recorded = signal }
+        }
+    }
+
+    /// The file a run's event stream is written to, in a directory of that run's own.
+    static var eventStreamFile: String {
+        "events.jsonl"
+    }
+
+    /// Whether a run of `arguments` is one whose event stream is asked for: a `swift test` that executes tests, is not `swift test list`, and names no stream of the caller's own, which is theirs to read.
+    static func asksForEventStream(_ arguments: [String], kind: RunCommandKind) -> Bool {
+        guard kind == .swiftTest, RunCommandKind.executesTests(arguments), let test = arguments.dropFirst().firstIndex(of: "test"),
+              RunCommandKind.testSubcommand(of: arguments[(test + 1)...]) != "list"
+        else {
+            return false
+        }
+        return !arguments.contains { argument in
+            EventStreamDirectory.outputOptions.contains { argument == $0 || argument.hasPrefix($0 + "=") }
+        }
+    }
+
+    /// The part of `arguments` that names the `swift test` itself — everything up to and including `test` — which is what its options are asked of.
+    static func testCommand(of arguments: [String]) -> [String] {
+        guard let test = arguments.dropFirst().firstIndex(of: "test") else {
+            return arguments
+        }
+        return Array(arguments[...test])
+    }
+
+    /// `arguments` with the option writing `streams`' run stream inserted straight after `test`, ahead of any `--` that hands the rest to the test binary.
+    static func arguments(_ arguments: [String], writingTo streams: EventStreamDirectory) -> [String] {
+        guard let test = arguments.dropFirst().firstIndex(of: "test") else {
+            return arguments
+        }
+        var started = arguments
+        started.insert(contentsOf: streams.arguments(writing: eventStreamFile), at: test + 1)
+        return started
+    }
+}

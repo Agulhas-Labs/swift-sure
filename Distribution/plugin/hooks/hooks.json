@@ -1,0 +1,115 @@
+{
+  "hooks" : {
+    "PostToolUse" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure post-tool-use",
+            "timeout" : 3,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "Write|Edit|MultiEdit|mcp__plugin_swift-sure_swift-sure__digest|Grep|Bash"
+      }
+    ],
+    "PostToolUseFailure" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure post-tool-use",
+            "timeout" : 3,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "Bash"
+      }
+    ],
+    "PreToolUse" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure pre-tool-use",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "Bash|Read|Grep|Glob|mcp__xcode__Xcode(Read|Grep|Glob)|mcp__plugin_swift-sure_swift-sure__.*|Write|Edit|MultiEdit"
+      }
+    ],
+    "SessionStart" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure session-start",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "startup"
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure session-start",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "resume"
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure session-start",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "clear"
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure session-start",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "compact"
+      }
+    ],
+    "Stop" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure stop",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure session-start",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop" : [
+      {
+        "hooks" : [
+          {
+            "command" : "swift-sure stop",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ]
+      }
+    ]
+  }
+}

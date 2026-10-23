@@ -1,0 +1,11 @@
+{
+  "name": "swift-sure-plugins",
+  "owner": { "name": "Agulhas Labs" },
+  "plugins": [
+    {
+      "name": "swift-sure",
+      "source": "./Distribution/plugin",
+      "description": "Swift code index for coding agents: type digests, symbol lookup, structural search."
+    }
+  ]
+}

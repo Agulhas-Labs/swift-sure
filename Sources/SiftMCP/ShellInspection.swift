@@ -1,0 +1,227 @@
+//
+// Copyright © Agulhas Labs
+//
+
+import Foundation
+import RegexBuilder
+
+/// Whether a `Bash` command is someone looking at Swift source.
+///
+/// This exists because without it the metric has a blind spot larger than everything it measures. Counting `Read`, `Grep` and `Glob` describes the *tools*, and the actual habit is at least as often the shell — so a share taken over the tools alone can overstate the real one several times over, measured against the wrong denominator.
+///
+/// It is also the honest target for the tool descriptions: an "instead of" that names only the file tools names tools that are barely the habit. `grep -n` is faster to type than an MCP call, composes with `-A`/`-B`, and works the same on Swift and everything else. That is the competitor.
+///
+/// Detection is a heuristic over shell text and is deliberately **conservative** — a command must both point at Swift and read rather than write. Missing one under-counts a miss, which is the direction that flatters, so the patterns below stay broad; but classifying an *edit* as a lookup would invent misses out of ordinary work, which is worse, so the write forms are excluded first and win ties.
+public struct ShellInspection {
+    /// Whether this command reads Swift source rather than editing, building, or merely mentioning it.
+    ///
+    /// Judged per pipeline segment, because co-occurrence is not application. `git add A.swift && git commit … | tail -1` mentions a Swift file and runs `tail`, and reads nothing: the segment naming the file does not inspect, and the segment inspecting is reading command output. Requiring one segment to hold *both* the verb and the target is what keeps commit commands like that one from counting as lookups.
+    ///
+    /// `holdsSource` resolves a path the command was pointed at, and is what lets `grep -rn Symbol Sources/` be seen at all — it names no `.swift` anywhere, so no reading of the text alone can classify it. Passing `nil` means text only, which is the honest default for a caller with no working directory to resolve against.
+    ///
+    /// The segments judged include those inside command substitutions (`ShellSyntax.executedSegments`), because a lookup run inside `$(…)` is a lookup the index lost like any other.
+    public static func isSwiftLookup(_ command: String, holdsSource: ((String) -> Bool)? = nil) -> Bool {
+        guard !writes(command) else { return false }
+        return ShellSyntax.executedSegments(of: command).contains { ShellQuery($0).readsSwift(holdsSource: holdsSource) }
+            || ShellSyntax.executedStatements(of: command).contains { NumberedRead.intoWindows(ShellSyntax.segments(of: $0).map(ShellQuery.init)) }
+    }
+
+    /// The same judgement, resolving relative paths against `directory` — a session's working directory, or the `cwd` a transcript line recorded.
+    public static func isSwiftLookup(_ command: String, in directory: String?) -> Bool {
+        isSwiftLookup(command, holdsSource: SwiftTree.probe(relativeTo: directory))
+    }
+
+    /// Whether this command runs the tool itself anywhere the shell runs something — a statement or pipeline stage of its own, or the body of a command substitution.
+    ///
+    /// One reading for the three that ask it: the hook takes such a call as the advice being taken, the scan counts it as the context reaching the index, and the advisor has nothing to teach it. `echo "$(swift-sure where Foo)"` runs the tool as surely as `swift-sure where Foo` does, and a reading that looked only at the command word of each statement would refuse a context for using the tool and leave it looking, to the diagnosis, like one that cannot. A substitution spelled in single quotes runs nothing, and `grep -rn swift-sure Sources/` is a search for the word (`ShellQuery.invokesSift`).
+    public static func invokesSift(_ command: String) -> Bool {
+        ShellSyntax.executedSegments(of: command).contains { ShellQuery($0).invokesSift }
+    }
+
+    /// The single file the command reads through an explicit line window, or `nil` when it is not that shape.
+    ///
+    /// The scan asks this so a windowed shell read is scored by the same state machine as a ranged Read — guided when an index call located the file, cold when nothing did — instead of always-cold.
+    public static func windowedReadPath(_ command: String, in directory: String?) -> String? {
+        windowedReadPath(command, holdsSource: SwiftTree.probe(relativeTo: directory))
+    }
+
+    /// The same, against a probe the caller already holds — so a reader asking several questions about one command walks the tree once rather than once per question.
+    ///
+    /// The stage asked is the one ``ShellAdvice`` takes its advice from, in the pipeline it takes it from, outside every substitution first (`ShellSyntax.hostStatementsFirst`), so a window in a substitution's body names the command only where nothing around it reads Swift. The pipeline is read whole because a window can be cut downstream of the read (`cat View.swift | head -80`), by the one reading of a pipeline's window the advisor asks too (`ShellQuery.windowedReadPath`).
+    public static func windowedReadPath(_ command: String, holdsSource: ((String) -> Bool)?) -> String? {
+        guard !writes(command) else { return nil }
+        for statement in ShellSyntax.hostStatementsFirst(of: command) {
+            let stages = ShellSyntax.segments(of: statement).map(ShellQuery.init)
+            guard let reader = NumberedRead.reader(of: stages, holdsSource: holdsSource) else { continue }
+            return ShellQuery.windowedReadPath(of: stages, readBy: reader)
+        }
+        return nil
+    }
+
+    /// The line window that read prints, or `nil` where the command is no windowed read of one file (``windowedReadPath(_:holdsSource:)``) or its lines cannot be worked out without the file's bytes.
+    ///
+    /// Asked by the scan to hold a window to the width the hook holds it to (``ListedWindow``).
+    public static func window(ofWindowedRead command: String, holdsSource: ((String) -> Bool)?) -> LineWindow? {
+        guard !writes(command) else { return nil }
+        for statement in ShellSyntax.hostStatementsFirst(of: command) {
+            let stages = ShellSyntax.segments(of: statement).map(ShellQuery.init)
+            guard let reader = NumberedRead.reader(of: stages, holdsSource: holdsSource) else { continue }
+            guard ShellQuery.windowedReadPath(of: stages, readBy: reader) != nil else { return nil }
+            let window = LineWindow(stages: stages.map(\.invocation))
+            return window.isReadable ? window : nil
+        }
+        return nil
+    }
+
+    /// Whether this command searches another revision's tree for Swift — `git grep … origin/<branch> -- <paths>`, or a tree a variable holds — which is no lookup at either end, since the index holds the working tree only (`ShellQuery.searchesOtherRevision`).
+    ///
+    /// Asked by the hook of a call it has already found to be no lookup, only to log the rule that let it through: being outside every share is not a reason to be outside the count, and the fire rate is the only evidence there will be that the reading of a revision is not over-firing.
+    public static func searchesAnotherRevision(_ command: String, in directory: String?) -> Bool {
+        let probe = SwiftTree.probe(relativeTo: directory)
+        return ShellSyntax.executedSegments(of: command).contains { ShellQuery($0).searchesAnotherRevisionOfSwift(holdsSource: probe) }
+    }
+
+    /// The command with every `tee` that ends one of its pipelines taken out, where that `tee` only copies what reaches the terminal, so a lookup teed to a log is judged as the lookup it is.
+    ///
+    /// A `tee` hands on every line it is given, so `grep -rn Name . 2>&1 | tee notes.txt` puts in the context exactly what the grep alone would; read as the write its verb otherwise is (``writes(_:)``), the lookup would go unanswered and uncounted. A stage is taken out only where it ends a pipeline of more than one stage, names no Swift source file, and redirects none of its own output: a `tee` onto `Sources/A.swift` is an edit, and one whose output goes to a file keeps the lines out of the context, so both keep the write reading. A `tee` with stages after it is left in place too, since the in-place reading answers no pipeline with a pass-through stage in its middle. The rest of the line is kept as written, and the pipe before each stage goes with it.
+    ///
+    /// Asked by the two readers of a lookup, the hook and the transcript scan, before anything else is asked of the line; the advisor for `swift-sure run` reads the line as written, since a build teed to a log is a caller keeping its own output.
+    public static func withoutPassThroughTees(_ command: String) -> String {
+        strippingTees(command).line
+    }
+
+    /// The files the `tee`s ``withoutPassThroughTees(_:)`` takes out would have written, as the command spells them, in command order.
+    ///
+    /// For the in-place answer, which runs nothing and so says these were not written.
+    public static func passThroughTeeFiles(_ command: String) -> [String] {
+        strippingTees(command).files
+    }
+
+    private static func strippingTees(_ command: String) -> (line: String, files: [String]) {
+        guard ShellQuery.isCommandWord("tee", in: command) else { return (command, []) }
+        var line = ""
+        var files: [String] = []
+        var cursor = command.startIndex
+        for (statement, range) in ShellSyntax.statementRanges(of: command) {
+            let stripped = withoutTrailingTees(statement)
+            var kept = stripped.statement
+            // The body of a command substitution is a command line of its own, read as one: the lookup inside `x=$(grep … | tee f)` is judged as the grep.
+            // Cut back to front by the offsets the parser found, so an identical run of text earlier on the statement is never mistaken for the body.
+            var innerFiles: [[String]] = []
+            for offsets in ShellSyntax.substitutionBodyRanges(in: kept).reversed() {
+                let bodyRange = kept.index(kept.startIndex, offsetBy: offsets.lowerBound) ..< kept.index(kept.startIndex, offsetBy: offsets.upperBound)
+                let inner = strippingTees(String(kept[bodyRange]))
+                kept.replaceSubrange(bodyRange, with: inner.line)
+                innerFiles.append(inner.files)
+            }
+            line += command[cursor ..< range.lowerBound] + kept
+            // Written order: the substitutions inside the statement come before the tees ending it.
+            files += innerFiles.reversed().flatMap(\.self) + stripped.files
+            cursor = range.upperBound
+        }
+        line += command[cursor...]
+        return (line, files)
+    }
+
+    /// The line as a lookup is read, with the `tee`s ending its pipelines taken out (``withoutPassThroughTees(_:)``), or `nil` where that line is no Swift lookup (``isSwiftLookup(_:holdsSource:)``).
+    ///
+    /// For the transcript scan, which asks every later question of a lookup about the line this returns.
+    public static func lookupLine(_ command: String, holdsSource: ((String) -> Bool)?) -> String? {
+        let line = withoutPassThroughTees(command)
+        return isSwiftLookup(line, holdsSource: holdsSource) ? line : nil
+    }
+
+    /// One statement with the pass-through `tee` stages that end its pipeline taken out, each with the pipe that feeds it.
+    private static func withoutTrailingTees(_ statement: String) -> (statement: String, files: [String]) {
+        // Each stage as the verbatim run it is in the statement, blank pieces aside, so a cut runs from the end
+        // of the stage before to the end of the `tee` and takes the pipe and the blanks between with it.
+        var stages: [Range<String.Index>] = []
+        var searchStart = statement.startIndex
+        for stage in ShellSyntax.segments(of: statement) where !stage.allSatisfy(\.isWhitespace) {
+            guard let range = statement.range(of: stage, options: .literal, range: searchStart ..< statement.endIndex) else {
+                return (statement, [])
+            }
+            stages.append(range)
+            searchStart = range.upperBound
+        }
+        let written = stages.count
+        var removed: [Range<String.Index>] = []
+        while stages.count > 1, let last = stages.last, onlyPassesOn(String(statement[last])) {
+            removed.append(stages.removeLast())
+        }
+        guard stages.count < written, let kept = stages.last else { return (statement, []) }
+        // Collected in command order, the stage nearest the lookup first.
+        let files = removed.reversed().flatMap { teeOperands(String(statement[$0])) }
+        // The blanks before the pipe go too, so what is left reads as the stage would have been written alone.
+        var end = kept.upperBound
+        while end > kept.lowerBound, statement[statement.index(before: end)].isWhitespace {
+            end = statement.index(before: end)
+        }
+        return (String(statement[..<end]), files)
+    }
+
+    /// Whether the stage redirects its *standard output* anywhere, a device included, so the lines it is handed never reach the terminal.
+    ///
+    /// A redirect of standard error alone (`2>/dev/null`) leaves them there, and a process substitution (`>(cmd)`) is an operand, not a redirect.
+    private static func sendsStandardOutputAway(_ query: ShellQuery) -> Bool {
+        query.rawInvocation.contains { $0.firstMatch(of: /^(?:1|&)?>(?!\()/) != nil }
+    }
+
+    /// The files a `tee` stage names, as written: its words that are neither options nor redirections nor a process substitution.
+    private static func teeOperands(_ stage: String) -> [String] {
+        ShellQuery(stage).invocation.dropFirst().filter { word in
+            !word.hasPrefix("-") && !word.hasPrefix(">(") && word.firstMatch(of: /^(\d*|&)[<>]/) == nil
+        }
+    }
+
+    /// Whether this stage is a `tee` writing no Swift source file and sending its own output nowhere but on.
+    private static func onlyPassesOn(_ stage: String) -> Bool {
+        let query = ShellQuery(stage)
+        guard query.invocation.first == "tee", !sendsStandardOutputAway(query) else { return false }
+        return !teeOperands(stage).contains(where: SwiftSourcePath.isSourceFile)
+    }
+
+    /// Forms that change a file or run a build.
+    ///
+    /// Checked first: a script that rewrites a source file often greps it on the way, and calling that a lookup would count the tool's own maintenance as a miss.
+    private static func writes(_ command: String) -> Bool {
+        if phrases.contains(where: command.contains) {
+            return true
+        }
+        // Matched as words, not as substrings. `rm ` is inside `perform `, `confirm ` and `transform `, so
+        // every grep for one of those would read as a write and go uncounted — a whole class of lookup lost to
+        // a three-character marker.
+        if fileVerbs.contains(where: { ShellQuery.isCommandWord($0, in: command) }) {
+            return true
+        }
+        // An editor rewriting its files in place, however its flags are clustered — the phrases above see only
+        // the unclustered `sed -i` and `perl -i`.
+        if ShellSyntax.executedSegments(of: command).contains(where: { ShellQuery($0).editsInPlace }) {
+            return true
+        }
+        // A redirect into a Swift file: `… > Foo.swift`, `… >> Foo.swift`.
+        return command.contains(redirectExpression)
+    }
+
+    /// A redirect into a Swift file: `… > Foo.swift`, `… >> Foo.swift`.
+    ///
+    /// Built once, and built *from* ``SwiftSourcePath/extensionExpression`` rather than from a copy of its source, so what counts as a Swift file stays one definition.
+    ///
+    /// `nonisolated(unsafe)` for the reason given on ``SwiftSourcePath/extensionExpression``: `Regex` is not `Sendable`, and every caller of this is serial.
+    nonisolated(unsafe) private static let redirectExpression = Regex {
+        ">"
+        Optionally(">")
+        ZeroOrMore(.whitespace)
+        ZeroOrMore(.whitespace.inverted)
+        SwiftSourcePath.extensionExpression
+    }
+
+    /// Write forms whose trailing character is not whitespace, so they cannot be matched as words.
+    private static let phrases = [
+        "sed -i", "perl -i", "swift build", "swift test", "swift run", "swiftformat", "swiftlint",
+        "python3 - <<", "python - <<",
+    ]
+
+    /// Commands that move or destroy a file, short enough that a substring match hits ordinary English.
+    private static let fileVerbs = ["mv", "cp", "rm", "tee"]
+}

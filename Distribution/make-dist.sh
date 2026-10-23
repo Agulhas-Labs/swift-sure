@@ -1,0 +1,199 @@
+#!/bin/sh
+# Builds the release bundle: the binary, the installer and the shipped documents, tarred. This is the
+# artifact a release publishes — `Distribution/homebrew/build.sh` checksums it, and it is what anyone
+# installing without a package manager downloads and unpacks. The same bundle is unpacked beside the
+# tarball as `swift-sure-dist/`, and the last line printed is the command that installs it on this machine.
+#
+# Usage:  sh Distribution/make-dist.sh [output-directory]     (default: .build/bundle)
+#
+# Environment:  SWIFT_SURE_PUBLIC_COMMIT=<sha>   the commit of the PUBLIC repository this release is cut as, when
+#               it exists yet. The bundle and the tarball name are stamped with what a stranger can
+#               verify: that public commit when given (BUILD_INFO's `commit`), otherwise the hash of the
+#               source tree (BUILD_INFO's `sourceTree`, a tree and not a commit, identical in the private
+#               and public repositories, since the public tree is an archive of it). Exactly one of the
+#               two is written. The private repository's own commit is never written into the artifact.
+#
+# ARM64 ONLY, deliberately. Every Mac this ships to is Apple Silicon, and a universal
+# `--arch arm64 --arch x86_64` build doubles the download for a slice that will never execute.
+# Add the second arch back only if an Intel Mac genuinely enters the picture.
+set -eu
+
+# `-P` resolves symlinks. It does NOT canonicalise case: under /bin/sh this still reports the spelling
+# the caller arrived through, and a case-insensitive filesystem answers to every casing of it. So this
+# alone cannot make the prefix map below match — SCRATCH is what does that.
+REPO="$(cd "$(dirname "$0")/.." && pwd -P)"
+# Inside the repository, and NOT `.build/dist` — that name is already the SwiftPM scratch path below,
+# and a tarball parked in it is deleted by the next `swift package clean`.
+OUT_DIR="${1:-$REPO/.build/bundle}"
+# Made absolute against the caller's directory before the `cd` below, which would otherwise re-anchor a
+# relative argument on the repository and put the bundle somewhere the caller never named.
+mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd -P)"
+# SIFT_PUBLIC_COMMIT is the name an earlier release read; it applies where SWIFT_SURE_PUBLIC_COMMIT is unset.
+PUBLIC_COMMIT="${SWIFT_SURE_PUBLIC_COMMIT:-${SIFT_PUBLIC_COMMIT:-}}"
+# A public commit is a hex sha, and one this repository also has is the private commit passed by mistake
+# (the public history has none of these commits) — the leak this stamp exists to prevent.
+if [ -n "${PUBLIC_COMMIT}" ]; then
+    printf '%s' "$PUBLIC_COMMIT" | grep -Eqx '[0-9a-f]{7,40}' \
+        || { echo "error: SWIFT_SURE_PUBLIC_COMMIT must be a hex commit sha (7 to 40 characters), not '$PUBLIC_COMMIT'"; exit 1; }
+    if git -C "$REPO" cat-file -e "$PUBLIC_COMMIT^{commit}" 2>/dev/null; then
+        echo "error: SWIFT_SURE_PUBLIC_COMMIT=$PUBLIC_COMMIT is a commit of this (private) repository; pass the public repository's commit"
+        exit 1
+    fi
+fi
+STAGE="$(mktemp -d)/swift-sure-dist"
+
+cd "$REPO"
+
+echo "==== Building release (arm64) ===="
+# -ffile-prefix-map keeps the builder's home directory out of the C/C++ assertion strings the
+# dependencies compile in. Distribution/verify-private.sh is the gate that proves it took.
+REMAP="-Xcc -ffile-prefix-map=$REPO=/swift-sure"
+# A scratch directory of its own, and this is what makes the map above take.
+#
+# Two things it settles, either of which leaves a binary carrying the builder's home directory. The
+# ordinary `.build` is shared with every unmapped `swift build` anyone runs, and for a C dependency
+# the last compile wins — one plain `swift build -c release` leaves objects holding real paths, and a
+# mapped build afterwards reuses them untouched and links them in. And the checkouts under a default
+# `.build` are reached by a path SwiftPM resolved for itself, which need not be spelled the way $REPO
+# is here; a prefix that matches nothing is not an error, it maps nothing.
+#
+# Naming the scratch path settles both: the map and the checkouts it has to reach now derive from this
+# one string, so however it is spelled they agree. It stays inside the repository for exactly that
+# reason — moved outside, the checkouts would sit beyond $REPO and the map would reach nothing again.
+SCRATCH="$REPO/.build/dist"
+# Through `swift-sure run` where an installed one is on PATH (or `sift run`, the command an earlier release
+# installed, on a machine not yet updated), so a failed build answers with its errors, or a
+# compiler crash with its pass and function, rather than a log whose last lines can be one frontend
+# command tens of kilobytes long. It exits with the build's own status, which `set -e` still acts
+# on; the whole log is kept under .swift-sure/runs/ (.sift/runs/ for the earlier command).
+RUNNER=""
+if command -v swift-sure >/dev/null 2>&1; then RUNNER=swift-sure; elif command -v sift >/dev/null 2>&1; then RUNNER=sift; fi
+if [ -n "$RUNNER" ]; then
+    # shellcheck disable=SC2086
+    "$RUNNER" run -- swift build -c release --arch arm64 --scratch-path "$SCRATCH" $REMAP
+else
+    # shellcheck disable=SC2086
+    swift build -c release --arch arm64 --scratch-path "$SCRATCH" $REMAP
+fi
+# shellcheck disable=SC2086
+BIN="$(swift build -c release --arch arm64 --scratch-path "$SCRATCH" $REMAP --show-bin-path)/swift-sure"
+[ -f "$BIN" ] || { echo "error: built binary not found at $BIN"; exit 1; }
+
+VERSION="$("$BIN" --version)"
+if [ -n "${PUBLIC_COMMIT}" ]; then
+    STAMP="$(printf '%s' "$PUBLIC_COMMIT" | cut -c1-8)"
+    STAMP_LABEL="public commit"
+    STAMP_KEY=commit
+    # The date is the source's own commit date: the public commit holds the same tree but is another commit, and the private repository does not have it.
+    DATE_FORM=", source dated %s"
+else
+    STAMP="$(git rev-parse 'HEAD^{tree}' | cut -c1-8)"
+    STAMP_LABEL="source tree hash"
+    STAMP_KEY=sourceTree
+    DATE_FORM=" (%s)"
+fi
+DATE="$(git log -1 --format=%cd --date=short)"
+# shellcheck disable=SC2059
+DATE_TEXT="$(printf "$DATE_FORM" "$DATE")"
+ARCHS="$(lipo -archs "$BIN")"
+SWIFT_VERSION="$(swift --version 2>&1 | sed -n 's/.*Apple Swift version \([0-9.]*\).*/\1/p' | head -1)"
+MACOS_VERSION="$(sw_vers -productVersion)"
+
+TREE_STATE=clean
+if [ -n "$(git status --porcelain)" ]; then
+    TREE_STATE=dirty
+    echo "warning: working tree is dirty — the bundle will claim $STAMP_LABEL $STAMP but contain uncommitted changes"
+fi
+
+echo "==== Staging ===="
+mkdir -p "$STAGE"
+cp "$BIN" "$STAGE/swift-sure"
+cp "$REPO/Distribution/install.sh" "$STAGE/install.sh"
+chmod +x "$STAGE/install.sh"
+# What install.sh records about this build in the deploy log: the stamp above (never the private commit, for
+# the reason the header gives) under the key that names what it is, and the tree state the warning above
+# reported. The key `tree` is that state, so the source tree's hash is `sourceTree`.
+printf 'version=%s\n%s=%s\ntree=%s\n' "$VERSION" "$STAMP_KEY" "$STAMP" "$TREE_STATE" > "$STAGE/BUILD_INFO"
+mkdir -p "$STAGE/Docs"
+# Copied through the link rewrite, not as they are: each links to documents the bundle does not carry
+# (Design.md, Benchmarks/) or lays out differently (INSTALL.md, LICENSE.txt), and a download has to read
+# right without the repository beside it. The check after staging fails on any link left unresolved.
+for doc in SwiftSure.md README.md CHANGELOG.md Docs/Guide.md; do
+    sh "$REPO/Distribution/bundle-links.sh" rewrite "$doc" "$VERSION" < "$REPO/$doc" > "$STAGE/$doc"
+done
+cp "$REPO/LICENSE" "$STAGE/LICENSE.txt"
+
+# Third-party notices are assembled from the resolved checkouts, never hand-maintained: the binary
+# statically links these, so redistribution must carry their license texts — and copying from the
+# actual checkout means the notices can't drift from what was really linked. The component list comes
+# from Package.resolved for the same reason, one level up: a hand-kept list falls behind a new
+# transitive dependency in silence, and that dependency then ships without its license.
+#
+# "The actual checkout" is this build's, under SCRATCH, so it is named rather than left to the
+# generator's default: `.build/checkouts`, which a build with a scratch path of its own never fills. On a
+# fresh clone that does not exist, and where an earlier unscoped build left one it holds that build's
+# resolution — notices read from a checkout this binary was never linked against.
+sh "$REPO/Distribution/third-party-notices.sh" "$REPO" "$SCRATCH/checkouts" > "$STAGE/THIRD-PARTY-NOTICES.txt"
+
+# The provenance line is generated, never hand-maintained: a bundle that misstates which build it
+# carries is worse than one that says nothing, and hand-edited version strings always drift.
+PROVENANCE="**Build provenance:** \`swift-sure\` $VERSION, $STAMP_LABEL \`$STAMP\`$DATE_TEXT, built with Apple Swift $SWIFT_VERSION on macOS $MACOS_VERSION. Architecture: \`$ARCHS\` (Apple Silicon only)."
+# INSTALL.md is the bundle-facing install guide: this copies it into the tarball, replacing the
+# PROVENANCE placeholder with the real build facts. Keep it evergreen: what changed in a release goes
+# in CHANGELOG.md, which ships beside it. Maintainer notes belong here, not in the shipped file.
+awk -v line="$PROVENANCE" '{ if ($0 == "<!-- PROVENANCE -->") print line; else print }' \
+    "$REPO/Distribution/INSTALL.md" | sh "$REPO/Distribution/bundle-links.sh" rewrite Distribution/INSTALL.md "$VERSION" > "$STAGE/INSTALL.md"
+
+echo "==== Checking links ===="
+sh "$REPO/Distribution/bundle-links.sh" check "$STAGE"
+
+echo "==== Verifying ===="
+# Over the staged bundle rather than the binary alone: the documents ship too, and a worked
+# example naming a private repository is the same leak as a path baked into the executable.
+sh "$REPO/Distribution/verify-private.sh" "$STAGE"
+
+echo "==== Packaging ===="
+TARBALL="$OUT_DIR/swift-sure-$VERSION-$STAMP-arm64.tar.gz"
+rm -f "$TARBALL"
+tar -czf "$TARBALL" -C "$(dirname "$STAGE")" swift-sure-dist
+rm -rf "$(dirname "$STAGE")"
+
+# The tarball is the artifact; the folder beside it is what a local deploy installs from, so it is
+# replaced with this build every time rather than left from whichever build was unpacked last. What it
+# prints is the command that installs it, kept for this script's last line; a failure stops the script.
+INSTALL="$(sh "$REPO/Distribution/unpack-bundle.sh" "$TARBALL" "$OUT_DIR")"
+
+# The two files the public MCP registry takes, beside the tarball. Prepared, never published.
+REGISTRY_FILES="$(sh "$REPO/Distribution/registry-files.sh" "$BIN" "$VERSION" "$OUT_DIR")"
+
+# Older bundles go, the newest few kept. Every build left a tarball here and nothing ever took one
+# away, so this directory grew by one per merge until somebody noticed twenty of them sitting in it.
+# Kept rather than cleared outright because the older ones are what a rollback installs without a
+# rebuild; three is the smallest number that leaves somewhere to go back to.
+#
+# After the unpack, deliberately: a build that fails earlier leaves the last good bundle standing,
+# which is the one a rollback would need most. Only the names this script itself writes, only in the
+# directory it was given, and never a recursive sweep — the caller may keep its own files beside
+# these. Those names carry a version, a stamp and an architecture, so none of them can hold a space
+# or a newline, which is what makes reading them a line at a time safe.
+KEEP_BUNDLES=3
+PRUNED=0
+for old in $(ls -t "$OUT_DIR"/swift-sure-*-arm64.tar.gz 2>/dev/null | tail -n +$((KEEP_BUNDLES + 1))); do
+    rm -f "$old"
+    PRUNED=$((PRUNED + 1))
+done
+
+echo
+echo "$TARBALL"
+ls -lh "$TARBALL" | awk '{print "  size: " $5}'
+echo "  contents: $(tar -tzf "$TARBALL" | tr '\n' ' ')"
+echo "  unpacked: $OUT_DIR/swift-sure-dist"
+echo "  registry: $(printf '%s' "$REGISTRY_FILES" | tr '\n' ' ')"
+if [ "$PRUNED" -eq 1 ]; then
+    echo "  pruned: 1 older bundle, keeping the newest $KEEP_BUNDLES"
+elif [ "$PRUNED" -gt 1 ]; then
+    echo "  pruned: $PRUNED older bundles, keeping the newest $KEEP_BUNDLES"
+fi
+echo
+echo "$INSTALL"

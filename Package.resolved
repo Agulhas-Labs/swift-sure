@@ -1,0 +1,60 @@
+{
+  "originHash" : "592b95bf7556005631b5913cc92a934db4f2190abe2b3c3435d0acfcfd2ca2f1",
+  "pins" : [
+    {
+      "identity" : "indexstore-db",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/indexstore-db.git",
+      "state" : {
+        "branch" : "release/6.3.1",
+        "revision" : "003ac41513ba291f10ff1a0147ae68588914668d"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
+      }
+    },
+    {
+      "identity" : "swift-fieldwork",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Agulhas-Labs/swift-fieldwork.git",
+      "state" : {
+        "revision" : "405af5ed382dec3446f568647ca536933ca0312e",
+        "version" : "0.7.0"
+      }
+    },
+    {
+      "identity" : "swift-lmdb",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-lmdb.git",
+      "state" : {
+        "branch" : "release/6.3",
+        "revision" : "1ad9a2d80b6fcde498c2242f509bd1be7d667ff8"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax.git",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
+      }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams.git",
+      "state" : {
+        "revision" : "3d6871d5b4a5cd519adf233fbb576e0a2af71c17",
+        "version" : "5.4.0"
+      }
+    }
+  ],
+  "version" : 3
+}

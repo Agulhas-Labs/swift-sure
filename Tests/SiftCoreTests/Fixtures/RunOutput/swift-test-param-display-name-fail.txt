@@ -1,0 +1,53 @@
+Building for debugging...
+[1 / 3]
+Build complete! (0.34 secs)
+Test Suite 'All tests' started at 2000-01-01 12:00:00.601.
+Test Suite 'All tests' passed at 2000-01-01 12:00:00.602.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test other() started.
+◇ Test quoteCase(_:) started.
+◇ Test "Display named check" started.
+◇ Test case passing 1 argument text → "5" screen" to quoteCase(_:) started.
+◇ Test case passing 1 argument text → "one " two
+Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+end" to "Display named check" started.
+✘ Test other() recorded an issue at GizmoTests.swift:16:5: Expectation failed: !failing
+↳ !failing → <not evaluated>
+↳   failing → <not evaluated>
+◇ Test case passing 1 argument text → "x
+✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+y" to quoteCase(_:) started.
+◇ Test case passing 1 argument text → "C:\" to quoteCase(_:) started.
+✘ Test other() failed after 0.001 seconds with 1 issue.
+✘ Test quoteCase(_:) recorded an issue with 1 argument text → "5" screen" at GizmoTests.swift:10:5: Expectation failed: text.isEmpty
+↳ text.isEmpty → false
+↳   text → "5" screen"
+↳   isEmpty → false
+✘ Test "Display named check" recorded an issue with 1 argument text → "one " two
+Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+end" at GizmoTests.swift:5:5: Expectation failed: text.isEmpty
+↳ text.isEmpty → false
+↳   text → "one " two
+    Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+    end"
+↳   isEmpty → false
+✘ Test "Display named check" with 1 test case failed after 0.001 seconds with 1 issue.
+✘ Test quoteCase(_:) recorded an issue with 1 argument text → "x
+✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+y" at GizmoTests.swift:10:5: Expectation failed: text.isEmpty
+↳ text.isEmpty → false
+↳   text → "x
+    ✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+    y"
+↳   isEmpty → false
+✘ Test quoteCase(_:) recorded an issue with 1 argument text → "C:\" at GizmoTests.swift:10:5: Expectation failed: text.isEmpty
+↳ text.isEmpty → false
+↳   text → "C:\"
+↳   isEmpty → false
+✘ Test quoteCase(_:) with 3 test cases failed after 0.001 seconds with 3 issues.
+✘ Test run with 3 tests in 0 suites failed after 0.001 seconds with 5 issues.
+Note: Some test targets reported failures:
+  - GizmoTests (Swift Testing)

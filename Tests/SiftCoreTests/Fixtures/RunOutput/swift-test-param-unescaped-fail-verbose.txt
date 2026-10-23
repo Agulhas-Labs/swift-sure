@@ -1,0 +1,63 @@
+Build complete! (0.25 secs)
+Test Suite 'All tests' started at 2000-01-01 12:00:00.903.
+Test Suite 'All tests' passed at 2000-01-01 12:00:00.904.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Swift Standard Library Version: 6.4
+↳ Swift Compiler Version: 6.4
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+↳ OS Version: 27.0.1 (26A434)
+◇ Test failingVerdict(_:) started.
+◇ Test path(_:) started.
+◇ Test verdictShaped(_:) started.
+◇ Test stringQuote(_:) started.
+◇ Test newline(_:) started.
+◇ Test screen(_:) started.
+◇ Test other() started.
+◇ Test case passing 1 argument text → "one " quote" (Swift.String) to stringQuote(_:) started.
+◇ Test case passing 1 argument text → "a
+b" (Swift.String) to newline(_:) started.
+◇ Test case passing 1 argument text → "before
+Executed 5 tests, with 0 failures (0 unexpected) in 0.100 (0.100) seconds
+✔ Test run with 4 tests in 1 suite passed after 0.001 seconds.
+after" (Swift.String) to verdictShaped(_:) started.
+◇ Test case passing 1 argument text → "C:\" (Swift.String) to path(_:) started.
+◇ Test case passing 1 argument screen → 5" screen (GizmoTests.Screen) to screen(_:) started.
+✔ Test case passing 1 argument text → "a
+b" (Swift.String) to newline(_:) passed after 0.001 seconds.
+◇ Test case passing 1 argument text → "before
+Executed 5 tests, with 0 failures (0 unexpected) in 0.100 (0.100) seconds
+✔ Test run with 4 tests in 1 suite passed after 0.001 seconds.
+after" (Swift.String) to failingVerdict(_:) started.
+✔ Test case passing 1 argument text → "C:\" (Swift.String) to path(_:) passed after 0.001 seconds.
+✔ Test case passing 1 argument text → "one " quote" (Swift.String) to stringQuote(_:) passed after 0.001 seconds.
+✔ Test case passing 1 argument text → "before
+Executed 5 tests, with 0 failures (0 unexpected) in 0.100 (0.100) seconds
+✔ Test run with 4 tests in 1 suite passed after 0.001 seconds.
+after" (Swift.String) to verdictShaped(_:) passed after 0.001 seconds.
+✔ Test case passing 1 argument screen → 5" screen (GizmoTests.Screen) to screen(_:) passed after 0.001 seconds.
+✔ Test verdictShaped(_:) with 1 test case passed after 0.001 seconds.
+✔ Test screen(_:) with 1 test case passed after 0.001 seconds.
+✔ Test path(_:) with 1 test case passed after 0.001 seconds.
+✘ Test other() recorded an issue at GizmoTests.swift:17:22: Expectation failed: !failing
+↳ !failing → <not evaluated>
+↳   failing → <not evaluated>
+✔ Test stringQuote(_:) with 1 test case passed after 0.001 seconds.
+✔ Test newline(_:) with 1 test case passed after 0.001 seconds.
+✘ Test failingVerdict(_:) recorded an issue with 1 argument text → "before
+Executed 5 tests, with 0 failures (0 unexpected) in 0.100 (0.100) seconds
+✔ Test run with 4 tests in 1 suite passed after 0.001 seconds.
+after" at GizmoTests.swift:18:71: Expectation failed: !failing || text.isEmpty
+↳ !failing || text.isEmpty: Swift.Bool → false
+↳   !failing: Swift.Bool → false
+↳   text.isEmpty: Swift.Bool → false
+✘ Test case passing 1 argument text → "before
+Executed 5 tests, with 0 failures (0 unexpected) in 0.100 (0.100) seconds
+✔ Test run with 4 tests in 1 suite passed after 0.001 seconds.
+after" (Swift.String) to failingVerdict(_:) failed after 0.001 seconds with 1 issue.
+✘ Test failingVerdict(_:) with 1 test case failed after 0.001 seconds with 1 issue.
+✘ Test other() failed after 0.001 seconds with 1 issue.
+✘ Test run with 7 tests in 0 suites failed after 0.001 seconds with 2 issues.
+Note: Some test targets reported failures:
+  - GizmoTests (Swift Testing)

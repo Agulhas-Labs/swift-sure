@@ -1,0 +1,16 @@
+# Directory names beside the checkout that the privacy gate (Distribution/verify-private.sh, run over the
+# tree by Distribution/verify-tree.sh) does NOT treat as private.
+#
+# The gate learns what to look for from the directories beside the primary checkout, and, when the
+# checkout sits in a product folder, from the directories beside that folder too: every one of them is
+# taken to be another project, and its name a leak. Beside the product folder, a directory holding only
+# repositories is entered too, and each repository in it is a name as well as the directory itself: so a
+# category folder's word is listed here, which clears that word and leaves its repositories looked for.
+# A name belongs here only if it is public, so that
+# naming it in this repository leaks nothing. Never list a private product here: that would switch its
+# check off.
+#
+# Format: one directory name per line (compared case-insensitively), then `#` and the reason.
+
+swift-fieldwork  # a public repository: the family's shared library, which this package may name
+Games  # a category folder holding game projects, not a project: its name is a common word, and Apple's simulator service label com.apple.gamesaved, which the bundled service profile carries, contains it

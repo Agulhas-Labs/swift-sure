@@ -1,0 +1,217 @@
+//
+// Copyright © Agulhas Labs
+//
+
+import Fieldwork
+import Foundation
+
+/// The bound on a child process this tool waits for: when it overruns, the child and every process still in its process group are ended, the child is reaped, and the caller stops reading its streams.
+///
+/// **Why a git child needs one.** A repository whose `.git/config` has `include.path` naming a FIFO makes `git rev-parse` block in `open(2)` for good, and every hook runs a git before it answers. Without a bound the hook hangs until its own timeout kills it, and the git it spawned is orphaned still blocked. The answer a bounded read gives is the one an unreadable repository already gets: a failed git call, which every caller treats as "no repository".
+///
+/// **The group, because git starts children of its own** — a `!` alias's shell, a `core.fsmonitor` hook, a clean filter, a textconv — and a descendant holds git's stdout and stderr for as long as it lives. `Process` starts its child as the leader of a process group of its own, and a descendant stays in that group unless it leaves deliberately, so signalling the group reaches all of them.
+///
+/// **What it cannot end**: a descendant that has left the group (a daemon that calls `setsid`, a job a shell with job control started) is not signalled. The call still returns at the bound, because reading stops there whatever holds the pipes; that descendant is left running.
+public struct ChildDeadline: Sendable {
+    private init() {}
+
+    /// How long a git read may run: well under the 8 seconds a hook is given in all, so that a hook which asks git more than once still answers inside them.
+    public static let git: TimeInterval = 2
+
+    /// What a git read in `directory` is held to where its caller names no bound: ``git``, unless a test widened the bound for a root `directory` is at or under, or set it for a spawned binary (``spawnedGitBound(in:)``).
+    ///
+    /// The one place a wall-clock bound on a git child can be moved, so a test on a loaded machine is not decided by how long `git rev-parse` took to be scheduled. Keyed by directory rather than set for the whole process, so the bound a read gets depends only on where its repository lives, never on which fixture ran first: a test that pins ``git`` or ``gitBulk`` makes its repository where no fixture registered one. Production registers nothing, and with nothing registered no path is resolved.
+    static func gitRead(in directory: URL) -> TimeInterval {
+        widened.seconds(at: directory) ?? processGitBound
+    }
+
+    /// The bound a defaulted git read gets in a process run with `environment`: the seconds `SWIFT_SURE_TEST_GIT_LIMIT` names, or ``git`` where it is absent or names none.
+    ///
+    /// A test seam, inert unless the variable is set: a test that spawns this binary cannot reach the in-process widening a fixture registers, so it widens the spawned process's reads this way, to the bound its fixtures give their own. Nothing outside a test sets the variable.
+    static func spawnedGitBound(in environment: [String: String]) -> TimeInterval {
+        seconds(setBy: EnvironmentVariable.testGitLimit, in: environment) ?? git
+    }
+
+    /// This process's own ``spawnedGitBound(in:)``, read once.
+    private static let processGitBound = spawnedGitBound(in: ProcessInfo.processInfo.environment)
+
+    /// The seconds the variable `name` holds in `environment`, for a limit a test of a spawned binary moves: `nil` where it is absent, or holds anything but a positive, finite number, so the real limit stands.
+    public static func seconds(setBy variable: EnvironmentVariable, in environment: [String: String]) -> TimeInterval? {
+        guard let value = variable.value(in: environment).flatMap(TimeInterval.init), value.isFinite, value > 0 else { return nil }
+        return value
+    }
+
+    /// Holds every defaulted git read in `root`, or anywhere under it, to `seconds`.
+    ///
+    /// For test fixtures only, once `root` exists: it is resolved the way the code under test sees it (`/var` → `/private/var`), and a path that is not there yet would keep its unresolved spelling.
+    static func widenGitReads(under root: URL, to seconds: TimeInterval) {
+        widened.register(CanonicalPath.of(root.path), seconds: seconds)
+    }
+
+    private static let widened = Widened()
+
+    /// How long a git read whose answer grows with the repository or with its input may run (a file listing, a status, a diff, a history walk, blobs, a batch of paths): long enough that a large repository is not cut off, still finite so that a hook is never left on a git that cannot finish.
+    public static let gitBulk: TimeInterval = 60
+
+    /// How long a child that was sent `SIGTERM` has to leave before it is sent `SIGKILL`.
+    static let grace: TimeInterval = 0.25
+
+    private static let pollInterval: useconds_t = 5000
+
+    /// Ends `process` and every process still in its group, and waits until `process` has been reaped: `SIGTERM`, a short grace, then `SIGKILL` for whatever is left; answers whether `process` was still running when it began.
+    ///
+    /// **A child that has already exited is not reported as ended**, so a child that finishes at the deadline is read as having answered. Its group is still signalled: a descendant may hold its streams after it is gone. The group id cannot be reused while any process is still in the group, nor the leader's pid while the leader is unreaped. `Process.terminate` is not used: it raises for a process that has already exited, and signals the child alone.
+    @discardableResult
+    public static func stop(_ process: Process) -> Bool {
+        let group = process.processIdentifier
+        // A process that never launched has pid 0, and `kill(-0, …)` would signal this process's own group.
+        guard group > 1 else { return false }
+        let wasRunning = process.isRunning
+        kill(-group, SIGTERM)
+        let limit = Date() + grace
+        while Date() < limit, process.isRunning || kill(-group, 0) == 0 {
+            usleep(pollInterval)
+        }
+        if process.isRunning || kill(-group, 0) == 0 {
+            kill(-group, SIGKILL)
+        }
+        if wasRunning {
+            process.waitUntilExit()
+        }
+        return wasRunning
+    }
+}
+
+extension ChildDeadline {
+    /// The widened roots, behind a lock: a fixture registers one on its thread and the code under test reads them on others.
+    ///
+    /// An entry is never removed, which is harmless: each is a fixture's temporary directory, whose name carries a fresh UUID and is never made again, and a suite's few thousand short paths are not worth reclaiming.
+    private final class Widened: @unchecked Sendable {
+        private let lock = NSLock()
+        private var roots: [String: TimeInterval] = [:]
+
+        func register(_ root: String, seconds: TimeInterval) {
+            lock.withLock { roots[root] = seconds }
+        }
+
+        /// The seconds registered for the nearest root at or above `directory`, looked up one ancestor at a time.
+        func seconds(at directory: URL) -> TimeInterval? {
+            let registered = lock.withLock { roots }
+            guard !registered.isEmpty else { return nil }
+            var path = CanonicalPath.of(directory.path)
+            while true {
+                if let seconds = registered[path] {
+                    return seconds
+                }
+                let parent = (path as NSString).deletingLastPathComponent
+                guard !parent.isEmpty, parent != path else { return nil }
+                path = parent
+            }
+        }
+    }
+}
+
+public extension ChildDeadline {
+    /// A deadline running beside a child whose streams the caller reads: on expiry it ends the child with ``ChildDeadline/stop(_:)``.
+    ///
+    /// Armed after `Process.run`. Ended by ``finish()`` once the caller has its answer, or by ``expire()`` when the caller stopped reading first; the expiry runs once, whichever of the caller and the watching thread reaches it first.
+    final class Watch: @unchecked Sendable {
+        private let process: Process
+        private let limit: TimeInterval
+        private let done = DispatchSemaphore(value: 0)
+        private let condition = NSCondition()
+        private var state = State.watching
+        private var ended = false
+        private var armedUntil = DispatchTime.distantFuture
+
+        public init(_ process: Process, within limit: TimeInterval) {
+            self.process = process
+            self.limit = limit
+        }
+
+        /// When the deadline passes: `limit` after ``arm()``, and never before it is armed.
+        public var deadline: DispatchTime {
+            condition.withLock { armedUntil }
+        }
+
+        /// Whether the deadline ended a child that was still running; an expiry in progress is waited for, so this never answers before it knows.
+        public var timedOut: Bool {
+            condition.lock()
+            defer { condition.unlock() }
+            while state == .expiring {
+                condition.wait()
+            }
+            return ended
+        }
+
+        public func arm() {
+            let until = DispatchTime.now() + limit
+            condition.withLock { armedUntil = until }
+            let thread = Thread { [self] in
+                guard done.wait(timeout: until) == .timedOut else { return }
+                expire()
+            }
+            thread.name = "\(ProductName.current.binary).child-deadline"
+            thread.start()
+        }
+
+        /// Ends the child and its group now and waits until the child is reaped; a call while another is ending it waits for that one, and a call after ``finish()`` does nothing.
+        public func expire() {
+            condition.lock()
+            switch state {
+            case .watching:
+                state = .expiring
+                condition.unlock()
+            case .expiring:
+                while state == .expiring {
+                    condition.wait()
+                }
+                condition.unlock()
+                return
+            case .finished, .settled:
+                condition.unlock()
+                return
+            }
+            let wasRunning = ChildDeadline.stop(process)
+            condition.withLock {
+                ended = wasRunning
+                state = .settled
+                condition.broadcast()
+            }
+            done.signal()
+        }
+
+        /// The caller has its answer, and the watching thread ends without touching the child.
+        ///
+        /// Never blocks, so a termination handler may call it.
+        public func finish() {
+            condition.withLock {
+                if state == .watching {
+                    state = .finished
+                }
+            }
+            done.signal()
+        }
+
+        /// The child's stdout and stderr, each read to its end, and its exit, awaited on `exited` (which its termination handler signals), all inside the deadline; `nil` where the deadline came first.
+        ///
+        /// **Reading stops at the deadline whatever holds the pipes**: a descendant that inherited them and left the child's group would otherwise keep the call open for as long as it lives. The child and its group are ended at that point, and the watch is finished either way.
+        public func collect(stdout: Pipe, stderr: Pipe, exited: DispatchSemaphore) -> (output: Data, failure: Data)? {
+            let streams = ProcessStreams.drain(stdout: stdout, stderr: stderr, until: deadline)
+            if !streams.complete {
+                expire()
+            }
+            exited.wait()
+            finish()
+            guard streams.complete, !timedOut else { return nil }
+            return (streams.output, streams.failure)
+        }
+    }
+}
+
+private extension ChildDeadline.Watch {
+    /// Where a watch is: still watching, finished by its caller, ending the child, or done ending it.
+    enum State {
+        case watching, finished, expiring, settled
+    }
+}

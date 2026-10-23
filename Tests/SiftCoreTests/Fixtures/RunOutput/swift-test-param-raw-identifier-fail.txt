@@ -1,0 +1,34 @@
+Building for debugging...
+[Planning deferred tasks]
+[1 / 5]
+Build complete! (0.63 secs)
+Test Suite 'All tests' started at 2000-01-01 12:00:00.592.
+Test Suite 'All tests' passed at 2000-01-01 12:00:00.594.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test other() started.
+◇ Test "it's param" started.
+◇ Test later(x:) started.
+◇ Test case passing 1 argument x → 1 to "it's param" started.
+◇ Test case passing 1 argument x → 3 to later(x:) started.
+◇ Test case passing 1 argument x → 2 to "it's param" started.
+✘ Test other() recorded an issue at GizmoTests.swift:13:5: Expectation failed: Bool(false)
+↳ Bool(false) → false
+↳   false → ()
+✘ Test later(x:) recorded an issue with 1 argument x → 3 at GizmoTests.swift:9:5: Expectation failed: x == 0
+↳ x == 0 → false
+↳   x → 3
+✘ Test "it's param" recorded an issue with 1 argument x → 1 at GizmoTests.swift:5:5: Expectation failed: x == 0
+↳ x == 0 → false
+↳   x → 1
+✘ Test "it's param" recorded an issue with 1 argument x → 2 at GizmoTests.swift:5:5: Expectation failed: x == 0
+↳ x == 0 → false
+↳   x → 2
+✘ Test other() failed after 0.001 seconds with 1 issue.
+✘ Test later(x:) with 1 test case failed after 0.001 seconds with 1 issue.
+✘ Test "it's param" with 2 test cases failed after 0.001 seconds with 2 issues.
+✘ Test run with 3 tests in 0 suites failed after 0.001 seconds with 4 issues.
+Note: Some test targets reported failures:
+  - GizmoTests (Swift Testing)

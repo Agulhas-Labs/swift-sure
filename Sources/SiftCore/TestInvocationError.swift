@@ -1,0 +1,122 @@
+//
+// Copyright © Agulhas Labs
+//
+
+import Foundation
+
+/// Why `swift-sure test` will not build an `xcodebuild` command line, refused before anything is launched.
+///
+/// **Two spellings of one thing is how they come to disagree.** `swift-sure test` supplies `xcodebuild`, the action, the destination, the `.xctestrun`, the selection and the result bundle; a pass-through word naming any of those would either be ignored or silently win, and neither is something a caller can see from the answer. So each one is refused with a sentence of its own naming what the flag already covers — a refusal a reader can act on, rather than a generic complaint about the pass-through.
+public enum TestInvocationError: Error, CustomStringConvertible, Sendable {
+    /// The pass-through names an action for `xcodebuild` to perform.
+    case action(String)
+    /// The pass-through names a destination.
+    case destination(String)
+    /// The pass-through selects or excludes tests.
+    case testSelection(String)
+    /// The pass-through names a test plan.
+    case testPlan(String)
+    /// The pass-through names a scheme.
+    case scheme(String)
+    /// The pass-through names the project or workspace the scheme lives in.
+    case container(String)
+    /// The pass-through names an `.xctestrun` file.
+    case xctestrun(String)
+    /// The pass-through names where the result bundle is written.
+    case resultBundlePath(String)
+    /// The pass-through sets `xcodebuild`'s own parallel testing, either way.
+    case parallelTesting(String)
+    /// The pass-through sets test diagnostics collection.
+    case diagnostics(String)
+    /// The pass-through asks for a test enumeration.
+    case enumeration(String)
+    /// The pass-through silences the console log, which is the only place the test results are read from.
+    case quiet(String)
+    /// A `--only` or `--skip` value that is not `Target`, `Target/Class` or `Target/Class/test` (one `Class` part per nested suite), and the option it was given to.
+    case malformedSelector(String, option: String)
+    /// `--only` was given and the enumeration listed no test, which is the answer both for a selector that names nothing and for a parameterised test, which the enumeration does not list by name.
+    case onlyEnumeratedNothing([String])
+    /// No `.xctestrun` file for the named plan, and the ones that were there.
+    case noXCTestRun(plan: String, found: [String])
+    /// More than one `.xctestrun` file for the named plan, and their names.
+    case severalXCTestRuns(plan: String, found: [String])
+    /// `-showBuildSettings -json` printed something this cannot read, and what the decoder said.
+    case unreadableBuildSettings(String)
+    /// `-showBuildSettings -json` printed no `BUILD_DIR`.
+    case noBuildDirectory
+    /// `-showBuildSettings -json` printed more than one `BUILD_DIR`, and their paths.
+    case severalBuildDirectories([String])
+    /// A package scheme's settings list was empty, and the DerivedData root held no single folder made for the package directory: the directory, the root searched and the folders that matched.
+    case noPackageProducts(packageDirectory: String, derivedDataRoot: String, found: [String])
+
+    public var description: String {
+        switch self {
+        case let .action(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: it names an action for xcodebuild to perform, and \(ProductName.current.binary) test supplies the action itself — one build, one enumeration, then one run per shard."
+        case let .destination(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --device and --os already name the destination, and every shard runs on a simulator \(ProductName.current.binary) created for it, by udid."
+        case let .testSelection(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --only and --skip already name which tests run, and each shard is handed its own explicit list of them."
+        case let .testPlan(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --plan already names the test plan, and one run is one plan — the plan also decides which .xctestrun file every shard runs from."
+        case let .scheme(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --scheme already names the scheme."
+        case let .container(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --project and --workspace already name where the scheme lives."
+        case let .xctestrun(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: the .xctestrun file is the one this run's own build wrote for the named plan, found by globbing the products directory for it."
+        case let .resultBundlePath(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: each shard writes its own result bundle, and one path shared between shards is one shard overwriting another's."
+        case let .parallelTesting(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: every shard runs with -parallel-testing-enabled NO. Xcode distributes by XCTest class and hands a whole Swift Testing suite one placeholder, so there is nothing for it to distribute and its console carries no per-test line to read — the sharding here is the answer to that same want, done where the tests can still be counted."
+        case let .diagnostics(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: every shard runs with -collect-test-diagnostics never, because without it a failing run waits ten minutes for diagnostics it will not use — measured at 610 s of wall clock over 0.2 s of tests, against 7 s with the flag."
+        case let .enumeration(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: it enumerates the tests itself, before anything runs, and that enumeration is the set every count in the answer is reconciled against."
+        case let .quiet(word):
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: the results are read from the console log, and a quiet run prints no line for any test, so there would be no tests to reconcile against the enumeration and every one would be reported missing."
+        case let .malformedSelector(value, option):
+            "\(ProductName.current.binary) test cannot use `\(value)` as a \(option) value: xcodebuild takes Target, Target/Class or Target/Class/test (Target/Outer/Inner/test for a nested suite), and nothing else names a set of tests it can select."
+        case let .onlyEnumeratedNothing(selectors):
+            Self.onlyEnumeratedNothing(selectors)
+        case let .noXCTestRun(plan, found):
+            found.isEmpty
+                ? "\(ProductName.current.binary) test found no .xctestrun file for the plan `\(plan)`, and none at all in the products directory — the build wrote nothing to run from."
+                : "\(ProductName.current.binary) test found no .xctestrun file for the plan `\(plan)`. The products directory holds \(found.joined(separator: ", ")) — check that --plan names a plan this scheme carries."
+        case let .severalXCTestRuns(plan, found):
+            "\(ProductName.current.binary) test found \(found.count) .xctestrun files for the plan `\(plan)`: \(found.joined(separator: ", ")). One build writes one file per plan, so two for one plan means the products directory holds an earlier build's as well — clear it and build again."
+        case let .unreadableBuildSettings(reason):
+            "\(ProductName.current.binary) test could not read xcodebuild's build settings: \(reason). BUILD_DIR is where the build wrote the .xctestrun file every shard runs from, so there is nowhere to look for it."
+        case .noBuildDirectory:
+            "xcodebuild's build settings named no BUILD_DIR, which is the directory the build wrote its products and its .xctestrun files into. There is nowhere to look for the file the shards run from."
+        case let .noPackageProducts(packageDirectory, root, found):
+            "xcodebuild's build settings list was empty, as it is for a package scheme, so there is no BUILD_DIR to read. \(ProductName.current.binary) looked in \(root) for the one folder whose info.plist names \(packageDirectory) as its WorkspacePath and found \(found.count)\(found.isEmpty ? "" : " (\(found.joined(separator: ", ")))"). Build the package once from this directory, or pass -derivedDataPath after -- so the products directory is known."
+        case let .severalBuildDirectories(paths):
+            "xcodebuild's build settings named \(paths.count) different BUILD_DIR values: \(paths.joined(separator: ", ")). One build writes its products into one directory, so \(ProductName.current.binary) test cannot tell which of these holds the .xctestrun file the shards would run from."
+        }
+    }
+
+    /// The sentence for an `--only` that enumerated nothing: every selector named, and for one whose last part carries an argument label the `--only` that runs its suite.
+    private static func onlyEnumeratedNothing(_ selectors: [String]) -> String {
+        let named = selectors.map { "`\($0)`" }.joined(separator: ", ")
+        var sentence = "\(ProductName.current.binary) test enumerated no test for --only \(named), so it will not answer that nothing failed. A selector that matches no target, class or test enumerates nothing — check its spelling."
+        for selector in selectors {
+            guard let suite = parameterisedTestSuite(selector) else {
+                continue
+            }
+            sentence += " `\(selector)` names a parameterised test, and xcodebuild cannot enumerate one by name; run it through its suite: `--only \(suite)`."
+        }
+        return sentence
+    }
+
+    /// The suite selector of a selector whose last part has an argument label (`name(label:)`), or `nil` for any other.
+    private static func parameterisedTestSuite(_ selector: String) -> String? {
+        let parts = PackageShardPlanner.splitOutsideBackticks(selector)
+        guard parts.count >= 3, let last = parts.last,
+              let open = last.firstIndex(of: "("), last[open...].contains(":")
+        else {
+            return nil
+        }
+        return parts.dropLast().joined(separator: "/")
+    }
+}

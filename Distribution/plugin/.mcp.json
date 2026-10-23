@@ -1,0 +1,10 @@
+{
+  "mcpServers" : {
+    "swift-sure" : {
+      "args" : [
+        "mcp"
+      ],
+      "command" : "swift-sure"
+    }
+  }
+}

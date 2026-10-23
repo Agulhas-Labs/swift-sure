@@ -1,0 +1,11 @@
+Building for debugging...
+[Planning deferred tasks]
+[2 / 29]
+duplicate symbol '_widget_twice' in:
+    /Users/dev/Widget/.build/out/Intermediates.noindex/Widget.build/Debug/CWidget-t.build/Objects-normal/arm64/a.o
+    /Users/dev/Widget/.build/out/Intermediates.noindex/Widget.build/Debug/CWidget-t.build/Objects-normal/arm64/b.o
+ld: 1 duplicate symbols
+/Users/dev/Widget/Package.swift: CWidget: clang: error: linker command failed with exit code 1 (use -v to see invocation)
+error: Ld /Users/dev/Widget/.build/out/Products/Debug/CWidget.o normal failed with a nonzero exit code. Command line:     cd /Users/dev/Widget
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-macos12.0 -r -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -O0 -Xlinker -no_warn_duplicate_libraries -F/Users/dev/Widget/.build/out/Intermediates.noindex/EagerLinkingTBDs/Debug -F/Users/dev/Widget/.build/out/Products/Debug -iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -filelist /Users/dev/Widget/.build/out/Intermediates.noindex/Widget.build/Debug/CWidget-t.build/Objects-normal/arm64/CWidget.LinkFileList -nostdlib -Xlinker -object_path_lto -Xlinker /Users/dev/Widget/.build/out/Intermediates.noindex/Widget.build/Debug/CWidget-t.build/Objects-normal/arm64/CWidget_lto.o -Xlinker -no_deduplicate -Xlinker -dependency_info -Xlinker /Users/dev/Widget/.build/out/Intermediates.noindex/Widget.build/Debug/CWidget-t.build/Objects-normal/arm64/CWidget_dependency_info.dat -o /Users/dev/Widget/.build/out/Products/Debug/CWidget.o
+error: Build failed

@@ -1,0 +1,19 @@
+--indent 4
+--ifdef no-indent
+--allman false
+--commas always
+--semicolons never
+--trimwhitespace always
+--modifierorder nonisolated,open,public,internal,fileprivate,private,private(set),fileprivate(set),internal(set),public(set),open(set),override,final,required,convenience,weak,unowned,lazy,dynamic,mutating,nonmutating,class,static
+--wraparguments before-first
+--wrapcollections before-first
+--swiftversion 6
+--header ignore
+
+# Off by project style: caseless namespaces are spelled `struct`, doc comments are one paragraph per line, and
+# consecutive guards stay separate (the 0.64 rule that merges them makes one condition list hundreds of
+# characters long).
+--disable enumNamespaces,wrapSingleLineComments,repeatedGuard
+
+# The rules above were checked against 0.64.0; an older formatter refuses rather than disagreeing.
+--minversion 0.64.0

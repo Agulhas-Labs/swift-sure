@@ -1,0 +1,62 @@
+Build complete! (5.59 secs)
+Test Suite 'All tests' started at 2000-01-01 12:00:00.874.
+Test Suite 'All tests' passed at 2000-01-01 12:00:00.875.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Swift Standard Library Version: 6.4
+↳ Swift Compiler Version: 6.4
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+↳ OS Version: 27.0.1 (26A434)
+◇ Test "Display named check" (aka 'displayNamed(_:)') started.
+◇ Test quoteCase(_:) started.
+◇ Test other() started.
+◇ Test case passing 1 argument text → "one " two
+Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+end" (Swift.String) to "Display named check" (aka 'displayNamed(_:)') started.
+◇ Test case passing 1 argument text → "5" screen" (Swift.String) to quoteCase(_:) started.
+✘ Test other() recorded an issue at GizmoTests.swift:16:5: Expectation failed: !failing
+↳ !failing → <not evaluated>
+↳   failing → <not evaluated>
+✘ Test other() failed after 0.001 seconds with 1 issue.
+✘ Test "Display named check" (aka 'displayNamed(_:)') recorded an issue with 1 argument text → "one " two
+Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+end" at GizmoTests.swift:5:5: Expectation failed: text.isEmpty
+↳ text.isEmpty: Swift.Bool → false
+↳   text: Swift.String → "one " two
+    Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+    end"
+↳   isEmpty: Swift.Bool → false
+◇ Test case passing 1 argument text → "C:\" (Swift.String) to quoteCase(_:) started.
+◇ Test case passing 1 argument text → "x
+✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+y" (Swift.String) to quoteCase(_:) started.
+✘ Test case passing 1 argument text → "one " two
+Executed 7 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+end" (Swift.String) to "Display named check" (aka 'displayNamed(_:)') failed after 0.001 seconds with 1 issue.
+✘ Test quoteCase(_:) recorded an issue with 1 argument text → "5" screen" at GizmoTests.swift:10:5: Expectation failed: text.isEmpty
+↳ text.isEmpty: Swift.Bool → false
+↳   text: Swift.String → "5" screen"
+↳   isEmpty: Swift.Bool → false
+✘ Test "Display named check" (aka 'displayNamed(_:)') with 1 test case failed after 0.001 seconds with 1 issue.
+✘ Test case passing 1 argument text → "5" screen" (Swift.String) to quoteCase(_:) failed after 0.001 seconds with 1 issue.
+✘ Test quoteCase(_:) recorded an issue with 1 argument text → "C:\" at GizmoTests.swift:10:5: Expectation failed: text.isEmpty
+↳ text.isEmpty: Swift.Bool → false
+↳   text: Swift.String → "C:\"
+↳   isEmpty: Swift.Bool → false
+✘ Test quoteCase(_:) recorded an issue with 1 argument text → "x
+✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+y" at GizmoTests.swift:10:5: Expectation failed: text.isEmpty
+↳ text.isEmpty: Swift.Bool → false
+↳   text: Swift.String → "x
+    ✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+    y"
+↳   isEmpty: Swift.Bool → false
+✘ Test case passing 1 argument text → "C:\" (Swift.String) to quoteCase(_:) failed after 0.001 seconds with 1 issue.
+✘ Test case passing 1 argument text → "x
+✔ Test run with 99 tests in 9 suites passed after 1.000 seconds.
+y" (Swift.String) to quoteCase(_:) failed after 0.001 seconds with 1 issue.
+✘ Test quoteCase(_:) with 3 test cases failed after 0.001 seconds with 3 issues.
+✘ Test run with 3 tests in 0 suites failed after 0.001 seconds with 5 issues.
+Note: Some test targets reported failures:
+  - GizmoTests (Swift Testing)
