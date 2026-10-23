@@ -8,8 +8,8 @@ import Testing
 
 /// The tool list loads in full in every Swift session, so its schema is held to a budget (Docs/Design.md §4): every tool stays, and a parameter stays while callers use it.
 struct ToolDefinitionBudgetTests {
-    /// About 2.2 kB serialized, alwaysLoad marks included: 1,028 tokens of first-call context before `at`, `count` and the `root` and `offset` descriptions left it, 870 after (a one-turn probe, Claude Code 2.1.299).
-    static let budget = 2300
+    /// About 2.0 kB serialized, alwaysLoad marks included: 1,028 tokens of first-call context before `at`, `count` and the `root` and `offset` descriptions left it, 870 after (a one-turn probe, Claude Code 2.1.299).
+    static let budget = 2050
 
     @Test
     func theServedToolListFitsTheBudget() throws {

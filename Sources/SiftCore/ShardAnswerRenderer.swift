@@ -7,19 +7,19 @@ import Foundation
 /// Turns a sharded run's `ShardReconciliation` into the answer a caller reads instead of every shard's own log.
 public struct ShardAnswerRenderer: Sendable {
     /// The run's own timing, printed under the shard lines.
-    private let phases: ShardPhases?
-    private let devicesLine: String?
+    let phases: ShardPhases?
+    let devicesLine: String?
     /// The line naming the derived data directory `swift-sure` chose, which stands directly after the devices line.
-    private let derivedDataLine: String?
-    private let crashReports: [String]
-    private let sweepLines: [String]
-    private let rerunCommand: String?
+    let derivedDataLine: String?
+    let crashReports: [String]
+    let sweepLines: [String]
+    let rerunCommand: String?
     /// What follows the `--only` arguments — the caller's own `-- <pass-through>`, which has to come last or `swift-sure test` would read this line's flags as pass-through too.
-    private let rerunSuffix: String?
+    let rerunSuffix: String?
     /// Whether the run was a SwiftPM package's: its failures are re-run with `swift test --filter` over their suites, and a shard that lost tests is diagnosed from its log.
-    private let swiftPackage: Bool
+    let swiftPackage: Bool
     /// Whether any shard booted slim, which a failure may be owed to, so the re-run says how to rule it out.
-    private let bootedSlim: Bool
+    let bootedSlim: Bool
 
     public init(
         phases: ShardPhases? = nil,
@@ -59,7 +59,7 @@ extension ShardAnswerRenderer {
         sections.append(unlistedSection(reconciliation, plan: plan))
         sections.append(undecidedSection(reconciliation))
         sections.append(reconciliation.duplicated.map(duplicationLine))
-        sections.append(reconciliation.shards.flatMap(shardLines) + (phases.map { [$0.line] } ?? []))
+        sections.append(reconciliation.shards.flatMap { shardLines($0) } + (phases.map { [$0.line] } ?? []))
         sections.append(slowestSection(reconciliation))
         sections.append(notesSection(reconciliation, plan: plan))
         sections.append(rerunSection(reconciliation))
@@ -81,6 +81,12 @@ extension ShardAnswerRenderer {
             let shards = pluralized(reconciliation.shards.count, "shard")
             return "✔ \(ProductName.current.binary) test — \(reconciliation.counts.passed) tests passed across \(shards)"
         }
+        let exit = reconciliation.exitCode == 0 ? "" : " — exit \(reconciliation.exitCode)"
+        return "✘ \(ProductName.current.binary) test — \(worstReasons(reconciliation).joined(separator: " · "))\(exit)"
+    }
+
+    /// What is wrong with a run that is not green, the worst first.
+    func worstReasons(_ reconciliation: ShardReconciliation) -> [String] {
         var worst: [String] = []
         if reconciliation.counts.expected == 0 {
             worst.append("nothing expected — every planned test is conditional and reported nothing, so nothing was checked either way")
@@ -110,12 +116,11 @@ extension ShardAnswerRenderer {
                 ? "shard \(exited[0]) exited non-zero with no test failed or missing — its log is on its shard line below"
                 : "shards \(exited.joined(separator: ", ")) exited non-zero with no test failed or missing — their logs are on their shard lines below")
         }
-        let exit = reconciliation.exitCode == 0 ? "" : " — exit \(reconciliation.exitCode)"
-        return "✘ \(ProductName.current.binary) test — \(worst.joined(separator: " · "))\(exit)"
+        return worst
     }
 
     /// The failures, through ``RunFailureShape`` while it still has something to group them by, or their bare names once it does not — and beneath the shape, by name, every failed test no record names, so each failed test is named once.
-    private func failureSection(_ reconciliation: ShardReconciliation) -> [String] {
+    func failureSection(_ reconciliation: ShardReconciliation) -> [String] {
         guard reconciliation.failures.isEmpty else {
             let shape = RunFailureShape.of(
                 reconciliation.failures.map { failure in
@@ -140,7 +145,7 @@ extension ShardAnswerRenderer {
     }
 
     /// The tests the listing never named, which no count holds: those a shard's event stream ended, then those the index declares that no shard ran.
-    private func unlistedSection(_ reconciliation: ShardReconciliation, plan: ShardPlan) -> [String] {
+    func unlistedSection(_ reconciliation: ShardReconciliation, plan: ShardPlan) -> [String] {
         var lines: [String] = []
         if !reconciliation.unlisted.isEmpty {
             lines.append("ran but was not listed — `swift test list` did not name it, so no shard expected it:")
@@ -155,7 +160,7 @@ extension ShardAnswerRenderer {
     }
 
     /// Everything the plan named and no shard reconciled, and the crash reports written while any of it happened.
-    private func missingSection(_ reconciliation: ShardReconciliation) -> [String]? {
+    func missingSection(_ reconciliation: ShardReconciliation, crashReportsIncluded: Bool = true) -> [String]? {
         guard !reconciliation.missing.isEmpty || !reconciliation.shortfalls.isEmpty else {
             return nil
         }
@@ -165,7 +170,7 @@ extension ShardAnswerRenderer {
         if swiftPackage {
             lines.append(contentsOf: reconciliation.shards.filter { $0.recording.missing > 0 }.map(lossLine))
         }
-        if !crashReports.isEmpty {
+        if crashReportsIncluded, !crashReports.isEmpty {
             lines.append("crash reports written during the run:")
             lines.append(contentsOf: crashReports.map { "  \($0)" })
         }
@@ -173,7 +178,7 @@ extension ShardAnswerRenderer {
     }
 
     /// The conditional tests that reported nothing, named beneath the missing ones in the unsharded answer's words, and apart from them the members of a group whose endings cannot say which of them ran.
-    private func undecidedSection(_ reconciliation: ShardReconciliation) -> [String] {
+    func undecidedSection(_ reconciliation: ShardReconciliation) -> [String] {
         let lone = reconciliation.undecided.filter { !reconciliation.undecidedInGroups.contains($0) }
         var lines: [String] = []
         if !lone.isEmpty {
@@ -185,7 +190,7 @@ extension ShardAnswerRenderer {
         return lines
     }
 
-    private func duplicationLine(_ duplication: ShardReconciliation.Duplication) -> String {
+    func duplicationLine(_ duplication: ShardReconciliation.Duplication) -> String {
         guard !duplication.withinIteration else {
             return "\(duplication.test.enumerated) ended twice within one iteration"
         }
@@ -193,9 +198,9 @@ extension ShardAnswerRenderer {
         return "\(duplication.test.enumerated) ended in shards \(shards)"
     }
 
-    private func shardLines(_ shard: ShardReconciliation.Shard) -> [String] {
+    func shardLines(_ shard: ShardReconciliation.Shard, plan: String? = nil) -> [String] {
         var lines = [
-            "shard \(shard.index): \(shard.testCount) tests · wall \(ShardSeconds.text(shard.wallSeconds)) (predicted \(ShardSeconds.text(shard.predictedSeconds))) · tests \(ShardSeconds.text(shard.executionSeconds)) · iterations \(shard.iterations) · exit \(shard.exitCode) · \(shard.logPath)",
+            "shard \(shard.index)\(plan.map { " (plan \($0))" } ?? ""): \(shard.testCount) tests · wall \(ShardSeconds.text(shard.wallSeconds)) (predicted \(ShardSeconds.text(shard.predictedSeconds))) · tests \(ShardSeconds.text(shard.executionSeconds)) · iterations \(shard.iterations) · exit \(shard.exitCode) · \(shard.logPath)",
         ]
         if shard.wallExceedsExecution {
             lines.append("  wall clock is more than twice the tests' own time — launch, session start and bundle load are outside every test's own time")
@@ -203,14 +208,14 @@ extension ShardAnswerRenderer {
         return lines
     }
 
-    private func slowestSection(_ reconciliation: ShardReconciliation) -> [String] {
+    func slowestSection(_ reconciliation: ShardReconciliation) -> [String] {
         guard !reconciliation.slowest.isEmpty else {
             return []
         }
         return ["slowest:"] + reconciliation.slowest.map { "  \(ShardSeconds.text($0.seconds))  \($0.test.enumerated)" }
     }
 
-    private func notesSection(_ reconciliation: ShardReconciliation, plan: ShardPlan) -> [String] {
+    func notesSection(_ reconciliation: ShardReconciliation, plan: ShardPlan) -> [String] {
         var lines: [String] = []
         if let lowering = plan.loweringNote, !lowering.isEmpty {
             lines.append(lowering)
@@ -240,7 +245,7 @@ extension ShardAnswerRenderer {
     }
 
     /// The sentence after a re-run command when the shards booted slim.
-    private var stockHint: [String] {
+    var stockHint: [String] {
         bootedSlim ? ["  add --stock to rule the slim boot out"] : []
     }
 
@@ -276,7 +281,7 @@ extension ShardAnswerRenderer {
         return "\(position)\(suffix)"
     }
 
-    private func pluralized(_ count: Int, _ noun: String) -> String {
+    func pluralized(_ count: Int, _ noun: String) -> String {
         "\(count) \(noun)\(count == 1 ? "" : "s")"
     }
 }

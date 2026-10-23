@@ -9,6 +9,11 @@ struct SearchRenderer {
         120
     }
 
+    /// Matches past which offset 0 answers grouped by file instead of listing rows (Docs/Design.md, *search past 40 matches*).
+    static var groupThreshold: Int {
+        40
+    }
+
     /// Renders `result` for `query`, paged from `offset`.
     static func render(result: StructuralSearch.Result, query: StructuralQuery, offset: Int = 0, typeBodyNote: String? = nil) -> String {
         var lines = query.echo.map { [$0] } ?? []
@@ -19,6 +24,10 @@ struct SearchRenderer {
             return withClause(lines, query: query)
         }
 
+        if offset <= 0, result.matches.count > groupThreshold, Set(result.matches.map(\.path)).count > 1 {
+            lines.append(contentsOf: GroupedSearchAnswer.lines(result: result))
+            return withClause(lines, query: query)
+        }
         lines.append(summaryLine(result: result))
         lines.append("")
 

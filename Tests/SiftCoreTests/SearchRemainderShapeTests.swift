@@ -17,7 +17,7 @@ struct SearchRemainderShapeTests {
 
     private static func rendered(_ matches: [StructuralMatch], query: String = "kind:struct") throws -> String {
         let result = StructuralSearch.Result(matches: matches, filesScanned: matches.count)
-        return try SearchRenderer.render(result: result, query: StructuralQuery(query))
+        return try SearchRenderer.render(result: result, query: StructuralQuery(query), offset: 1)
     }
 
     @Test
@@ -27,7 +27,7 @@ struct SearchRemainderShapeTests {
             Self.match("Sources/App/Two.swift", "Beta"),
             Self.match("Sources/App/One.swift", "Gamma"),
         ]
-        let answer = try Self.rendered(Self.filler(SearchRenderer.matchCap) + rest)
+        let answer = try Self.rendered(Self.filler(SearchRenderer.matchCap + 1) + rest)
 
         #expect(answer.components(separatedBy: "Sources/App/One.swift:").count == 2, "\(answer)")
         #expect(answer.contains("Sources/App/One.swift: Alpha, Gamma"), "\(answer)")
@@ -42,7 +42,7 @@ struct SearchRemainderShapeTests {
             Self.match("Sources/App/Where.swift", "WhereRenderer", kind: "extension", line: 40, endLine: 90),
             Self.match("Sources/App/Where.swift", "WhereRenderer", kind: "extension", line: 120, endLine: 130),
         ]
-        let answer = try Self.rendered(Self.filler(SearchRenderer.matchCap) + rest, query: "kind:struct|extension")
+        let answer = try Self.rendered(Self.filler(SearchRenderer.matchCap + 1) + rest, query: "kind:struct|extension")
 
         #expect(answer.contains("Sources/App/Where.swift: WhereRenderer (:40-90), WhereRenderer (:120-130)"), "\(answer)")
     }
@@ -56,7 +56,7 @@ struct SearchRemainderShapeTests {
 
     private static func withPaddedLast(_ pad: Int) -> [StructuralMatch] {
         let rest = (0 ..< 20).map { match("Sources/App/Rest.swift", "R\($0)") }
-        return filler(SearchRenderer.matchCap) + rest + [match("Sources/App/Rest.swift", "Last" + String(repeating: "x", count: pad))]
+        return filler(SearchRenderer.matchCap + 1) + rest + [match("Sources/App/Rest.swift", "Last" + String(repeating: "x", count: pad))]
     }
 
     @Test

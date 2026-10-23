@@ -68,6 +68,11 @@ struct SourceLiteralSearch {
         return resolvingDeclarations(of: sites, listing: { $0.isListable && $0.isTest == listsTests.contains($0.isAroundInterpolation) })
     }
 
+    /// Properties per answer whose use sites are listed under their rows, counted in the order the answer prints them.
+    static var propertyUseCap: Int {
+        5
+    }
+
     /// Production sites the one-word matches around interpolations listed when nothing else lists may number, at most, all words together.
     static var fallbackSiteLimit: Int {
         8
@@ -113,20 +118,27 @@ struct SourceLiteralSearch {
     private func resolvingDeclarations(of sites: [Site], listing: (Site) -> Bool) -> [Site] {
         var resolved: [Bool: Int] = [:]
         var parsed: [String: ParsedFile] = [:]
+        var texts: [String: String] = [:]
         return sites.map { site in
             guard listing(site), resolved[site.isAroundInterpolation, default: 0] < Self.siteCap else {
                 return site
             }
             resolved[site.isAroundInterpolation, default: 0] += 1
             if parsed[site.path] == nil {
-                parsed[site.path] = FileParser.parse(absoluteURL: repoRoot.appendingPathComponent(site.path), repoRelativePath: site.path)
+                let url = repoRoot.appendingPathComponent(site.path)
+                parsed[site.path] = FileParser.parse(absoluteURL: url, repoRelativePath: site.path)
+                texts[site.path] = try? String(contentsOf: url, encoding: .utf8)
             }
             guard let file = parsed[site.path],
                   let declaration = RunFailureSites.Declaration(enclosing: site.line, in: file)
             else {
                 return site
             }
-            return Site(path: site.path, line: site.line, literal: site.literal, around: site.around, window: site.window, declaration: declaration.name, isTest: site.isTest)
+            var named = Site(path: site.path, line: site.line, literal: site.literal, around: site.around, window: site.window, declaration: declaration.name, isTest: site.isTest)
+            if let source = texts[site.path] {
+                named.holder = Site.Holder(declaration: declaration, in: file, source: source)
+            }
+            return named
         }
     }
 }
@@ -156,5 +168,10 @@ extension SourceLiteralSearch {
         var isListable: Bool {
             around?.isListed ?? true
         }
+
+        /// The property holding the literal.
+        var holder: Holder?
+        /// Where the ``holder`` is written outside its own declaration, once ``StringCatalogSearch`` has looked; `nil` before, and for a literal no property holds.
+        var uses: [StringsAccessorFollow.Site]?
     }
 }

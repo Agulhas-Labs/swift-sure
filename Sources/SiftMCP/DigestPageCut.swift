@@ -93,7 +93,7 @@ extension InPlaceAnswerer {
 
     /// The first page of the file's digest cut to the most member lines that keep its whole refusal inside the size budget, or `nil` where the read does not end as `overSize`, the digest is the file's own source, or no such page may stand in for the read.
     ///
-    /// Computed only where the candidates, uncut, are refused as `overSize`, so a read that ends any other way renders nothing extra for its own answer; a window over most of its file is asked once more for the whole read it is weighed against (``WholeReadWorth``), and pays that read's renders, a page cut included where the whole read's answer needs one. The page size starts from an estimate (the page lines the room the framing leaves holds, at the whole answer's bytes per line) and widens by doubling steps until a fitting and a non-fitting size bracket it, then bisects: a page's size only grows with its lines, so the largest page that fits is the one that stays. Each probe is one render of the digest, and the closure given is told of each. Where the read is a window, the page has to reach every member the window overlaps, which a smaller page reaches no further than a larger one, so only the largest is asked.
+    /// Computed only where the candidates, uncut, are refused as `overSize`, so a read that ends any other way renders nothing extra for its own answer; a window over most of its file is asked once more for the whole read it is weighed against (``WholeReadWorth``), and pays that read's renders, a page cut included where the whole read's answer needs one. The page size starts from an estimate (the page lines the room the framing leaves holds, at the whole answer's bytes per line) and widens by doubling steps until a fitting and a non-fitting size bracket it, then bisects: a page's size grows with its lines, so the largest page that fits is the one that stays — fitting means its refusal also states its own size, which at the `10.0 kB`/`10 kB` flip one page may not, so the bisection can keep a page one line short of the largest. Each probe is one render of the digest, and the closure given is told of each. Where the read is a window, the page has to reach every member the window overlaps, which a smaller page reaches no further than a larger one, so only the largest is asked.
     static func pageCut(
         of whole: Computed,
         bounded: Computed?,
@@ -126,7 +126,10 @@ extension InPlaceAnswerer {
             if !(fits + 1 ... over - 1).contains(size) {
                 size = (fits + over) / 2
             }
-            if let page = try probe(size), framed(page, note: nil, under: conditions).1.served <= conditions.sizeBudget {
+            // A page whose closing line has no length stating its own size — its served figure flipping from
+            // `10.0 kB` to `10 kB` across its own bytes — fits no better than one over the budget: the next smaller
+            // page is cut instead, rather than the read ending as `overSize`.
+            if let page = try probe(size), case let refusal = framed(page, note: nil, under: conditions).1, refusal.statesItsSize, refusal.served <= conditions.sizeBudget {
                 (fits, cut) = (size, page)
                 size += step
             } else {

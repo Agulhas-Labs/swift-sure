@@ -113,7 +113,7 @@ public struct SessionPrimer {
         case .none:
             nil
         case let .insideRoot(root):
-            intro + "\n\nThis repo is indexed (`\(root)`), so queries here need no `root:` argument.\n" + closing
+            intro + "\n\nThis repo is indexed (`\(root)`); no `root:` argument needed.\n" + closing
         case let .aboveRoots(roots):
             intro
                 + "\n\nThis session is rooted **above** the repositories, so pass `root:` with the repo you mean."
@@ -162,10 +162,10 @@ public struct SessionPrimer {
     private static var banner: String {
         """
         **\(ProductName.current.binary) indexes this Swift code: ask it before reading or grepping a `.swift` file.**
-        - `digest <Type>` (or a file, or `.`): member line ranges, then a ranged Read; known `Type.member`s (several per call): their source; a cited line: `digest File.swift:120`
-        - `where <Symbol>` instead of grepping: definition (`--decl` for only that), callers, conformers, overrides
+        - `digest <Type>` (or a file): member line ranges, then a ranged Read; `Type.member`s: their source; a cited line: `digest File.swift:120`
+        - `where <Symbol>` instead of grepping: definition (`--decl`: definition only), callers, conformers, overrides
         - `search` for code by shape, `strings "<text>"` for UI text
-        - `\(ProductName.current.binary) run -- swift test` (or a build) from Bash: the failures, the log in `\(ProductName.current.directoryName)/runs/`
+        - Bash: `\(ProductName.current.binary) run -- <build or test>`: failures, log `\(ProductName.current.directoryName)/runs/`
         """
     }
 

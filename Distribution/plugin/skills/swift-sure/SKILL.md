@@ -13,8 +13,9 @@ description: Use when reading, searching, building or testing Swift code: answer
 | `search` | code by shape, not name (`swift-sure help queries`) |
 | `strings` | UI text, to its key or Swift literal |
 | `swift-sure run --` | any build or test, from Bash, bare, never piped |
+| `swift-sure test` | package or scheme tests, sharded: `--shards N` |
 
-Also `swift-sure affected` (which tests a change could break), `test`, `similar`/`dupes`, `build --analyse`, `audit`: `swift-sure <verb> --help`; `swift-sure help` lists the topics.
+Also `swift-sure affected` (which tests a change could break), `similar`/`dupes`, `build --analyse`, `audit`: `<verb> --help`; `swift-sure help` lists the topics.
 
 Before you report a Swift change done: `swift-sure checkup` (what the change left unproved, and callers it left behind, ranked; it builds and runs nothing).
 

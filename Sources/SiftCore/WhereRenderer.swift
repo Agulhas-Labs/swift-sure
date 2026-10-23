@@ -828,6 +828,12 @@ extension WhereRenderer {
         let printed = refusalWords(false)
         lines.append(contentsOf: printed)
         verdicts.noteSetAside(wrapperSites.setAside)
+        var scannedNames = try ScannedNames(rows: targets.filter { row in row.kind != .extensionKind && row.kind != .operatorKind && !refusedRows.contains { $0.id == row.id } }, in: store)
+        scannedNames.countsCallsOnly = !options.includeReferences
+        // A sweep's first page searches the test targets the store holds no unit for by written name, so its verdicts say what that found rather than advise a build (WhereTestTargetScan).
+        var testTargets = options.includeReferences && options.offset <= 0 ? try WhereTestTargetScan(names: scannedNames, in: store, context: primary) : nil
+        testTargets.map { verdicts.noteTestTargetScan($0) }
+        sections = testTargets?.stating(in: sections) ?? sections
         lines.append(contentsOf: sections + (verdicts.setAsideLine.map { ["", $0] } ?? []))
         let callerSummary = [verdicts.summary(withoutCallers, eligible: callerEligible, noun: "callers", preposition: "of")].compactMap(\.self) + implementersWithoutCallers
         lines += callerSummary.isEmpty ? [] : [""] + callerSummary
@@ -896,10 +902,9 @@ extension WhereRenderer {
             lines += ["", StandingCaveats.sentences]
         }
         // The store records nothing in a file it holds no unit for, a new one above all, nor what a file it holds has written since the build, so a lower bound names the lines there that write the name, which a rename trusting the answer would otherwise miss, and the header counts each file no store holds that it names.
-        var scannedNames = try ScannedNames(rows: targets.filter { row in row.kind != .extensionKind && row.kind != .operatorKind && !refusedRows.contains { $0.id == row.id } }, in: store)
-        scannedNames.countsCallsOnly = !options.includeReferences
-        let mentions = try WhereChangedFileMentions(names: scannedNames, unbuilt: verdicts.filesOutsideTheBuild, refused: Set(refusals.map(\.path)), in: store, context: primary, judge: declaringFiles, listsEveryLine: options.includeReferences, offset: options.offset)
+        let mentions = try WhereChangedFileMentions(names: scannedNames, unbuilt: testTargets?.paths ?? verdicts.filesOutsideTheBuild, refused: Set(refusals.map(\.path)), in: store, context: primary, judge: declaringFiles, listsEveryLine: options.includeReferences, offset: options.offset, unbuiltScanned: testTargets?.scanned)
         lines = mentions.placed(in: lines)
+        lines += testTargets?.ownLine(besideEmptyVerdicts: !emptyVerdicts.isEmpty) ?? []
         filesCollector.map(mentions.record(into:))
         if let note = try SemanticTargets.capNote(for: declarations, includeReferences: options.includeReferences, in: store) {
             lines.append("")

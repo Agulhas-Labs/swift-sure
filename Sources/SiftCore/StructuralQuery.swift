@@ -142,12 +142,23 @@ public struct StructuralQuery: Sendable {
                 }
                 pieces.append(text[word.startIndex ..< words[end].endIndex])
                 index = words.index(after: end)
+            } else if Self.opensQuote(word), let end = words[next...].firstIndex(where: { $0.hasSuffix("\"") || Self.startsTerm($0) }), !Self.startsTerm(words[end]) {
+                pieces.append(text[word.startIndex ..< words[end].endIndex])
+                index = words.index(after: end)
             } else {
                 pieces.append(word)
                 index = next
             }
         }
         return pieces
+    }
+
+    /// Whether a `path:`, `owner:` or `name:` word's value opens a double-quoted value it does not close, so the value runs on across whitespace (`path:"Some Dir/"`).
+    private static func opensQuote(_ word: Substring) -> Bool {
+        let body = word.hasPrefix("!") ? word.dropFirst() : word
+        guard let separator = body.firstIndex(of: ":"), ["path", "owner", "name"].contains(body[..<separator]) else { return false }
+        let value = Self.value(of: word)
+        return value.hasPrefix("\"") && (value.count == 1 || !value.hasSuffix("\""))
     }
 
     /// Whether a word's value — what follows its field, or the whole word for a bare term — opens a `/regex/` it does not close.
@@ -248,6 +259,10 @@ public struct StructuralQuery: Sendable {
         }
         // A name written in backticks is matched by the name the index holds, which drops them around an ordinary word.
         var value = namesADeclaration ? SymbolNaming.unbackticked(alternative) : alternative
+        // Attributes are written with the `@` (`@Test`), but the index holds them without it, so a leading one is accepted and ignored rather than matching nothing.
+        if field == .attr, value.hasPrefix("@"), value.count > 1, NamePattern.regexBody(value) == nil {
+            value.removeFirst()
+        }
         if field == .kind, let wanted = kindSpellings[value] {
             return AlternativeReading(value: wanted, widened: nil, qualified: false)
         }
@@ -504,9 +519,12 @@ public extension StructuralQuery {
                 throw EngineError.malformedQuery("\"\(piece)\" is not field:value — \(StructuralQuery.usage)")
             }
             let rawField = String(body[body.startIndex ..< separator])
-            let rawValue = String(body[body.index(after: separator)...])
+            var rawValue = String(body[body.index(after: separator)...])
             guard let field = Field(rawValue: rawField) else {
                 throw EngineError.malformedQuery("unknown field \"\(rawField)\" — \(StructuralQuery.usage)")
+            }
+            if [Field.path, .owner, .name].contains(field), rawValue.count >= 2, rawValue.hasPrefix("\""), rawValue.hasSuffix("\"") {
+                rawValue = String(rawValue.dropFirst().dropLast())
             }
             guard !rawValue.isEmpty else {
                 throw EngineError.malformedQuery("\"\(piece)\" has no value — \(StructuralQuery.usage)")

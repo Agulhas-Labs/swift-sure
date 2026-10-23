@@ -146,6 +146,7 @@ public actor MCPServer {
                 "protocolVersion": requested,
                 "capabilities": ["tools": [String: Any]()],
                 "serverInfo": ["name": ProductName.current.mcpServer, "version": SiftVersion.current],
+                "instructions": MCPInstructions.text,
             ])
         case "notifications/initialized", "notifications/cancelled":
             break

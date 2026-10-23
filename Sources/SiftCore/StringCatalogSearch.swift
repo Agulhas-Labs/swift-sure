@@ -46,9 +46,39 @@ struct StringCatalogSearch {
             hits: hits,
             catalogsSearched: paths.count,
             literalSites: literalSites,
-            sourceLiterals: SourceLiteralSearch(repoRoot: repoRoot, swiftPaths: swiftPaths).run(query: query, catalogAnswered: !hits.isEmpty),
+            sourceLiterals: followingProperties(in: SourceLiteralSearch(repoRoot: repoRoot, swiftPaths: swiftPaths).run(query: query, catalogAnswered: !hits.isEmpty), query: query),
             accessorTrails: accessorTrails(scanKeys: scanKeys, literalSites: literalSites)
         )
+    }
+
+    /// `sites` with each one a property holds given where that property is written, by written name over the working tree; a `private` or `fileprivate` property is looked for in its declaring file only.
+    ///
+    /// Only the holders the answer will print (see ``PropertyTrailLedger``, found by rendering the sites once with their uses empty) are followed, in one scan over their names; the rest keep `nil` uses.
+    func followingProperties(
+        in sites: [SourceLiteralSearch.Site],
+        query: String,
+        follow: (([String]) -> [String: StringsAccessorFollow.Trail])? = nil
+    ) -> [SourceLiteralSearch.Site] {
+        guard sites.contains(where: { $0.holder != nil }) else { return sites }
+        var preview = sites
+        for index in preview.indices where preview[index].holder != nil {
+            preview[index].uses = []
+        }
+        let ledger = PropertyTrailLedger()
+        _ = StringsRenderer.render(answer: Answer(hits: [], catalogsSearched: 0, literalSites: [:], sourceLiterals: preview), query: query, trails: ledger)
+        var seen: Set<String> = []
+        let names = ledger.admittedNames.filter { seen.insert($0).inserted }
+        guard !names.isEmpty else { return sites }
+        let trails = (follow ?? { StringsAccessorFollow(repoRoot: repoRoot, swiftPaths: swiftPaths).run(accessors: $0) })(names)
+        return sites.map { site in
+            guard let holder = site.holder, names.contains(holder.name) else { return site }
+            var followed = site
+            let uses = (trails[holder.name]?.sites ?? []).filter { use in
+                (!holder.isFileLocal || use.path == site.path) && holder.reaches(use)
+            }
+            followed.uses = holder.ranked(uses, declaredIn: site.path)
+            return followed
+        }
     }
 
     /// The trail of each of the first few scanned keys no literal spells, followed to the accessor its last component names.

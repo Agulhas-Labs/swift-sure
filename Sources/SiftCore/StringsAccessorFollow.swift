@@ -105,7 +105,7 @@ extension StringsAccessorFollow {
     }
 
     /// One place the accessor name is written, with the line that writes it.
-    struct Site {
+    struct Site: Equatable {
         let path: String
         let line: Int
         let enclosing: String

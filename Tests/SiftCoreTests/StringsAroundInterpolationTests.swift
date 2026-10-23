@@ -104,7 +104,10 @@ struct StringsAroundInterpolationTests {
 
         let output = try engine.strings(query: "twelve 5 crates")
 
-        #expect(output.hasSuffix("\n  Plain.label — Sources/App/Plain.swift:2: \"twelve 5 crates\""))
+        // The row's property also lists its uses beneath it; this test is about what ends the answer after the rows.
+        let rows = output.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("      ") }.joined(separator: "\n")
+
+        #expect(rows.hasSuffix("\n  Plain.label — Sources/App/Plain.swift:2: \"twelve 5 crates\""))
         #expect(!output.contains("only one word of literal text"))
         #expect(!output.contains("literals with interpolations, matched around them"))
     }

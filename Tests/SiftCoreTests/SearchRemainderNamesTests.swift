@@ -22,10 +22,10 @@ struct SearchRemainderNamesTests {
     @Test
     func aRemainderUnderTheBudgetIsPrintedAsNamesGroupedByFileWithNoTruncationLine() throws {
         let cap = SearchRenderer.matchCap
-        let answer = try Self.rendered(Self.matches(cap + 6, perFile: 2))
+        let answer = try Self.rendered(Self.matches(cap + 7, perFile: 2), offset: 1)
 
-        #expect(answer.contains("6 more, names only (digest or offset \(cap) for their rows):"), "\(answer)")
-        #expect(answer.contains("Sources/App/Depot\(cap / 2).swift: Gizmo\(cap), Gizmo\(cap + 1)"), "\(answer)")
+        #expect(answer.contains("6 more, names only (digest or offset \(cap + 1) for their rows):"), "\(answer)")
+        #expect(answer.contains("Sources/App/Depot\(cap / 2).swift: Gizmo\(cap + 1)"), "\(answer)")
         #expect(answer.contains("Sources/App/Depot\(cap / 2 + 2).swift: Gizmo\(cap + 4), Gizmo\(cap + 5)"), "\(answer)")
         #expect(!answer.contains("truncated"), "\(answer)")
     }
@@ -34,9 +34,9 @@ struct SearchRemainderNamesTests {
     func aRemainderOverTheBudgetKeepsTheTruncationLine() throws {
         let cap = SearchRenderer.matchCap
         let extra = 500
-        let answer = try Self.rendered(Self.matches(cap + extra))
+        let answer = try Self.rendered(Self.matches(cap + extra + 1), offset: 1)
 
-        #expect(answer.contains("… truncated: \(extra) more matches — pass offset \(cap)"), "\(answer)")
+        #expect(answer.contains("… truncated: \(extra) more matches — pass offset \(cap + 1)"), "\(answer)")
         #expect(!answer.contains("names only"), "\(answer)")
     }
 

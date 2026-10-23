@@ -244,7 +244,7 @@ Commands that run the toolchain and report what happened.
 ### `swift-sure test`
 
 - **Does:** Splits a scheme's tests across simulators it creates, or a SwiftPM package's across `swift test` processes, and reconciles what ran against the declared inventory; `--analyse` counts what is supposed to run without running anything.
-- **Flags:** `--analyse` count the tests that are supposed to run, from the index and the plans; `--sweep` delete simulators this checkout's runs left behind, run nothing; `--scheme` the scheme to build and run; `--device` the device type to create simulators of; `--os` the runtime version to create them on; `--plan` the test plan to run; `--against` reconcile a finished run's output against the declared inventory; `--only` run only this Target, Class or test (repeatable); `--skip` leave out this Target, Class or test (repeatable); `--shards` how many simulators or processes to split across; `--shard-timeout` floor under a shard's time bound, in seconds; `--stock` boot shards stock, with no simulator services switched off; `--animations` leave animations on in the app under UI test; `--project` the `.xcodeproj` the scheme lives in; `--workspace` the `.xcworkspace` the scheme lives in; `--root` repository root.
+- **Flags:** `--analyse` count the tests that are supposed to run, from the index and the plans; `--sweep` delete simulators this checkout's runs left behind, run nothing; `--scheme` the scheme to build and run; `--device` the device type to create simulators of; `--os` the runtime version to create them on; `--plan` a test plan to run (repeatable: several plans run from one build on one pool of simulators); `--all-plans` run every test plan the scheme names, from one build; `--against` reconcile a finished run's output against the declared inventory; `--only` run only this Target, Class or test (repeatable); `--skip` leave out this Target, Class or test (repeatable); `--shards` how many simulators or processes to split across; `--shard-timeout` floor under a shard's time bound, in seconds; `--stock` boot shards stock, with no simulator services switched off; `--animations` leave animations on in the app under UI test; `--project` the `.xcodeproj` the scheme lives in; `--workspace` the `.xcworkspace` the scheme lives in; `--root` repository root.
 - **Needs a build:** it runs the build or tests itself (`--analyse` and `--sweep` build nothing).
 - **Typical time:** 5.1 s sharded on the docs fixture; `--analyse` 1.1 s over ValidationProjects. Not measured here: a scheme run was not timed.
 - **Sample:**
@@ -466,7 +466,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 - **Sample:**
 
   ```
-  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.2.1","name":"swift-sure"}},"jsonrpc":"2.0"}
+  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.2.2","name":"swift-sure"}},"jsonrpc":"2.0"}
   ```
 
 - **Mentioned in:** Guide §3, §4, §11, DocC (Installing, Troubleshooting).
@@ -519,7 +519,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
   claude hooks: pass — registered for SessionStart, SubagentStart, PreToolUse, PostToolUse, PostToolUseFailure, Stop, SubagentStop
   claude server: pass — swift-sure — ~/.local/bin/swift-sure mcp
   claude binary: pass — ~/.local/bin/swift-sure runs
-  claude version: pass — registered 0.2.1, running 0.2.1
+  claude version: pass — registered 0.2.2, running 0.2.2
   claude hook SessionStart: pass — exit 0, silent
   claude hook SubagentStart: pass — exit 0, silent
   ```

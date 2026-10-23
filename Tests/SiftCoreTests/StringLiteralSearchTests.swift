@@ -125,7 +125,8 @@ struct StringLiteralSearchTests {
 
         let output = try engine.strings(query: "shelf empty")
 
-        let lines = output.split(separator: "\n").map(String.init)
+        // The first rows held by a property also list its uses beneath them; this test is about the rows.
+        let lines = output.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("      ") }
         let heading = try #require(lines.firstIndex { $0.hasPrefix("source literals") })
 
         #expect(lines[heading + 1].hasPrefix("  first — Sources/Depot/A.swift:1:"))

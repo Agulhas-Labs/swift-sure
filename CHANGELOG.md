@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.2
+
+- Added: the bench's live hook check records every file it tried in `session.json` (`hook_probe_tried`: path, rule, token and answer bytes), where it kept only the file it settled on.
+- Fixed: the bench runs every session's Bash tool in `/bin/bash`, recorded in `session.json`, where it ran the operator's login shell and zsh's `nomatch` aborted agents' unquoted `--include=*.swift` greps unevenly between the arms.
+- Fixed: a whole read of a large Swift file whose page cut lands where the closing line cannot state its own size, its figure flipping from `10.0 kB` to `10 kB` across its own bytes, is answered with the page one member line shorter, where the read ran whole as `overSize`.
+- Changed: `search` at offset 0 past 40 matches answers grouped by file, up to 12 files with their counts, the whole-name matches as rows and a line naming how to narrow, where it listed 120 full rows and a block of names, 16-25k characters.
+- Fixed: a double-quoted `path:`, `owner:` or `name:` value holding spaces (`path:"Some Dir/"`) is read as one value, where it scanned no file.
+- Changed: `strings` lists the use sites of the property holding a source literal beneath its row, by written name and live, for the first 5 such rows of an answer, where it named the holder only and the reader took a second call.
+- Fixed: `search` accepts a leading `@` on an `attr:` value, so `attr:@Test` finds what `attr:Test` finds, where it matched nothing.
+- Changed: the MCP `initialize` answer carries `instructions` naming `swift-sure test`, `swift-sure run --` and `swift-sure --help` (the primer names `Bash: swift-sure run -- …`), where a session whose tools were deferred outside a Swift repository saw four query tools and nothing of the CLI's test and run commands.
+- Changed: the tool parameter descriptions that restated their names, a duplicate search example and the primer's test line are cut, so the fixed start every Swift session pays is no larger than 0.2.1's with the `instructions` above added, where they would have made it about 160 tokens larger.
+- Fixed: `where --refs` searches every Swift file of a test target the store holds no unit for by written name, listing the lines that write it or saying `none of the N Swift files in test targets writes the name` (with the Objective-C files there counted as not read), where it said only that the test files were not in the store and advised building them.
+- Added: `swift-sure test` runs several test plans from one build, on one pool of simulators, with `--plan` repeated or `--all-plans`, and answers once (one verdict, a line per plan, the totals, the shard lines and one `slowest:` list), its re-run line naming only the failing plans, where one run ran one plan.
+- Fixed: `swift-sure test` with no `--plan` on a scheme with several test plans runs the scheme's default plan, as `xcodebuild test` does, where it refused because the build wrote one `.xctestrun` per plan.
+
 ## 0.2.1
 
 - Fixed: the bench counts a run whose failed Bash call fired swift-sure's own `PostToolUseFailure` hook as valid, its list of swift-sure's hook events now held by a test to the events `swift-sure install` registers, where it threw the run out for firing a hook that is not swift-sure's.

@@ -195,10 +195,16 @@ def stripped_path(path: str) -> str:
     return os.pathsep.join(kept)
 
 
+# Claude Code's Bash tool runs commands in $SHELL. The operator's own (zsh, with `nomatch` on) aborted agents'
+# unquoted `grep --include=*.swift` in both arms unevenly (#1030), so every session runs bash, whose unmatched
+# glob stays a literal word, whatever the operator's login shell and its options.
+BASH_TOOL_SHELL = "/bin/bash"
+
+
 def clean_env(path: str) -> dict:
     """The only variables a run inherits: none of the calling session's Claude Code or SwiftSure state."""
-    env = {"PATH": path}
-    for name in ("HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR"):
+    env = {"PATH": path, "SHELL": BASH_TOOL_SHELL}
+    for name in ("HOME", "USER", "LOGNAME", "LANG", "TERM", "TMPDIR"):
         if name in os.environ:
             env[name] = os.environ[name]
     return env
@@ -1472,8 +1478,9 @@ def probe_hook(base_path: str, sift_binary: str, rule: Path) -> dict:
     whole-file Read of the corpus's largest tracked Swift file. The verdict must be an answer in place; any
     other (a corpus the hook judges outside the sources, say) halts the session. One exception: a file whose
     answer is withheld only for its size (rule overSize, as for a 600 KB file of string constants) proves
-    nothing either way, so the next largest is tried, up to PROBE_FILES files. The clone, the scratch home
-    and the replay's state are gone when it returns."""
+    nothing either way, so the next largest is tried, up to PROBE_FILES files. Every file tried is recorded
+    (hook_probe_tried: its repo-relative path, rule, token and answerBytes), so session.json shows what was
+    skipped and why. The clone, the scratch home and the replay's state are gone when it returns."""
     state = WORK / "hook-probe"
     arm_env = clean_env(str(WRAPPER_DIR) + os.pathsep + base_path)
     shutil.rmtree(RUN, ignore_errors=True)
@@ -1488,6 +1495,7 @@ def probe_hook(base_path: str, sift_binary: str, rule: Path) -> dict:
         files = [RUN / name for name in tracked if name]
         if not files:
             raise Halt("the hook probe found no tracked Swift file in the corpus")
+        tried = []
         for largest in sorted(files, key=lambda f: f.stat().st_size, reverse=True)[:PROBE_FILES]:
             shutil.rmtree(state, ignore_errors=True)
             state.mkdir(parents=True)
@@ -1501,16 +1509,19 @@ def probe_hook(base_path: str, sift_binary: str, rule: Path) -> dict:
                 verdict = json.loads(first)
             except Exception:  # not JSON: the replay failed
                 verdict = {}
+            tried.append({"path": str(largest.relative_to(RUN)), "rule": verdict.get("rule"),
+                          "token": verdict.get("token"), "answerBytes": verdict.get("answerBytes")})
             if replay.returncode != 0 or verdict.get("rule") != "overSize":
                 break
         if replay.returncode != 0 or verdict.get("token") != "in-place":
             raise Halt("arm B's hook is inert: a whole-file Read of %s came back verdict %s, rule %s, not an answer "
-                       "in place (exit %s)\n%s%s" % (
+                       "in place (exit %s); files tried: %s\n%s%s" % (
                            largest.relative_to(RUN), verdict.get("token"), verdict.get("rule"), replay.returncode,
-                           first, replay.stderr))
+                           json.dumps(tried), first, replay.stderr))
         answer = answer.partition("--- answer ---\n")[2]
         return {"hook_live": True, "hook_live_rule": verdict.get("rule"),
-                "hook_probe_read_chars": len(largest.read_text(errors="replace")), "hook_probe_answer_chars": len(answer)}
+                "hook_probe_read_chars": len(largest.read_text(errors="replace")), "hook_probe_answer_chars": len(answer),
+                "hook_probe_tried": tried}
     finally:
         shutil.rmtree(RUN, ignore_errors=True)
         shutil.rmtree(SCRATCH_HOME, ignore_errors=True)
@@ -1629,7 +1640,7 @@ def command_run(options):
         "sift_binary_mtime": datetime.fromtimestamp(os.path.getmtime(sift_binary), timezone.utc).isoformat(),
         **rule_record(options.rule_a, options.rule_b), **options.mod, **options.plugin,
         "mcp_b": not options.no_mcp_b,
-        "claude_code_version": claude_version, "timeout_seconds": options.timeout, "budget_usd": options.budget,
+        "claude_code_version": claude_version, "bash_tool_shell": BASH_TOOL_SHELL, "timeout_seconds": options.timeout, "budget_usd": options.budget,
     }
 
     def write_record():

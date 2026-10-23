@@ -193,7 +193,7 @@ is valid only if the stream's init event lists the plugin by its `plugin.json` n
 `session.json` records `mod_dir`, `mod_name`, `mod_commit` and `mod_files_sha256` (the files Claude Code writes on
 load, `tsconfig.json` and `.claude-plugin/types/`, left out), the table's header names them, and a voluntary-use
 table counts SwiftSure calls against Swift Reads and greps per arm. `--mod-b` with `--rule-a` is refused.
-A run inherits none of the calling shell's variables, so a mod switch reaches arm B only through `--mod-env
+Every session's Bash tool runs `/bin/bash` (`session.json`: `bash_tool_shell`), whatever the operator's login shell: zsh's `nomatch` aborted agents' unquoted `--include=*.swift` greps in both arms. A run inherits none of the calling shell's other variables, so a mod switch reaches arm B only through `--mod-env
 NAME=VALUE` (repeatable; refused without `--mod-b`), such as `--mod-env SWIFT_SURE_MOD_BASH=on`.
 `session.json` records it under `sift_mod_env.B_extra`, and the table's header names it.
 

@@ -72,30 +72,30 @@ public struct MCPToolCatalog {
         [
             [
                 "name": "digest",
-                "description": "Call this BEFORE opening a Swift file, by Read or in a shell: its declarations with each member's line range, for a ranged Read. Type.member returns that member's source.",
+                "description": "Call this BEFORE opening a Swift file, by Read or in a shell: its declarations with each member's line range. Type.member: its source.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
                         "target": ["type": "string", "description": "Type, Type.member, file, File.swift:12-40, module (Name/), .md path, or . (repo)."],
-                        "targets": ["type": "array", "items": ["type": "string"], "description": "Several at once."],
+                        "targets": ["type": "array", "items": ["type": "string"]],
                         "root": ["type": "string"],
-                        "all": ["type": "boolean", "description": "Include private symbols."],
-                        "signaturesOnly": ["type": "boolean", "description": "Drop doc summaries and attributes."],
+                        "all": ["type": "boolean", "description": "Private too."],
+                        "signaturesOnly": ["type": "boolean", "description": "Drop docs and attributes."],
                         "offset": ["type": "integer"],
                     ],
                 ],
             ],
             [
                 "name": "where",
-                "description": "Call this instead of grepping for a Swift symbol's definition, callers, uses, conformers or overrides: resolved file:line ranges.",
+                "description": "Call this instead of grepping for a Swift symbol's definition, callers, uses, conformers or overrides: file:line ranges.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
-                        "symbol": ["type": "string", "description": "Name or Type.member."],
+                        "symbol": ["type": "string"],
                         "root": ["type": "string"],
-                        "refs": ["type": "boolean", "description": "Every reference site, plus non-code mentions under not code."],
-                        "files": ["type": "boolean", "description": "With refs: file paths only."],
-                        "decl": ["type": "boolean", "description": "Only where it is declared."],
+                        "refs": ["type": "boolean", "description": "Every reference."],
+                        "files": ["type": "boolean", "description": "With refs: paths only."],
+                        "decl": ["type": "boolean", "description": "Only where declared."],
                         "offset": ["type": "integer"],
                     ],
                     "required": ["symbol"],
@@ -103,11 +103,11 @@ public struct MCPToolCatalog {
             ],
             [
                 "name": "search",
-                "description": "Call this instead of grepping for Swift code by shape, across nesting and line breaks.",
+                "description": "Call this instead of grepping for Swift code by shape.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
-                        "query": ["type": "string", "description": "field:value terms, ANDed, ! negates. Fields: kind attr name calls uses inherits modifier effect sig imports path owner has (closure/await/try/forceUnwrap/forceTry/forceCast/optionalChain). owner: enclosing type. Any field takes a|b; name/path/sig take /regex/. E.g. kind:func attr:Test calls:Task !has:await"],
+                        "query": ["type": "string", "description": "field:value terms, ! negates. Fields: kind attr name calls uses inherits modifier effect sig imports path owner has (closure/await/try/forceUnwrap/forceTry/forceCast/optionalChain). Any field takes a|b; name/path/sig take /regex/. E.g. kind:func !has:await"],
                         "root": ["type": "string"],
                         "offset": ["type": "integer"],
                     ],
@@ -116,11 +116,11 @@ public struct MCPToolCatalog {
             ],
             [
                 "name": "strings",
-                "description": "Call this to trace UI text to its localization key or Swift literal, or a key to its text.",
+                "description": "Call this to trace UI text to its localization key or Swift literal, or a key to its text",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
-                        "query": ["type": "string", "description": "Text or key."],
+                        "query": ["type": "string"],
                         "root": ["type": "string"],
                     ],
                     "required": ["query"],

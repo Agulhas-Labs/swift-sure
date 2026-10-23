@@ -55,7 +55,7 @@ struct WhereUnbuiltMentionsTests {
         #expect(!property.contains("not in the build, mention the name"), "\(property)")
     }
 
-    /// Built without its tests, the same package lists nothing: every test file lacks a unit, so none is read, and the lower bound's build advice is the whole remedy.
+    /// Built without its tests, the same package lists nothing outside `--refs`: every test file lacks a unit, so none is read, and the lower bound's build advice is the whole remedy (a sweep reads the test targets instead, WhereRefsTestTargetScanTests).
     @Test
     func noTestBuildReadsNoFileAndAddsNoLine() async throws {
         let root = try TestSources.makeTempRepo()
@@ -83,7 +83,7 @@ struct WhereUnbuiltMentionsTests {
 
         engine.callerDirectory = engine.repoRoot.path
         try await engine.awaitSemanticStore()
-        let sweep = try await engine.lookup(symbol: "Box", freshness: engine.ensureFresh(), options: WhereOptions(includeReferences: true))
+        let sweep = try await engine.lookup(symbol: "Box", freshness: engine.ensureFresh())
 
         #expect(sweep.contains("build with `swift-sure run -- swift build --build-tests`"), "\(sweep)")
         #expect(!sweep.contains("not in the build, mention the name"), "\(sweep)")

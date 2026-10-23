@@ -1908,8 +1908,18 @@ import, never the path`:
   of them does: the lower bound becomes lines a rename can act on (#711). It reads at most 200 of those files,
   the first in path order, and counts the rest as `· N outside files not scanned` (`none in the files scanned`
   where the files read hold no mention): bounded by count, never by the clock, so one tree gives one answer.
-  Where no test build ran it reads nothing, since every test file lacks a unit and the build advice is the
-  remedy; the files are the ones the zero-use verdict already classified. The same scan, bounded the same
+  Outside `--refs`, where no test build ran it reads nothing, since every test file lacks a unit and the build
+  advice is the remedy; the files are the ones the zero-use verdict already classified. Under `--refs` (MCP
+  `refs: true`), on the first page, wherever a test file lacks a unit, test targets never built or some files
+  left out, the scan reads instead every Swift file without a unit in a module holding a test file (so a
+  test target's helpers that import no test framework count too), bounded the same way: a sweep asked to count
+  tests too otherwise ends in a grep for the name (#827). Found some, the same `not in the build, mention the
+  name:` line lists them. Found none, the result replaces the build advice: an empty verdict ends `; none of
+  the N Swift files in test targets writes the name` in place of `; N test files are not in it (build …)` or
+  `; not counting …`, and an answer with no empty verdict carries it as a line of its own; `.m` and `.mm`
+  files beside those Swift files are not read, and the same clause counts them, `; 3 Objective-C test files
+  not read`. The header's `partial (…)` stays, since it is the header's freshness statement. With every test
+  file in the store nothing is read or added, and with no store the by-name sweep already reads every file. The same scan, bounded the same
   way, reads the indexed files written since the build, found from the index's own mtimes against the build
   as the refusal is, never from git's file list. A file no store holds a unit for (a new file, git tracking it
   or not) is truly not in the store: its lines writing the name in code are listed, `changed since last build,
@@ -2742,6 +2752,8 @@ three-word regex with `kind:func`, matches 35 declarations in the benchmark app,
 answer nothing,
 and ordering already puts every whole match on the first page in each query measured.
 
+**Past 40 matches, grouped by file (#1021).** At offset 0 a `search` of more than `SearchRenderer.groupThreshold` (40) matches answers grouped: the summary line ends `; grouped by file past 40` (without the whole-name clause), then up to 12 files as `  <count>  <path>`, most matches first and ties by path, `  + N more files (M matches)` for the rest, a `whole-name matches (k):` block of at most 5 of those matches as today's rows under path headings (with k at 0, a `first 5:` block of the first 5 matches in today's order), and one line `narrow with path:<top file's basename>, owner:<Type>, kind:, or a tighter name:; offset <r> continues the listing` (r the rows shown, at least 1; the basename is double-quoted when it holds whitespace). Counts are right-aligned. A result whose matches all sit in one file is not grouped: it renders today's shape. Why: a broad pattern's 120 full rows plus a names block ran 16-25k characters, as dear as reading the file it was meant to avoid. `offset` above 0, `--count` and 40 matches or fewer are unchanged. A `path:`, `owner:` or `name:` value may be double-quoted to hold spaces (`path:"Some Dir/"`).
+
 **`owner:` names the type a member is declared in.** `owner:StructuralQuery` matches a declaration whose
 innermost enclosing type or extension is `StructuralQuery`: a member written in its body and one written in
 any `extension StructuralQuery` alike, so `kind:func modifier:static owner:StructuralQuery` is its static
@@ -2893,6 +2905,13 @@ answer; a key past them, or whose last component is no identifier, keeps the one
 generated symbol up, and a name nothing declares or writes is said so on the key's line. Every query also scans the working tree's Swift files for **string literals whose text holds the
 query** — the whole answer in a CLI or tool repo with no catalog — each named by the declaration enclosing
 it (from a fresh parse, never the index's stored ranges) and its `file:line`, capped at 20 sites.
+A literal a property holds (a `let`/`var`, static or not, or a computed property returning it; the kind
+from the file's symbol kind) lists that property's use sites beneath its row, by written name, found by the
+same trail a key's accessor follows (so the answer stays live, with no store): the property's own declaration
+line is left out, a `private` or `fileprivate` property is looked for in its declaring file only, and a
+property written nowhere else says `written nowhere outside its declaration`. Only the first 5 such rows of
+an answer get sites; a literal in a function body already names the function and is unchanged (#1029, where
+the reader of a toast's message took a second call).
 Production sites are listed and test sites (a file importing a test framework, the split `where` makes)
 are counted per file on one `in tests:` line, so fixtures never spend the cap; a query matching only test
 sites lists them, unless the interpolation section below lists a production site matched on two or more of
@@ -4301,9 +4320,27 @@ build began) and never composed; none, or several without `--plan`, is a refusal
 *Enumerate* **against that file** (`-xctestrun <file> -enumerate-tests -test-enumeration-style flat
 -test-enumeration-format json`), because enumeration needs a built plan; it takes about 7 s and starts
 nothing. `enabledTests` is the **expected set**, and the `.xctestrun` carries the plan's own skip lists into
-every shard. **One plan per run, and shards never mix plans**: a combination of targets on one device that no
+every shard. **A shard never mixes plans within one call**: a combination of targets on one device that no
 serial run ever exercised is how flakiness gets in. *Plan* from it, wait for the devices, then run, merge,
 clean up.
+
+**Several plans run from one build (`--plan` repeated, or `--all-plans`).** The build names no plan and writes a
+`.xctestrun` per plan; each plan is enumerated against its own file. One pool of devices serves every plan:
+the planner works over (plan, test) items, so a device is not held to one plan, and each shard is a list of
+segments, one `xcodebuild test-without-building` call per (shard, plan) with that plan's `.xctestrun`. The
+launch, session and bundle-load overhead is therefore charged per (shard, plan) call, not per shard, and a
+shard that finishes its segments has its device deleted while the others still run. Each plan is reconciled on
+its own against its own segments, and a plan that enumerates nothing is named in the answer rather than
+dropped. **A plan that switches on a sanitizer is refused in a run of several plans** before anything is
+launched (after the build where only the `.xctestrun` files name the plans): a sanitizer builds products of its
+own, which one shared build cannot give it, and the refusal says to run that plan alone with `--plan`. **With no
+plan named, a scheme with several plans runs its default plan**, as `xcodebuild test` does, where it used to
+refuse. **The answer is one piece**: a single verdict (`✔ … N tests passed across K plans on S shards`, or `✘ …`
+naming each failing plan with what is wrong with it), a line per plan with that plan's counts and its failure
+detail beneath, a `total:` line, the shard lines (each naming its plan), `slowest:` once over every plan (a row
+names its plan only where the same test ran in two or more), then the run's timing, notes, re-run line, devices
+and housekeeping once. The re-run line names only the failing plans, `--plan X` for each, never `--all-plans`.
+A single plan's answer is unchanged.
 
 **The enumeration and the plan run while the devices boot, and provisioning is joined only when the shards
 are about to launch**: the enumeration names the build's destination (device type and runtime) rather than
@@ -5661,7 +5698,7 @@ load in full anyway, and where it carries it the deferred four still cost about 
 1.4k loaded, a saving smaller than the turn it adds before the first `digest`. **The schema is kept to a
 budget instead** (`ToolDefinitionBudgetTests`): every tool stays, a parameter stays in the schema while
 callers use it, each description is its trigger and nothing the model can infer, and the serialized list
-must stay under 2,300 bytes. Schema JSON costs about one token per 2.6 characters, not 4, so a short
+must stay under 2,050 bytes (trimmed from 2,300 on 23 Oct 2026: parameter descriptions that restated their names, a duplicate example, and the primer's test line, which the server's `instructions` now say; a one-turn Sonnet probe on a Swift app put the first-call input with the server and primer at 1,552 tokens over a session without them, from 1,714). Schema JSON costs about one token per 2.6 characters, not 4, so a short
 description is not free: `root` and `offset` carry none (the name says it, and every `truncated:` marker
 says `pass offset K`), and `at` and `count` left the schema (15 of 4,598 calls in 30 days, 14 Oct 2026),
 still accepted by the server and on the CLI as `--at` and `--count`. **Descriptions are load-bearing and are phrased as trigger conditions, not as features**:
@@ -5672,6 +5709,16 @@ intent trigger can be evaluated before acting. **Output is plain compact text, n
 JSON wrapping burns the tokens the tool exists to save. **Startup must be instant**: a stdio server has a
 startup timeout, so the server never indexes during `initialize` — indexing happens inside the *first tool
 call*, since a cold parse of even a very large tree sits far inside the tool-call timeout.
+
+**`initialize` carries `instructions` naming the CLI beyond the tools** (`MCPInstructions`, the binary named through
+`ProductName`): the CLI does more than these tools (`swift-sure test`, sharded across processes or simulators with
+`--shards N`; `swift-sure run -- <build or test command>`; `swift-sure --help` for every command). An agent whose
+tools were deferred to names, in a session outside any Swift repository, saw the four query tools and nothing else:
+the primer was silent and the rule loads only at a `.swift` file, so it concluded the CLI could not run tests.
+Probed 23 Oct 2026 (Claude Code 2.1.309, a canary string in a fake server's `instructions`, session outside any
+Swift repository): the model received the instructions word for word while the server's tool was deferred. About 60
+tokens, paid in every session where the server is registered; in a Swift session they overlap the primer's
+`swift-sure run --` line only partly (the instructions add `swift-sure test` and `--help`), accepted.
 
 **Root resolution is per query, not per registration.** A frozen root breaks two ordinary setups: a
 worktree whose session is not the checkout the server was registered in, and a session rooted above
@@ -7524,7 +7571,10 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   names has a whole digest whose refusal runs past the ten-thousand-byte budget, and no members answer is served
   in its place, the answer is that digest's first page cut to the most member lines that keep the whole refusal,
   framing and closing line included, inside the budget, ending in the `truncated:` marker that pages it, spelled
-  for the face the answer names. The cut is made on counted member lines, as every page is, and only in the hook:
+  for the face the answer names. A page whose closing line cannot state its own size counts as not fitting, so
+  the cut takes one member line fewer: two framings at the budget's edge have none, since the served figure
+  prints `10.0 kB` below ten thousand bytes and `10 kB` from there, two bytes shorter, and such a page was kept
+  as the largest that fit and then refused, leaving the read to run whole as `overSize`. The cut is made on counted member lines, as every page is, and only in the hook:
   `swift-sure digest` and the MCP tool keep their sixty-line page, and the cursor pages on from member line K at that
   size, so the continuation is the ordinary paged digest. The cut page is served only where it saves at least
   the 4096 B floor on what the read would print, since a page that does not show every line asked for is

@@ -7,7 +7,7 @@ import Foundation
 /// Renders the strings answer's section for literals matched around their interpolations: the sites listed, then a count of the one-word matches it does not list, broken down by word.
 struct StringsAroundSection {
     /// The section's lines for `sites`, every one matched around interpolations: a heading over the sites listed, or with none listed, the count alone on one line saying where it matched; empty when there are no sites.
-    static func lines(_ sites: [SourceLiteralSearch.Site], query: String) -> [String] {
+    static func lines(_ sites: [SourceLiteralSearch.Site], query: String, trails: PropertyTrailLedger = PropertyTrailLedger()) -> [String] {
         let listed = sites.filter(\.isListable)
         let counted = sites.filter { !$0.isListable }
         // Matched on one query word only: counted so the answer accounts for them, never listed ahead of a real site.
@@ -17,7 +17,7 @@ struct StringsAroundSection {
             return counted.isEmpty ? [] : ["\(counted.count) \(count) around interpolations \(tail)"]
         }
         var lines = [""]
-        lines += StringsRenderer.sourceLiteralLines(listed, heading: heading(listingOneWordMatches: listed.contains { $0.around?.word != nil }), query: query)
+        lines += StringsRenderer.sourceLiteralLines(listed, heading: heading(listingOneWordMatches: listed.contains { $0.around?.word != nil }), query: query, trails: trails)
         if !counted.isEmpty {
             lines.append("  \(counted.count) more \(count) \(tail)")
         }

@@ -52,7 +52,8 @@ two more where a section nests them; a type's
 written uses are `    :<line>  | <text>` under `  <path> (<n>):` while the block holds at most 40 lines,
 and `  <path> (<n>): <line>, <line>, …` with no text above that. The text is the source line trimmed, each
 run of whitespace one space, cut at 140 characters with `…`; a line not read ends its row before `  | `.
-In `strings`, an accessor's use site is `      <path>:<line> in <enclosing declaration>: <text>`. Counts,
+In `strings`, an accessor's use site, and a use site of the property holding a source literal listed
+beneath its row, is `      <path>:<line> in <enclosing declaration>: <text>`. Counts,
 caps and paging count sites, never rows or characters.
 
 A `where` site answered from the index store carries its text the same way while its block holds at most 40
@@ -136,7 +137,7 @@ written `!<field>:` when negated. A regex read as the plain words it spells adds
 the regex does not compile (<reason>), so this matches any of those words.` Under a pattern, the declarations
 whose whole name it matches are listed first; where some match only in part, the summary line ends `; the <k>
 whose whole name matches come first`; no line marks where they end, and with none or every declaration matching whole the line is the
-plain one. Its verdict on a miss is `no
+plain one. Past 40 matches at offset 0 the answer is grouped by file (summary ends `; grouped by file past 40`, a count per file, whole-name rows, a narrowing line) and drops that clause. Its verdict on a miss is `no
 declarations match — scanned <N> file(s)`, followed, where some declaration reached the terms, by `; <term>
 removed the last <k> declaration(s)`, or `; <term> removed all <k> declaration(s)` where no other term
 removed any, `<term>` written as parsed (`!` kept).
@@ -273,7 +274,7 @@ references from tests are a lower bound)`; where a non-test target the store's p
 none of them has a unit, and some of them write the asked name, it names the target and how many of its lines
 write the name, `partial (target Extra not built — 2 lines there name Gizmo, not counted)`, three names at most
 and then `+<k> more`; where both hold, one parenthesis carries both, joined by `; `. An empty verdict or a count
-that is a lower bound for the same reason names the target in its own clause. Where the asked declaration is a
+that is a lower bound for the same reason names the target in its own clause. Under `--refs`, where the scan of the test targets by written name finds no file writing the name, the build advice an empty verdict carries for test files becomes that result, `; none of the N Swift files in test targets writes the name` (with `; K Objective-C test files not read` where there are any), a line of its own where no verdict is empty; the header's `partial (…)` is unchanged. Where the asked declaration is a
 subscript, an operator function, `callAsFunction` or a `dynamicMember` subscript, whose uses spell no name a scan
 could find, every such target is named without the scan, `partial (target Extra not built — its uses of
 A.subscript cannot be found by name, not counted)`. A target that never writes the name hides nothing from the answer and is not named, nor is a `.plugin` or `.macro` target, which SwiftPM builds

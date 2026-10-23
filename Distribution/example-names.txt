@@ -455,6 +455,7 @@ SQLite
 SSecretApp
 SampleUITests
 SampleUITestsModule
+SanitizerEnabled
 SchemeDemo
 ScrollView
 SecretApp
@@ -651,6 +652,7 @@ actionFinished
 addLine
 addedNames
 additionalProperties
+addressSanitizer
 agentId
 aliasCrate
 allCases
@@ -795,7 +797,6 @@ decidedAtRuntime
 decodeIfPresent
 defaultLanguage
 defaultPackageRegistryURL
-defaultPlan
 deleteComponent
 dependencyCall
 deploymentTarget
@@ -1254,6 +1255,7 @@ theManifestSheetNamesTheBayItStandsInAndTheAisleBeyondIt
 theSummaryScreenReads
 theTallyOfDwAfIsTwiceTheCrates
 theWellIsATarget
+threadSanitizerEnabled
 thresholdPath
 throughputTrend
 throwingReads
@@ -1272,6 +1274,7 @@ trimmingCharacters
 tvOS
 twiceOnOneLine
 twoIssues
+undefinedBehaviorSanitizerEnabled
 undefinedName
 undefinedSymbol
 underGoing

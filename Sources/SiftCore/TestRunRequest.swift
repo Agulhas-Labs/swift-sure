@@ -15,8 +15,21 @@ public struct TestRunRequest: Sendable {
     /// The runtime version asked for, or `nil` for the newest installed one that runs the device type.
     public let osVersion: String?
 
-    /// The test plan, when the caller named one.
-    public let plan: String?
+    /// The test plans the caller named, in the order named: one is a single-plan run, several are run from one build.
+    public let plans: [String]
+
+    /// Whether the run covers every test plan of the scheme, from one build.
+    public let allPlans: Bool
+
+    /// The test plan, when the caller named exactly one.
+    public var plan: String? {
+        plans.count == 1 && !allPlans ? plans.first : nil
+    }
+
+    /// Whether the run covers more than one plan, each on the same pool of devices.
+    public var isMultiPlan: Bool {
+        allPlans || plans.count > 1
+    }
 
     /// `--only` values, in the `Target` / `Target/Class` / `Target/Class/test` spellings.
     public let only: [String]
@@ -59,6 +72,8 @@ public struct TestRunRequest: Sendable {
         deviceTypeName: String,
         osVersion: String? = nil,
         plan: String? = nil,
+        plans: [String] = [],
+        allPlans: Bool = false,
         only: [String] = [],
         skip: [String] = [],
         container: TestInvocation.Container? = nil,
@@ -75,7 +90,8 @@ public struct TestRunRequest: Sendable {
         self.scheme = scheme
         self.deviceTypeName = deviceTypeName
         self.osVersion = osVersion
-        self.plan = plan
+        self.plans = TestRun.unique((plan.map { [$0] } ?? []) + plans)
+        self.allPlans = allPlans
         self.only = only
         self.skip = skip
         self.container = container
@@ -94,12 +110,20 @@ public struct TestRunRequest: Sendable {
 extension TestRunRequest {
     /// The `swift-sure test` invocation that reproduces this run's scheme, device, OS, plan and container — everything a re-run needs before `--shards 1` and the failing `--only` arguments are appended.
     var rerunCommandPrefix: String {
+        rerunCommandPrefix(plans: plans, allPlans: allPlans)
+    }
+
+    /// ``rerunCommandPrefix`` naming `plans` and `allPlans` in place of the request's own: a multi-plan run's re-run names only the plans that failed.
+    func rerunCommandPrefix(plans: [String], allPlans: Bool) -> String {
         var words = [ProductName.current.binary, "test", "--scheme", Self.shellQuoted(scheme), "--device", Self.shellQuoted(deviceTypeName)]
         if let osVersion {
             words += ["--os", Self.shellQuoted(osVersion)]
         }
-        if let plan {
+        for plan in plans {
             words += ["--plan", Self.shellQuoted(plan)]
+        }
+        if allPlans {
+            words.append("--all-plans")
         }
         switch container {
         case let .project(path):

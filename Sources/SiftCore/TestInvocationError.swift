@@ -58,7 +58,7 @@ public enum TestInvocationError: Error, CustomStringConvertible, Sendable {
         case let .testSelection(word):
             "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --only and --skip already name which tests run, and each shard is handed its own explicit list of them."
         case let .testPlan(word):
-            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --plan already names the test plan, and one run is one plan — the plan also decides which .xctestrun file every shard runs from."
+            "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --plan already names the test plan, and each plan decides which .xctestrun file its shards run from."
         case let .scheme(word):
             "\(ProductName.current.binary) test cannot take `\(word)` after `--`: --scheme already names the scheme."
         case let .container(word):

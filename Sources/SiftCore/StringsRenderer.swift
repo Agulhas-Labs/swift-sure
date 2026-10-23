@@ -11,7 +11,7 @@ struct StringsRenderer {
         80
     }
 
-    static func render(answer: StringCatalogSearch.Answer, query: String) -> String {
+    static func render(answer: StringCatalogSearch.Answer, query: String, trails: PropertyTrailLedger = PropertyTrailLedger()) -> String {
         var lines: [String] = []
         if answer.catalogsSearched == 0 {
             lines.append("no string catalogs (.xcstrings / .strings) in this repo")
@@ -25,21 +25,21 @@ struct StringsRenderer {
             lines.append("")
             // A production site matched around its interpolations on two or more words is the producer: the tests spelling the text whole are counted, not listed ahead of it.
             let producerFollows = answer.sourceLiterals.contains { $0.isAroundInterpolation && $0.isListable && !$0.isTest && $0.around?.word == nil }
-            lines += sourceLiteralLines(plain, heading: "source literals:", query: query, listsTestsAlone: !producerFollows)
+            lines += sourceLiteralLines(plain, heading: "source literals:", query: query, listsTestsAlone: !producerFollows, trails: trails)
         }
         let around = answer.sourceLiterals.filter(\.isAroundInterpolation)
         if plain.isEmpty, answer.hits.isEmpty, !around.contains(where: \.isListable) {
             lines.append("no Swift string literal contains it either")
         }
         // A plain literal already spells the query: the matches on one of its words alone are counted only where nothing better answered.
-        lines += StringsAroundSection.lines(plain.isEmpty ? around : around.filter(\.isListable), query: query)
+        lines += StringsAroundSection.lines(plain.isEmpty ? around : around.filter(\.isListable), query: query, trails: trails)
         return lines.joined(separator: "\n")
     }
 
     /// A source-literal section: one line per production site, `<declaration> — <path>:<line>: "<literal>"`, capped with a count of the rest, then test sites counted per file; a section matching only test sites lists them instead, unless the caller says a production site follows, when it counts them alone.
     ///
     /// A literal matched around its interpolations is windowed on where its written text spells the literal text it matched, since the query itself is not in its text, and shown from its start when that is nowhere; a run of literals a `+` joins is windowed on the range the search found, since `" + "` stands between the pieces of the query.
-    static func sourceLiteralLines(_ sites: [SourceLiteralSearch.Site], heading: String, query: String, listsTestsAlone: Bool = true) -> [String] {
+    static func sourceLiteralLines(_ sites: [SourceLiteralSearch.Site], heading: String, query: String, listsTestsAlone: Bool = true, trails: PropertyTrailLedger = PropertyTrailLedger()) -> [String] {
         var lines = [heading]
         let production = sites.filter { !$0.isTest }
         let tests = sites.filter(\.isTest)
@@ -48,6 +48,9 @@ struct StringsRenderer {
             let shown = site.around.map { around in around.window.map { windowed(site.literal, on: $0) } ?? truncated(site.literal) } ?? site.window.map { windowed(site.literal, on: $0) } ?? windowed(site.literal, around: query)
             let location = "\(site.path):\(site.line): \"\(shown)\""
             lines.append("  " + (site.declaration.map { "\($0) — \(location)" } ?? location))
+            if let holder = site.holder, let uses = site.uses, trails.admits(holder, path: site.path) {
+                lines += useLines(uses, name: holder.name, cap: holderSiteCap)
+            }
         }
         if listed.count > SourceLiteralSearch.siteCap {
             lines.append("  +\(listed.count - SourceLiteralSearch.siteCap) more — narrow the query")
@@ -56,6 +59,11 @@ struct StringsRenderer {
             lines.append("  " + testSitesLine(tests))
         }
         return lines
+    }
+
+    /// Use sites listed under a row whose property holds the literal, before the rest are counted.
+    private static var holderSiteCap: Int {
+        3
     }
 
     /// Files named on the test-sites line before it ends in an ellipsis.
@@ -156,14 +164,17 @@ struct StringsRenderer {
         if trail.declarations.count > StringsAccessorFollow.declarationCap {
             lines.append("      +\(trail.declarations.count - StringsAccessorFollow.declarationCap) more declarations — where \(accessor) lists them all")
         }
-        if trail.sites.isEmpty {
-            lines.append("      written nowhere outside its declaration")
-        }
-        for site in trail.sites.prefix(StringsAccessorFollow.siteCap) {
+        return lines + useLines(trail.sites, name: accessor)
+    }
+
+    /// The lines writing `name`, each with its enclosing declaration and its text, or the verdict that none does, the rest counted past ``StringsAccessorFollow/siteCap``.
+    private static func useLines(_ sites: [StringsAccessorFollow.Site], name: String, cap: Int = StringsAccessorFollow.siteCap) -> [String] {
+        var lines = sites.isEmpty ? ["      written nowhere outside its declaration"] : []
+        for site in sites.prefix(cap) {
             lines.append("      \(site.path):\(site.line) in \(site.enclosing): \(site.text)")
         }
-        if trail.sites.count > StringsAccessorFollow.siteCap {
-            lines.append("      +\(trail.sites.count - StringsAccessorFollow.siteCap) more sites — where \(accessor) lists them all")
+        if sites.count > cap {
+            lines.append("      +\(sites.count - cap) more sites — where \(name) lists them all")
         }
         return lines
     }

@@ -18,16 +18,16 @@ public final class TestRun: @unchecked Sendable {
     public typealias Environment = TestRunEnvironment
     public typealias Result = TestRunResult
 
-    private let request: Request
-    private let environment: Environment
-    private let children: SetAsideChildren
-    private let state = State()
+    let request: Request
+    let environment: Environment
+    let children: SetAsideChildren
+    let state = State()
 
     /// How this run decided to boot and how each shard's boot came out, for the answer's devices line.
     let slimBoots = SlimBootRecord()
 
     /// When this run began, which is the cut-off the crash reports beside a missing test are dated from.
-    private let beganAt: Date
+    let beganAt: Date
 
     /// A run whose every child — the build's and the enumeration's as much as the shards' — belongs to `children`, so that the one teardown ends the lot of them.
     public init(request: Request, environment: Environment, children: SetAsideChildren = SetAsideChildren()) {
@@ -75,7 +75,7 @@ public extension TestRun {
     }
 }
 
-private extension TestRun {
+extension TestRun {
     /// What a request that cannot be answered as asked exits with — the invocation, the device, the plan or the enumeration.
     static var usageExit: Int32 {
         64
@@ -152,11 +152,14 @@ private extension TestRun {
     }
 }
 
-private extension TestRun {
+extension TestRun {
     /// The run itself, from the validation that refuses before anything is launched to the reconciliation that is the answer.
     ///
     /// **A cancellation is noticed between every step, not only after the shards.** ``cancel(exitCode:)`` arrives on another thread and tears down where it lands — the devices deleted and `.swift-sure/shards/<runid>/` gone — so a step after it either launches something nothing is left to end, or writes into a directory that is no longer there and answers the caller a file-system error where it is owed the interruption it asked for.
     func sequence(prefix: String, sweepLines: [String]) throws -> Result {
+        if request.isMultiPlan {
+            return try multiPlanSequence(prefix: prefix, sweepLines: sweepLines)
+        }
         let (invocation, resolution) = try validated()
         let facts = environment.hostFacts()
         let ledger = try armed(prefix: prefix)
@@ -375,8 +378,31 @@ private extension TestRun {
 
     /// The `.xctestrun` this run's shards run from.
     ///
-    /// With a plan named, the file that plan wrote. Without one, only the files this build wrote are considered — an earlier build of another plan leaves its own in the same directory, and running it would put a combination of targets on a device that nobody asked for.
+    /// With a plan named, the file that plan wrote. Without one, only the files this build wrote are considered, and of several the scheme's default plan's — an earlier build of another plan leaves its own in the same directory, and running it would put a combination of targets on a device that nobody asked for.
     func foundXCTestRun(_ invocation: TestInvocation, since began: Date) throws -> URL {
+        let (directory, entries) = try productsListing(invocation)
+        if let plan = invocation.plan {
+            let name = try ending(TestRun.usageExit) { try TestInvocation.xctestrunName(among: entries.map(\.name), plan: plan) }
+            return directory.appendingPathComponent(name)
+        }
+        let written = entries.filter { $0.name.hasSuffix(".xctestrun") && $0.modified >= began }.map(\.name).sorted()
+        guard let name = written.first else {
+            throw TestRun.refusal(TestRunError.noXCTestRun(entries.map(\.name)), exitCode: TestRun.usageExit)
+        }
+        guard written.count == 1 else {
+            // A build named no plan writes one file per plan of the scheme; `xcodebuild test` would run the default one, so this run does too.
+            if let plan = environment.schemes().defaultPlan(ofScheme: invocation.scheme),
+               let name = try? TestInvocation.xctestrunName(among: written, plan: plan)
+            {
+                return directory.appendingPathComponent(name)
+            }
+            throw TestRun.refusal(TestRunError.severalXCTestRuns(written), exitCode: TestRun.usageExit)
+        }
+        return directory.appendingPathComponent(name)
+    }
+
+    /// The build's products directory, as its settings name it, and what is in it.
+    func productsListing(_ invocation: TestInvocation) throws -> (directory: URL, entries: [Environment.Entry]) {
         let settings = try ending(TestRun.usageExit) { try environment.buildSettings(invocation.buildSettingsArguments) }
         try throwIfInterrupted()
         guard settings.exitCode == 0 else {
@@ -393,28 +419,18 @@ private extension TestRun {
             return try TestInvocation.buildDirectory(inBuildSettings: settings.output)
         }
         let directory = URL(fileURLWithPath: path)
-        let entries = environment.listDirectory(directory)
-        if let plan = invocation.plan {
-            let name = try ending(TestRun.usageExit) { try TestInvocation.xctestrunName(among: entries.map(\.name), plan: plan) }
-            return directory.appendingPathComponent(name)
-        }
-        let written = entries.filter { $0.name.hasSuffix(".xctestrun") && $0.modified >= began }.map(\.name).sorted()
-        guard let name = written.first else {
-            throw TestRun.refusal(TestRunError.noXCTestRun(entries.map(\.name)), exitCode: TestRun.usageExit)
-        }
-        guard written.count == 1 else {
-            throw TestRun.refusal(TestRunError.severalXCTestRuns(written), exitCode: TestRun.usageExit)
-        }
-        return directory.appendingPathComponent(name)
+        return (directory, environment.listDirectory(directory))
     }
 
     /// The expected set: the tests `xcodebuild` itself says the plan will run, which every count in the answer is reconciled against.
-    func enumerated(_ invocation: TestInvocation, xctestrun: URL, in ledger: ShardLedger) throws -> [TestIdentifier] {
-        let outputPath = ledger.directory.appendingPathComponent("enumerated.json")
+    ///
+    /// `suffix` follows the names of the files the enumeration writes, so that each plan of a run over several keeps its own.
+    func enumerated(_ invocation: TestInvocation, xctestrun: URL, in ledger: ShardLedger, suffix: String = "") throws -> [TestIdentifier] {
+        let outputPath = ledger.directory.appendingPathComponent("enumerated\(suffix).json")
         let arguments = invocation.enumerationArguments(
             xctestrun: xctestrun,
             outputPath: outputPath,
-            resultBundle: ledger.directory.appendingPathComponent("enumeration.xcresult")
+            resultBundle: ledger.directory.appendingPathComponent("enumeration\(suffix).xcresult")
         )
         let enumeration = try ending(TestRun.usageExit) { try environment.launch(arguments) }
         // The teardown ends this command with the rest of the run's children, and what it then exits with is the signal's doing.
@@ -436,25 +452,7 @@ private extension TestRun {
     ///
     /// **A runner the cancellation beat here is ended rather than started.** ``cancel(exitCode:)`` ends whatever runner the state holds, so one handed over after it looked is one no teardown will ever reach: the children were ended already and the watcher let go, and the shards would run on devices that are gone with nothing left to stop them.
     func run(_ plan: ShardPlan, invocation: TestInvocation, xctestrun: URL, in ledger: ShardLedger) throws -> [ShardOutcome] {
-        children.record(into: ShardGuardian.sessionsFile(for: ledger))
-        let shards = environment.shardRunner(children)
-        if let exitCode = state.willRun(shards) {
-            shards.cancel()
-            throw TestRun.interrupted(exitCode: exitCode)
-        }
-        // The last look at the preference before the tests that read it: an overwrite after the boot-time confirmation lands here.
-        for udid in state.udids().prefix(plan.shards.count) {
-            do {
-                // A cancel deletes every device, so the check stops before the next one rather than waiting on a device that is gone.
-                try throwIfInterrupted()
-                try ShardDevices.confirmAccessibility(udid: udid, run: environment.simctl, pause: environment.pause, now: environment.waitClock, stopped: { state.isCancelled })
-            } catch {
-                shards.cancel()
-                // A cancel that reached the check answers as the interruption, as it does at every step around it.
-                try throwIfInterrupted()
-                throw error
-            }
-        }
+        let shards = try readiedRunner(devices: plan.shards.count, in: ledger)
         let paired = Array(zip(plan.shards, state.udids()))
         let assignments = paired.map { shard, udid in
             ShardRunner.Assignment(
@@ -480,6 +478,30 @@ private extension TestRun {
             }
             state.deleteEnded(udid: udid, simctl: environment.simctl, overrides: environment.overrides, leases: environment.leases)
         }
+    }
+
+    /// The runner every shard is started through, handed to the state so a cancellation can end it, once the first `devices` have had their accessibility preference confirmed.
+    func readiedRunner(devices count: Int, in ledger: ShardLedger) throws -> Environment.Shards {
+        children.record(into: ShardGuardian.sessionsFile(for: ledger))
+        let shards = environment.shardRunner(children)
+        if let exitCode = state.willRun(shards) {
+            shards.cancel()
+            throw TestRun.interrupted(exitCode: exitCode)
+        }
+        // The last look at the preference before the tests that read it: an overwrite after the boot-time confirmation lands here.
+        for udid in state.udids().prefix(count) {
+            do {
+                // A cancel deletes every device, so the check stops before the next one rather than waiting on a device that is gone.
+                try throwIfInterrupted()
+                try ShardDevices.confirmAccessibility(udid: udid, run: environment.simctl, pause: environment.pause, now: environment.waitClock, stopped: { state.isCancelled })
+            } catch {
+                shards.cancel()
+                // A cancel that reached the check answers as the interruption, as it does at every step around it.
+                try throwIfInterrupted()
+                throw error
+            }
+        }
+        return shards
     }
 
     /// The answer: the reconciliation, the timings it is worth keeping, and — before a word of it is rendered — the devices gone.

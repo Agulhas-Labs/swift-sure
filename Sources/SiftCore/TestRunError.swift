@@ -16,6 +16,12 @@ public enum TestRunError: Error, CustomStringConvertible, Sendable {
     /// `swift test list` printed lines naming no test this run can read, each as printed, so its expected set would be short of whatever they name.
     case unreadableListing([String])
 
+    /// A run over several plans was asked to include one that switches on a sanitizer, with the plan and the sanitizers it switches on.
+    case sanitizedPlan(plan: String, sanitizers: [String])
+
+    /// `--all-plans` found no plan of the scheme to run, with the file names the build wrote.
+    case noPlans([String])
+
     /// The run was ended by its caller — a signal, or a cancellation from another thread.
     case interrupted
 
@@ -27,11 +33,15 @@ public enum TestRunError: Error, CustomStringConvertible, Sendable {
         case let .noXCTestRun(found):
             "the build wrote no .xctestrun file this run began — \(TestRunError.listed(found)) — so there is nothing to run the tests from"
         case let .severalXCTestRuns(found):
-            "the build wrote \(found.count) .xctestrun files — \(TestRunError.listed(found)) — and one run runs one plan: name it with --plan"
+            "the build wrote \(found.count) .xctestrun files — \(TestRunError.listed(found)) — and one run runs the plans it is told: name one with --plan, several by repeating it, or all with --all-plans"
         case let .unreadableEnumeration(detail):
             "the enumeration wrote nothing this run could read as its expected set: \(detail)"
         case let .unreadableListing(lines):
             "swift test list --skip-build printed \(lines.count == 1 ? "a line" : "\(lines.count) lines") naming no test this run can read, the first `\(lines.first ?? "")`, so the run is refused rather than answered short of \(lines.count == 1 ? "it" : "them")"
+        case let .sanitizedPlan(plan, sanitizers):
+            "the plan \(plan) switches on \(sanitizers.joined(separator: ", ")), which builds products of its own that a run over several plans from one build cannot share: run it alone with --plan \(TestRunRequest.shellQuoted(plan))"
+        case let .noPlans(found):
+            "--all-plans found no test plan of the scheme to run — \(TestRunError.listed(found)) — so there is nothing to run"
         case .interrupted:
             "the run was interrupted, so its shards were ended and its devices deleted rather than waited on"
         case .packageRunInterrupted:

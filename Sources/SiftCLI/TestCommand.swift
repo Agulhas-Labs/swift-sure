@@ -32,6 +32,14 @@ struct TestCommand: AsyncParsableCommand {
             `--os`, `--plan`, `--only`, `--skip`, `--project`, `--workspace` and everything after `--` are \
             refused there, since they name nothing a `swift test` process takes.
 
+            **`--plan <name>` names the plan to run; repeat it, or pass `--all-plans`, to run several from one \
+            build.** The build names no plan, each plan is enumerated from its own `.xctestrun`, and the \
+            (plan, test) items share one pool of simulators, so a device that has finished is deleted while \
+            others still run. The answer is one verdict, a line per plan, the totals, every shard and one \
+            `slowest:` list. With no plan named, the scheme's default plan runs. A plan that switches on a \
+            sanitizer is refused in a run of several plans, since it builds products of its own: run it alone \
+            with `--plan <name>`.
+
             `--root <dir>` runs the whole command as if started in that directory, without a `cd`: the \
             package or scheme, the build, the shards and the run record are that checkout's.
 
@@ -72,8 +80,11 @@ struct TestCommand: AsyncParsableCommand {
     @Option(name: .customLong("os"), help: "The runtime version to create them on. Defaults to the newest installed one that runs the device type.")
     var osVersion: String?
 
-    @Option(name: .customLong("plan"), help: "The test plan to run. One run runs one plan.")
-    var plan: String?
+    @Option(name: .customLong("plan"), help: "The test plan to run. Repeat it to run several plans from one build, on one pool of simulators; with none, the scheme's default plan runs.")
+    var plan: [String] = []
+
+    @Flag(name: .customLong("all-plans"), help: "Run every test plan of the scheme from one build, on one pool of simulators.")
+    var allPlans: Bool = false
 
     @Option(name: .customLong("against"), help: "Reconcile a finished run's output against the declared inventory: the file `swift test` wrote, or a log kept under \(ProductName.current.directoryName)/runs/. Needs --analyse.")
     var against: String?
@@ -145,13 +156,19 @@ struct TestCommand: AsyncParsableCommand {
         if sweep {
             try validateSweep()
         }
+        guard plan.isEmpty || !allPlans else {
+            throw ValidationError("--plan and --all-plans choose the plans two different ways: --all-plans runs every plan of the scheme, and --plan runs the ones it names. Drop --all-plans to run the named plans, or every --plan to run them all.")
+        }
         guard analyse else {
             guard against == nil else {
                 throw ValidationError("--against reads a run that has already happened and reconciles it against the index, which is --analyse's half of this command. Pass --analyse --against <log>, or drop --against to run the tests.")
             }
             return
         }
-        guard against == nil || plan == nil else {
+        guard plan.count < 2, !allPlans else {
+            throw ValidationError("--analyse reads every plan when none is named, and --plan <name> narrows it to one; it takes one --plan and no --all-plans. Drop the extra plans.")
+        }
+        guard against == nil || plan.isEmpty else {
             throw ValidationError("--against and --plan bound the expected set two different ways: --plan narrows to one .xctestplan's container, and --against reconciles a `swift test` run, which reads no plan and covers this package's test targets. Drop one of the two.")
         }
         let refused: [(name: String, given: Bool)] = [
@@ -263,7 +280,8 @@ struct TestCommand: AsyncParsableCommand {
             ("--scheme", scheme != nil),
             ("--device", device != nil),
             ("--os", osVersion != nil),
-            ("--plan", plan != nil),
+            ("--plan", !plan.isEmpty),
+            ("--all-plans", allPlans),
             ("--against", against != nil),
             ("--shards", shards != nil),
             ("--shard-timeout", shardTimeout != nil),
@@ -291,7 +309,7 @@ struct TestCommand: AsyncParsableCommand {
         let (engine, note) = try rootOptions.makeEngine(registry: registry)
         let freshness = try await engine.ensureFresh()
         guard let against else {
-            return try (Freshness.placing([note], under: engine.analyseTests(plan: plan, freshness: freshness)), true)
+            return try (Freshness.placing([note], under: engine.analyseTests(plan: plan.first, freshness: freshness)), true)
         }
         let logURL = URL(fileURLWithPath: against, relativeTo: workingDirectory).standardizedFileURL
         let reconciliation = try engine.reconcileTests(against: logURL, freshness: freshness)
@@ -307,7 +325,8 @@ struct TestCommand: AsyncParsableCommand {
         }
         let refused: [(name: String, given: Bool)] = [
             ("--os", osVersion != nil),
-            ("--plan", plan != nil),
+            ("--plan", !plan.isEmpty),
+            ("--all-plans", allPlans),
             ("--only", !only.isEmpty),
             ("--skip", !skip.isEmpty),
             ("--project", project != nil),
@@ -369,7 +388,8 @@ struct TestCommand: AsyncParsableCommand {
             scheme: scheme,
             deviceTypeName: device,
             osVersion: osVersion,
-            plan: plan,
+            plans: plan,
+            allPlans: allPlans,
             only: only,
             skip: skip,
             container: container(workingDirectory: workingDirectory, repositoryRoot: repositoryRoot),
@@ -485,6 +505,7 @@ extension TestCommand {
         case device
         case osVersion
         case plan
+        case allPlans
         case against
         case only
         case skip

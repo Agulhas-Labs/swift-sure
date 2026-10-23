@@ -12,8 +12,8 @@ import Testing
 struct SessionPrimerBudgetTests {
     /// Bytes, not tokens: about four bytes a token in this prose.
     ///
-    /// 900 bytes held the primer near 200 tokens until the standing caveats moved into it from every `where` and `search` answer (Docs/Design.md §2), and stayed there until they were left to the two tool descriptions and `swift-sure help answers`; the longest primer, a subagent's pointing at the CLI, is about 1.44 kB.
-    static let budget = 1550
+    /// 900 bytes held the primer near 200 tokens until the standing caveats moved into it from every `where` and `search` answer (Docs/Design.md §2), and stayed there until they were left to the two tool descriptions and `swift-sure help answers`; the longest primer, a subagent's pointing at the CLI, is about 0.83 kB since the trim of the fixed start.
+    static let budget = 880
 
     @Test(arguments: [SessionPrimer.Audience.session, .subagent])
     func thePrimerInsideAnIndexedRootFitsTheBudget(audience: SessionPrimer.Audience) throws {

@@ -9,11 +9,13 @@ import Foundation
 /// It is the line a deletion is decided on, and a store built without the test target records no reference from a test: said bare, it states an absence nobody checked, and a type used only by its tests reads as one nothing uses. So where test files have no unit in the store, each verdict says so after `recorded in the store`, and names the build that adds them, as the `used by` tally does; where a test build ran and the files sit outside any target it builds, it names them as that, with no build advice no build would act on.
 struct ZeroUseVerdict {
     /// What follows `recorded in the store`: the test files and the targets the store does not hold, or empty where it holds every one.
-    let hedge: String
+    private(set) var hedge: String
+    /// The part of ``hedge`` naming the targets not built, kept where a scan of the test targets replaces the rest.
+    private let targetClause: String
     /// The non-test targets no store holds a unit for that write an asked name (``TargetsNotBuilt``), found once for the answer, whose header and tallies read them from here.
     let targetsNotBuilt: TargetsNotBuilt
     /// The test files without a unit where a test build ran, those it skipped and those outside any target it builds; empty where every test file has a unit, and where no test build ran, since the hedge's build advice is then what adds them.
-    let filesOutsideTheBuild: [String]
+    private(set) var filesOutsideTheBuild: [String]
     /// The sites of the asked symbols set aside as recorded only by a build older than their file's last edit, by repo-relative path: an empty answer is then about the current builds, not the whole store.
     private var setAside = SetAsideSites()
 
@@ -36,6 +38,7 @@ struct ZeroUseVerdict {
     init(store: IndexStore, context: SemanticContext, projectDirectories: [String] = [], declarations: [SymbolRow]) throws {
         targetsNotBuilt = try TargetsNotBuilt(writing: declarations, in: store, context: context, projectDirectories: projectDirectories)
         let targetHedge = Self.targetHedge(targetsNotBuilt.names)
+        targetClause = targetHedge
         let coverage = try context.testFileCoverage(in: store)
         let unbuilt = coverage.withoutUnit
         if unbuilt == 0 {
@@ -57,6 +60,13 @@ struct ZeroUseVerdict {
             filesOutsideTheBuild = []
             hedge = "; \(unbuilt) test file\(unbuilt == 1 ? " is" : "s are") not in it (\(coverage.build))" + targetHedge
         }
+    }
+
+    /// Takes in a `--refs` answer's search of the test targets by written name: where no file writes the name, the result replaces what the hedge said of the test files, and no file is left for the unbuilt line to list.
+    mutating func noteTestTargetScan(_ scan: WhereTestTargetScan) {
+        guard let clause = scan.clause else { return }
+        hedge = clause + targetClause
+        filesOutsideTheBuild = []
     }
 
     /// The clause naming the targets no store holds a unit for, empty where there are none.

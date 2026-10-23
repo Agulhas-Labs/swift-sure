@@ -1,5 +1,5 @@
 {
   "description" : "SwiftSure answers questions about Swift code from an index, and runs builds and tests with their output cut to the answer.",
   "name" : "swift-sure",
-  "version" : "0.2.1"
+  "version" : "0.2.2"
 }

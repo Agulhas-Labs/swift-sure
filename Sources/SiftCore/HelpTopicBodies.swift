@@ -18,6 +18,17 @@ struct HelpTopicBodies {
         DemoUnitTests/CalculatorTests/testAddition()` — and, under it, every crash report written \
         while the run was going, by name: the nearly-always cause of one.
 
+        **A run over several plans (`--plan` repeated, or `--all-plans`) answers once, not once per plan.** \
+        The verdict line leads: `✔ \(ProductName.current.binary) test — 214 tests passed across 3 plans on 4 shards`, or \
+        `✘ \(ProductName.current.binary) test — Beta: 2 failed — exit 1`, naming the failing plans. Under it, a line per \
+        plan carries that plan's counts — `Alpha: expected · ran · passed · failed · skipped · missing · \
+        duplicated` — with the plan's failed or missing tests indented beneath it, and a plan that enumerated \
+        nothing is named `Gamma: no tests enumerated`; then a `total:` line. The shard lines follow, each naming its \
+        plan (a shard working through two plans has a line for each), then one `slowest:` list over every plan, \
+        a row naming its plan only where the same test ran in several, then the run's timing, devices and \
+        housekeeping, each once. The re-run line names only the failing plans, `--plan Beta`, never \
+        `--all-plans`. A single plan's answer is the one described here.
+
         **Each shard answers with its own line**: tests run, wall clock against what the plan \
         predicted, the tests' own time against both, how many iterations it took, its exit code, and \
         its log path. Wall clock at more than twice the tests' own time draws a line saying so — launch, \

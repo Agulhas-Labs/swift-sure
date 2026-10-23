@@ -34,13 +34,13 @@ struct WhereChangedFileMentions {
         "written since the build, by name: "
     }
 
-    /// Reads the `unbuilt` test files, then the indexed files `judge` finds changed or new since their own build, less those and the `refused` ones, for `names`: every one searched for the names' bytes and the first ``WhereUnbuiltMentions/scanCap`` in path order of those holding them read, the rest holding them counted as not scanned, and, told not to read the files a store holds, none of those, with the unbuilt line and the not-in-the-store line left out of a page past the first (an offset above zero); each file it lists by name is judged again by `judge`, which puts it in the set for its kind.
-    init(names: ScannedNames, unbuilt: [String], refused: Set<String>, in index: IndexStore, context: SemanticContext, judge: OccurrenceFreshness, listsEveryLine: Bool, readsStoredFiles: Bool = true, offset: Int = 0) throws {
+    /// Reads the `unbuilt` test files, then the indexed files `judge` finds changed or new since their own build, less those and the `refused` ones, for `names` (the scan of the `unbuilt` files taken from the caller where it already ran one): every one searched for the names' bytes and the first ``WhereUnbuiltMentions/scanCap`` in path order of those holding them read, the rest holding them counted as not scanned, and, told not to read the files a store holds, none of those, with the unbuilt line and the not-in-the-store line left out of a page past the first (an offset above zero); each file it lists by name is judged again by `judge`, which puts it in the set for its kind.
+    init(names: ScannedNames, unbuilt: [String], refused: Set<String>, in index: IndexStore, context: SemanticContext, judge: OccurrenceFreshness, listsEveryLine: Bool, readsStoredFiles: Bool = true, offset: Int = 0, unbuiltScanned: (mentions: [NameMention], unscanned: Int)? = nil) throws {
         self.listsEveryLine = listsEveryLine
         isFirstPage = offset <= 0
         let rootPath = context.repoRoot.path
         // On the first page only, as the `file names:` row is: a later page of a paged sweep repeats neither, and this line's files are bounded while its lines per file are not.
-        let unbuiltScan: (mentions: [NameMention], unscanned: Int) = offset > 0 || names.isEmpty || unbuilt.isEmpty ? ([], 0) : WhereUnbuiltMentions.mentionScan(of: names, in: unbuilt, under: rootPath, lexCap: WhereUnbuiltMentions.scanCap)
+        let unbuiltScan: (mentions: [NameMention], unscanned: Int) = offset > 0 || names.isEmpty || unbuilt.isEmpty ? ([], 0) : unbuiltScanned ?? WhereUnbuiltMentions.mentionScan(of: names, in: unbuilt, under: rootPath, lexCap: WhereUnbuiltMentions.scanCap)
         let unbuiltLine = WhereUnbuiltMentions.line(listing: unbuiltScan.mentions, unscanned: unbuiltScan.unscanned, listsEveryLine: listsEveryLine)
         guard !names.isEmpty else {
             listedFiles = [:]

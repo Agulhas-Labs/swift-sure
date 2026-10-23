@@ -68,6 +68,9 @@ public struct TestRunEnvironment: Sendable {
     /// The run's copy of an `.xctestrun` with animations switched off in the app under UI test, written into the directory handed in; `nil` where no target is a UI test bundle, and a throw where the library or the copy could not be made.
     public let xctestrunWithAnimationsOff: @Sendable (_ original: URL, _ directory: URL) throws -> URL?
 
+    /// The schemes under the working directory, read only where a build wrote more than one `.xctestrun` and the run must find the one its scheme runs by default.
+    public let schemes: @Sendable () -> SchemeSurvey
+
     public init(
         simctl: @escaping @Sendable (String, [String]) throws -> Subprocess.Output,
         launch: @escaping Launch,
@@ -87,7 +90,8 @@ public struct TestRunEnvironment: Sendable {
         overrides: DisabledServicesOverride = DisabledServicesOverride(),
         leases: ShardLeases? = nil,
         derivedDataRoot: @escaping @Sendable () -> URL = { PackageProductsDirectory.liveDerivedDataRoot() },
-        xctestrunWithAnimationsOff: @escaping @Sendable (_ original: URL, _ directory: URL) throws -> URL? = { _, _ in nil }
+        xctestrunWithAnimationsOff: @escaping @Sendable (_ original: URL, _ directory: URL) throws -> URL? = { _, _ in nil },
+        schemes: @escaping @Sendable () -> SchemeSurvey = { .unread }
     ) {
         self.simctl = simctl
         self.launch = launch
@@ -108,6 +112,7 @@ public struct TestRunEnvironment: Sendable {
         self.leases = leases
         self.derivedDataRoot = derivedDataRoot
         self.xctestrunWithAnimationsOff = xctestrunWithAnimationsOff
+        self.schemes = schemes
     }
 }
 
@@ -265,7 +270,8 @@ public extension TestRunEnvironment {
             leases: .shared,
             xctestrunWithAnimationsOff: { original, directory in
                 try liveXCTestRunWithAnimationsOff(original: original, directory: directory) { try AnimationsOffLibrary.sift().builtForSift() }
-            }
+            },
+            schemes: { (try? SchemeDiscovery.schemes(under: workingDirectory)) ?? .unread }
         )
     }
 
