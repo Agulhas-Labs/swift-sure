@@ -12,19 +12,12 @@ struct FileDiff: Sendable {
     let status: Status
     /// The sides git has that are not UTF-8 text, so there is nothing to parse — `nil` for a file that was read and broken down.
     let unreadableSides: String?
-    let lineStat: GitContext.LineStat?
     let changes: [DeclarationChange]
     let outside: [OutsideChange]
     /// The line diff's hunks that no entry above meets, each named for what it is where its bytes say — the safety net, so nothing git sees change goes without a line in the answer.
     let lineChanges: [LineChange]
-    /// Both sides read, and byte for byte the same — a rename or a mode change and nothing else.
-    let identical: Bool
-    let oldImports: [String]
-    let newImports: [String]
     /// Sides that parsed with errors, so their declarations may be short (Docs/AnswerContract.md §6).
     let parseErrorSides: [String]
-    /// The declarations this file's changes put at `open`, `public` or `package`, for the access section.
-    var accessSubjects: [AccessSubject] = []
 }
 
 extension FileDiff {
@@ -37,13 +30,11 @@ extension FileDiff {
 
     /// Compares one file's two sides as git holds them, `nil` where the file does not exist on that side.
     ///
-    /// "Identical" is decided on the bytes, never on decoded text: decoding drops a byte-order mark, and Swift's string equality calls two spellings of one accented letter the same. `keepsBody` picks the declarations whose bodies are kept — only the one a `--member` answer names.
+    /// "Identical" is decided on the bytes, never on decoded text: decoding drops a byte-order mark, and Swift's string equality calls two spellings of one accented letter the same.
     static func compare(
         path: String,
         status: Status,
-        lineStat: GitContext.LineStat?,
-        bytes: (old: Data?, new: Data?),
-        keepsBody: @escaping (DeclarationChange) -> Bool = { _ in false }
+        bytes: (old: Data?, new: Data?)
     ) -> FileDiff {
         let sources = (old: bytes.old.flatMap { String(data: $0, encoding: .utf8) }, new: bytes.new.flatMap { String(data: $0, encoding: .utf8) })
         let unreadable = [(bytes.old, sources.old, "before"), (bytes.new, sources.new, "after")].filter { $0.0 != nil && $0.1 == nil }.map(\.2)
@@ -52,13 +43,9 @@ extension FileDiff {
                 path: path,
                 status: status,
                 unreadableSides: unreadable.joined(separator: " and "),
-                lineStat: lineStat,
                 changes: [],
                 outside: [],
                 lineChanges: [],
-                identical: false,
-                oldImports: [],
-                newImports: [],
                 parseErrorSides: []
             )
         }
@@ -67,7 +54,7 @@ extension FileDiff {
         let oldLines = bytes.old.map(LineDiff.lines) ?? []
         let newLines = bytes.new.map(LineDiff.lines) ?? []
         let hunks = LineDiff.hunks(old: oldLines, new: newLines)
-        let declarations = DeclarationDiff.compare(old: oldSide, new: newSide, hunks: hunks, keepingBodiesOf: keepsBody)
+        let declarations = DeclarationDiff.compare(old: oldSide, new: newSide, hunks: hunks)
         var changes = declarations.changes
         let pairs = declarations.pairs
         let extents = declarations.extents
@@ -104,21 +91,11 @@ extension FileDiff {
             path: path,
             status: status,
             unreadableSides: nil,
-            lineStat: lineStat,
             changes: changes,
             outside: outside,
             lineChanges: lineChanges,
-            identical: bytes.old != nil && bytes.old == bytes.new,
-            oldImports: oldSide?.file.imports ?? [],
-            newImports: newSide?.file.imports ?? [],
-            parseErrorSides: parseErrorSides,
-            accessSubjects: AccessSubjectCollector.subjects(in: changes, newSide: newSide, path: path)
+            parseErrorSides: parseErrorSides
         )
-    }
-
-    /// Whether anything in this file is reported beyond its heading — declarations, text outside them, or lines the line diff saw.
-    var reportsChanges: Bool {
-        !changes.isEmpty || !outside.isEmpty || !lineChanges.isEmpty
     }
 
     /// The lines of an uncovered hunk left to explain once the lines of unchanged declarations are set aside — `nil` when none are left.

@@ -61,13 +61,15 @@ public struct SiftCursorSetup {
         try SettingsFile.read(url, agent: "cursor", flag: install.directoryFlag)
     }
 
-    /// Whether `data`, a Cursor `hooks.json`, holds a hook of SwiftSure's for any event SwiftSure registers.
+    /// Whether `data`, a Cursor `hooks.json`, holds a hook of SwiftSure's for any event either mode registers.
     public static func registersAHook(in data: Data?) -> Bool {
         let file = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
         let events = file?["hooks"] as? [String: Any] ?? [:]
-        return hooks.hooks.contains { hook in
-            let entries = events[hook.event] as? [[String: Any]] ?? []
-            return entries.compactMap { $0["command"] as? String }.contains { command in FieldworkTool.recognised.contains { $0.runs(command, subcommand: hooks.registeredSubcommand(for: hook)) } }
+        return [hooks, runHooks].contains { set in
+            set.hooks.contains { hook in
+                let entries = events[hook.event] as? [[String: Any]] ?? []
+                return entries.compactMap { $0["command"] as? String }.contains { command in FieldworkTool.recognised.contains { $0.runs(command, subcommand: set.registeredSubcommand(for: hook)) } }
+            }
         }
     }
 }

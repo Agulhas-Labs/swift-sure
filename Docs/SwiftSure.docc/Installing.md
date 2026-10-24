@@ -31,14 +31,21 @@ Claude Code rule: left as installed — no SwiftSure.md ships beside this binary
 dry run: nothing written and nothing run; without --dry-run this installs into Claude Code
 ```
 
-Four flags answer or preview the questions:
+Five flags answer or preview the questions:
 
 | Flag | Does |
 |---|---|
 | `--yes` | install into every agent found, without asking |
 | `--all` | install into all three, found or not, without asking |
 | `--agent claude\|cursor\|codex` | install into that one, found or not, without asking; repeat for more |
+| `--run-only` | install only the build and test hooks, in every agent installed into: no MCP server, rule, session primer or lookup hooks |
 | `--dry-run` | say what was found and what would be written |
+
+The default install is the full set. With `--run-only`, Claude Code gets only the hooks that rewrite a build or test
+into `swift-sure run --` and report its diagnostics, and the stop gate; Cursor and Codex get the same rewrite and
+diagnostics, with no MCP server and no session-start hook. The index adds about 1.2k tokens of tool
+definitions to every session; it paid for itself on longer work in a large codebase and showed no detectable difference
+on short lookups. Re-running with or without `--run-only` switches the mode.
 
 With no terminal to ask on, it installs nothing unless `--yes`, `--all` or `--agent` says what to install
 into, and says so. One agent's failure is reported and the others still install. It ends with a summary of
@@ -51,15 +58,15 @@ route. It is not published yet, so `swift-sure install` is the one that works to
 
 **What is written:**
 
-- the hooks, in `~/.claude/settings.json`
-- the MCP server at user scope, through `claude mcp add`
-- the agent rule, at `~/.claude/rules/swift-sure.md`, which keeps itself out of context unless Swift is in play.
+- the hooks, in `~/.claude/settings.json` (with `--run-only`: the build and test hooks and the stop gate)
+- unless `--run-only`, the MCP server at user scope, through `claude mcp add`
+- unless `--run-only`, the agent rule, at `~/.claude/rules/swift-sure.md`, which keeps itself out of context unless Swift is in play.
   This one is written only where a `SwiftSure.md` ships with the binary, and a source build has none (below).
 
 The merge into `settings.json` preserves every other key and hook, refuses a file that will not parse, and
 copies it to `settings.json.bak-swift-sure` first.
 
-**The one manual step:** start a new Claude Code session, for the session primer, the tool list and the rule file, which load at session start. On an upgrade a running session's server re-executes into the replaced binary before its next request and the hooks apply at once; after a first install there is no SwiftSure server in it yet.
+**The one manual step:** start a new Claude Code session (unless `--run-only`, for the session primer, the tool list and the rule file, which load at session start). On an upgrade a running session's server re-executes into the replaced binary before its next request and the hooks apply at once; after a first install there is no SwiftSure server in it yet.
 
 **From a source build:** `swift-sure install` registers the path of the binary you ran, so run it as `swift-sure` from
 the copy on your `PATH` (see <doc:GettingStarted>) and not from `.build/release`. It writes the hooks and

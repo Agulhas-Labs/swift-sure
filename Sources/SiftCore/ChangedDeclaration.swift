@@ -8,9 +8,9 @@ import Foundation
 public struct ChangedDeclaration: Sendable, Equatable {
     /// The file, repository-relative.
     public let path: String
-    /// The declaration as `diff` addresses it: its container path and its name.
+    /// The declaration as the declaration comparison addresses it: its container path and its name.
     public let label: String
-    /// The after-side lines this declaration answers for, as `diff` pairs them — a type matched on both sides answers only for its own lines.
+    /// The after-side lines this declaration answers for, as the comparison pairs them — a type matched on both sides answers only for its own lines.
     public let lines: [ClosedRange<Int>]
 
     public init(path: String, label: String, lines: [ClosedRange<Int>]) {

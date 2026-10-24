@@ -6,7 +6,7 @@ import Foundation
 
 /// A hunk of the line diff that no declaration change and no text outside the declarations accounts for — named for what it is where that can be read off its bytes, and otherwise said to be there.
 ///
-/// The safety net under `diff`'s structural pass. Whatever category of change the pass has no name for yet, git still sees the lines differ; a hunk that meets no reported entry is listed here with its lines, so nothing that changed can read as unchanged.
+/// The safety net under the structural pass. Whatever category of change the pass has no name for yet, git still sees the lines differ; a hunk that meets no reported entry is listed here with its lines, so nothing that changed can read as unchanged.
 struct LineChange: Sendable, Equatable {
     let kind: Kind
     /// The hunk's before-side lines, `nil` for a pure insertion.

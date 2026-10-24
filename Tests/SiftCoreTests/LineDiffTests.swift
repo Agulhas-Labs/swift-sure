@@ -25,7 +25,7 @@ struct LineDiffTests {
     }
 
     @Test func hunksReconstructTheAfterSideAndAreMinimal() {
-        var random = DiffCoveragePropertyTests.SplitMix(state: 7)
+        var random = FileScopeScanReaderTests.SplitMix64(state: 7)
         for seed in 0 ..< 400 {
             let alphabet = ["a", "b", "c", "}", ""]
             let old = (0 ..< Int.random(in: 0 ... 30, using: &random)).map { _ in alphabet.randomElement(using: &random) ?? "" }

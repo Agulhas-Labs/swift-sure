@@ -343,10 +343,6 @@ public struct HelpTopics {
         field**: `tree: \(ProductName.current.displayName) (worktree agent-1a2b3c4d)` is your worktree, and a bare `tree: \(ProductName.current.displayName)` from inside \
         one means the answer came from somewhere else.
 
-        **`\(ProductName.current.binary) checkup` builds nothing and runs nothing.** Whether a change was tested is what \
-        `\(ProductName.current.binary) run` recorded, never found out by running it; this holds for every `checkup` answer, so \
-        none repeats it.
-
         Installing, registering, configuring for a monorepo, and troubleshooting are all covered in the \
         tool's own guide (`Docs/Guide.md`) — point a human there rather than guessing at setup on their behalf.
         """
@@ -394,7 +390,8 @@ private extension HelpTopics {
         uses recorded on the property itself, as a read whatever they do, so those are marked `used via \
         _amount` — never a read the store cannot vouch for. A `didSet` that `@Observable` \
         moves into its generated storage is listed as moved, on the attribute's line, with what that leaves \
-        out said under it.
+        out said under it. With `--refs`, `references to` counts the lines this section lists \
+        (`K of them the reads and writes above`) and lists only the rest.
 
         **`where` on an enum case lists its uses.** A case is named — `.name`, `case .name:` — never read, \
         and called only where a payload is built, so the section is headed `uses of …`, one row per line, \
@@ -436,27 +433,6 @@ private extension HelpTopics {
         `sig:` narrows by a parameter or return type (`sig:URL`), `path:Sources` keeps tests out. A hit \
         is a lead to read with `digest Type.member`, and no hit is not proof: a helper built on a \
         different callee answers a different query.
-
-        **`similar`, when you already hold something like it.** `\(ProductName.current.binary) similar Type.member` from Bash — or \
-        `similar File.swift:12-40` — ranks the declarations whose shape is closest to that one, and names \
-        the shared callees that earned each. The gate is rarity-weighted callee overlap measured over the \
-        tree it scanned, so a common name like `append` or `map` counts for a fraction of what a rare one \
-        like `rename` does — several common ones can still add up, which is why `shares:` lists what \
-        actually earned the hit; control flow and written types only order what is already through. A target \
-        whose body makes fewer than three calls is answered as **too thin to compare**, with the `search` \
-        recipe instead, and an overloaded one lists its candidates. Read it as `search`'s complement: that \
-        query asks by the one call a helper cannot do without, this one by a body you already have. Same \
-        two limits as `search` — written names, and a lower bound: an empty answer means nothing close by \
-        callee or shape, not that there is nothing to reuse.
-
-        **`dupes`, the same comparison as an audit.** `\(ProductName.current.binary) dupes` from Bash — or `\(ProductName.current.binary) dupes Sources` \
-        to narrow it to the files under a path — groups the declarations whose bodies are near-duplicates \
-        of each other, across types, with no target to name: pairs that clear 0.50 shared-callee overlap \
-        and share enough rare callees to mean it are joined, so A~B and B~C read as one group of three, \
-        each with the callees its members share. Run it before a helper is written for the third time. \
-        Read it as a lower bound: the same callees do not mean the same behaviour, a body that inlines \
-        what another calls is invisible to it, and an empty answer means nothing close by callee, not \
-        that nothing is duplicated.
 
         **`strings`, tracing UI text either way.** Searches the repo's string catalogs by value (any \
         language, case-insensitive) or key, then lists where the key is spelled as a literal in Swift. \

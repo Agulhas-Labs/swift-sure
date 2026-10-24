@@ -81,7 +81,7 @@ struct WhereScanCapTests {
 
         let answer = try await engine.lookup(symbol: "compute", freshness: engine.ensureFresh())
 
-        #expect(answer.split(separator: "\n").contains("new since last build, not in the store, mention the name: Sources/Lib/Zeta.swift:2"), "\(answer)")
+        #expect(MentionRows.compacted(answer).split(separator: "\n").contains("new since last build, not in the store, mention the name: Sources/Lib/Zeta.swift:2"), "\(answer)")
     }
 
     /// A buildable package of one target for the changed-file tests, built and indexed with `files` as committed.
@@ -120,7 +120,7 @@ struct WhereScanCapTests {
 
         let answer = try await engine.lookup(symbol: "compute", freshness: engine.ensureFresh())
 
-        #expect(answer.contains("· 3 new or changed files not scanned"), "\(answer)")
+        #expect(MentionRows.compacted(answer).contains("· 3 new or changed files not scanned"), "\(answer)")
     }
 
     /// Where the several-owners answer reads no stored file, changed files the store holds use up no lexing slot, so a new file after them is listed and nothing is counted as not scanned.
@@ -142,7 +142,7 @@ struct WhereScanCapTests {
 
         let answer = try await engine.lookup(symbol: "load", freshness: engine.ensureFresh())
 
-        #expect(answer.contains("Sources/Lib/Zeta.swift:2"), "\(answer)")
+        #expect(MentionRows.compacted(answer).contains("Sources/Lib/Zeta.swift:2"), "\(answer)")
         #expect(!answer.contains("not scanned"), "\(answer)")
     }
 }

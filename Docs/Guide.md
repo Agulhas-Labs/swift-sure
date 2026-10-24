@@ -65,8 +65,18 @@ also shipped through npm; that channel is closed, and `swift-sure uninstall` sti
 With `swift-sure` on your `PATH`, one command sets it up in every agent you use:
 
 ```sh
-swift-sure install [--agent claude|cursor|codex]… [--all] [--yes] [--dry-run] [--allow-run] [--allow-lookups] [--cursor-dir <dir>] [--codex-dir <dir>]
+swift-sure install [--agent claude|cursor|codex]… [--all] [--yes] [--dry-run] [--run-only] [--allow-run] [--allow-lookups] [--cursor-dir <dir>] [--codex-dir <dir>]
 ```
+
+The default install is the full set: for Claude Code, the hooks (including the ones that rewrite a build or test into
+`swift-sure run --` and report its diagnostics, and the stop gate), the user-scope MCP server, the rule and the session
+primer. The index costs about 1.2k tokens of tool definitions in every session: on longer work in a large codebase it
+paid for itself (a pooled -9.5% over nine tasks on a private app, [results](../Benchmarks/RESULTS-live.md)), on short
+lookups it showed no detectable difference. `--run-only` installs only the build and test hooks (the rewrite, the
+diagnostics, the stop gate): no MCP server, no rule, no session primer and no lookup hooks. Re-running with or without
+`--run-only` switches the mode, taking out what the other mode registered that this one does not. Cursor and
+Codex get the same mode: no MCP server, no session-start hook, and the build and test hooks alone. `--allow-lookups`
+with `--run-only` is refused.
 
 It detects Claude Code (`claude` on the `PATH`, or `~/.claude`), Cursor (`~/.cursor`, or Cursor.app) and Codex
 (`codex` on the `PATH`, `$CODEX_HOME`, or `~/.codex`), lists what it found and the files it would write, and on a
@@ -77,8 +87,8 @@ what would be written and writes nothing and runs neither `claude` nor `codex`. 
 directory Cursor's or Codex's step writes to, as for `install-hook`; neither picks its agent, `--agent` leaving
 the agent out refuses the flag, and otherwise a note says the flag was ignored.
 
-Each agent goes through the installer `install-hook` uses (Claude Code: the hooks, user-scope MCP
-server and, where a `SwiftSure.md` ships beside the binary (Homebrew ships one, so `swift-sure install` from it writes the rule; a bundle install gets it from `install.sh`), the agent rule; Cursor: `mcp.json` and `hooks.json`; Codex: `hooks.json` and the MCP server), so the
+Each agent goes through the installer `install-hook` uses (Claude Code: the full hooks, user-scope MCP
+server and, where a `SwiftSure.md` ships beside the binary (Homebrew ships one, so `swift-sure install` from it writes the rule; a bundle install gets it from `install.sh`), the agent rule, or with `--run-only` the build and test hooks alone; Cursor: `mcp.json` and `hooks.json`; Codex: `hooks.json` and the MCP server), so the
 guarantees are the same: a `.bak-swift-sure` copy before SwiftSure rewrites a settings or rule file (not what `claude mcp add` or `codex mcp add` writes), entries that are not SwiftSure's left alone. One agent's
 refusal is reported and the others still run. It ends with a summary of what was written, the one manual step
 (a new Claude Code session; restart Cursor; restart Codex and approve the trust prompt it shows) and what is
@@ -96,7 +106,7 @@ it rebuilds it up front.
 <details>
 <summary>From a downloaded bundle</summary>
 
-`install.sh` in the tarball writes the binary to `~/.local/bin` (with `sift` linked to it) and appends a record of the deploy to `~/.swift-sure/deploys.jsonl`. Where Claude Code is found (`claude` on the `PATH`, or its configuration directory already present), it also writes the agent rule to `rules/swift-sure.md` and the hooks into `settings.json` under `$CLAUDE_CONFIG_DIR` (else `~/.claude`), writes the user-scope MCP server into `~/.claude.json`, and removes a legacy sift status line and band plugin if an older install left one. It is safe to re-run, which is how it upgrades.
+`install.sh` in the tarball writes the binary to `~/.local/bin` (with `sift` linked to it) and appends a record of the deploy to `~/.swift-sure/deploys.jsonl`. Where Claude Code is found (`claude` on the `PATH`, or its configuration directory already present), it also writes the full hook set into `settings.json` under `$CLAUDE_CONFIG_DIR` (else `~/.claude`), the agent rule to `rules/swift-sure.md` and the user-scope MCP server into `~/.claude.json`; with `--run-only` it writes the build and test hooks alone instead (`--allow-lookups` with `--run-only` is refused). It removes a legacy sift status line and band plugin if an older install left one. It is safe to re-run, which is how it upgrades.
 
 **It copies to a temporary name and renames it over the old binary** — never `cp` over one in place, or the new code is SIGKILLed on launch (exit 137, no message).
 
@@ -120,6 +130,8 @@ from the files the install writes, resolved from the same paths, then: the regis
 version (a version other than this binary's is said, never a failure); each hook, fed a canned payload in that
 agent's shape in a scratch directory, exits 0 and prints nothing or only what the agent reads; and the registered
 MCP server starts and lists every tool. A registration missing says which `swift-sure install --agent …` to run.
+A `--run-only` Claude Code install (hooks, no server) reads healthy: the hooks, the binary and each hook are checked, and
+one line, `index: off (installed with --run-only)`, says the server is not registered on purpose. A broken binary or hook still fails.
 
 - **Claude Code**: the hooks in `settings.json` (a registration that is not the one this version writes, such as
   a matcher an upgrade changed, fails the hooks check, as `swift-sure status` says of it), the user-scope server in `~/.claude.json`, each hook fed Claude
@@ -137,7 +149,7 @@ MCP server starts and lists every tool. A registration missing says which `swift
 
 ## 3. Register with Claude Code
 
-`install.sh` and `swift-sure install` have already registered the server at user scope, so with either of them run there is nothing to do here: `claude mcp list` should show it. The command below is for a machine where you did not run the installer, and for the server in one repository alone; it is not a second step after the installer. To have it in one repository only, first remove the user-scope entry (`claude mcp remove swift-sure --scope user`), then, from the root of that repository:
+This section applies to a full install. A `--run-only` install registers no server. `install.sh` and `swift-sure install` have already registered the server at user scope, so with either of them run there is nothing to do here: `claude mcp list` should show it. The command below is for a machine where you did not run the installer, and for the server in one repository alone; it is not a second step after the installer. To have it in one repository only, first remove the user-scope entry (`claude mcp remove swift-sure --scope user`), then, from the root of that repository:
 
 ```sh
 claude mcp add --transport stdio --scope local swift-sure -- swift-sure mcp
@@ -165,7 +177,7 @@ detour agents took instead.
 
 ## 4. Teach the agent to actually use it
 
-Registering the server makes the tools *available*; it does not make an agent *prefer* them over
+This section and the next apply to a full install; `--run-only` writes no rule and no primer. Registering the server makes the tools *available*; it does not make an agent *prefer* them over
 reading files and grepping. [`SwiftSure.md`](../SwiftSure.md) is the canonical guidance — which tool to
 reach for, how to handle a refusal, and what to do when the server isn't there. It points at
 `swift-sure help <topic>` for the rest: reading a red `run` block, `flakes`, the parse-error banners, root
@@ -192,7 +204,7 @@ rather than opening the files. Both, and every lookup refusal, say that where th
 the CLI answers the same queries from Bash:
 
 ```sh
-swift-sure install-hook     # registers `swift-sure session-start` in ~/.claude/settings.json
+swift-sure install-hook             # registers `swift-sure session-start` in ~/.claude/settings.json
 ```
 
 Under `CLAUDE_CONFIG_DIR`, the settings, the rule and the MCP entry all follow it: `install-hook`, `uninstall-hook` and `uninstall` use `$CLAUDE_CONFIG_DIR/settings.json`.
@@ -517,7 +529,7 @@ printing only file names (`grep -l`, a Grep in its default mode), a
 fixed-string search (`-F`, `fgrep`) for anything but a name, a merge's conflict markers (`<<<<<<<`,
 `=======`, `>>>>>>>`), a tree no index holds such as `.build/`. `swift-sure help refusals` has the full accounting.
 
-A `post-tool-use` line may suggest `swift-sure similar` when a declaration you added resembles an existing one.
+A `post-tool-use` line may name an existing declaration your new one resembles.
 
 #### Which tool, and when
 
@@ -543,13 +555,7 @@ A `post-tool-use` line may suggest `swift-sure similar` when a declaration you a
 - **Code by shape rather than name** — `search`; Grep cannot answer these reliably because the pattern
   spans nesting and line breaks: "every `@Test` function that wraps a call in an unstructured `Task`".
 - **About to write a helper** — `search` first, by the callee it cannot avoid (`kind:func calls:rename`;
-  one callee per query, terms are ANDed). `swift-sure similar Type.member` and `swift-sure dupes [path …]` from Bash
-  rank near-duplicate bodies; a lower bound, never a verdict. `swift-sure help queries` has more. `dupes` lists a
-  pair only when their bodies share at least half of their rarity-weighted callees (`--min 0.50`); raise
-  `--min` toward 1 for near-copies only, or lower it to cast wider. Test and preview code (test functions,
-  fixtures, mocks, previews, generated files, SwiftUI `body` properties) is ranked after the rest by
-  default, since tests repeat themselves on purpose: `--no-tests` leaves it out, `--tests` ranks it with
-  everything else.
+  one callee per query, terms are ANDed); a lower bound, never a verdict. `swift-sure help queries` has more.
 - **Tracing UI text** — `strings`, from wording to a localization key, or to the Swift literal holding it
   (or the literals a `+` joins, shown as `"the build did " + "not complete"`). Matching ignores case, so
   `"Warnings"` finds the literals `"WARNINGS"` and `"Many warnings"` alike. A query of three characters or
@@ -584,11 +590,6 @@ A `post-tool-use` line may suggest `swift-sure similar` when a declaration you a
   and at how many hops, even where the list is cut off; spell it as the list prints it, or give a fragment
   that matches every name containing it, and repeat the flag for several. A long list of suites is replaced by
   the target's own filter; `--suites` prints every affected suite's filter anyway.
-- **Reviewing a change** — `swift-sure diff` from Bash, in place of the raw `git diff`: a structural digest of the
-  working tree against `HEAD`, or of a commit or range. `--member Type.member` (or a labeled form such as
-  `Type.save(_:to:)`) then prints that one changed declaration's before and after bodies, so you read the
-  declaration you are reviewing rather than the whole file's hunks; where two overloads share a name, the
-  refusal lists their addresses, and one is passed back whole.
 
 #### In a git worktree
 
@@ -648,17 +649,17 @@ Every answer from the query tools — `digest`, `where`, `search` and `strings`,
 opens with a header, and so do `swift-sure status` and `swift-sure affected`; any note the answer carries, such as
 the root it picked, sits on the line under it. The header never claims more than it knows. `search` and
 `strings` read the working tree live, so theirs names the tree and says so (`source: live`: nothing stored,
-so nothing to go stale) instead of carrying the freshness fields below. `swift-sure index` and `swift-sure
-reconcile` say which repository they picked before they start work, and put the header after it; the
+so nothing to go stale) instead of carrying the freshness fields below. `swift-sure index` says which
+repository it picked before it starts work, and puts the header after it; the
 reports (`usage`, `audit`, `run`, `servers`, `flakes`, `report`) open with lines of their own. `swift-sure
 uninstall` describes no tree, so it opens with its verdict instead.
 
 In a checkout you cannot write — a vendored package, a read-only mount, another user's tree — nothing is
-created in it. `search`, `similar`, `dupes` and `strings` answer as anywhere else. `digest`, `where` and
+created in it. `search` and `strings` answer as anywhere else. `digest`, `where` and
 `status` keep their index in memory instead of under `.swift-sure/`, so each CLI command parses the whole tree
 again (the MCP server keeps it for the session); `digest` and `where` say so on the line under the header
-(`index: in memory — this tree cannot be written, …`) and `status` prints `db: in memory`. `swift-sure index` and
-`swift-sure reconcile` refuse there in one line, since there is no stored index for them to build. The hook, which
+(`index: in memory — this tree cannot be written, …`) and `status` prints `db: in memory`. `swift-sure index`
+refuses there in one line, since there is no stored index for them to build. The hook, which
 is a new process on every call, does not parse such a tree to answer a Read or a grep in place: it lets the
 call run, and logs it as `treeNotWritable`.
 
@@ -897,9 +898,7 @@ near-collision: the **file** `.swift-sure.json` configures; the **directory** `.
 | `linters` | Extra executable names `swift-sure run` filters as linters, beside `swiftlint` | A linter of your own whose output should be filtered |
 
 A key this version does not model is read past, not rejected, and is left exactly where it is by
-anything `swift-sure init` writes. `swift-sure init` only prints its proposal; `--write` saves it, and refuses where a
-`.swift-sure.json` already exists. `--write --force` merges into the existing file instead: keys you already have
-keep their values and only the missing ones are added, so what you maintain by hand survives.
+anything that rewrites it: the file is yours to write by hand.
 
 Module names are resolved from SwiftPM manifests (declared target paths, plus `Sources/<Target>/` and
 `Tests/<Target>/` by convention), XcodeGen specs and `.xcodeproj` target mappings. All three are discovered by walking the tree — a spec is identified by its shape, so it may
@@ -915,8 +914,7 @@ Worth knowing before pointing it at a codebase that isn't yours:
 
 - **No network calls at all** — a hard scope constraint, not a default.
 - **Inside the repo:** `.swift-sure/` (the index database, the semantic cache, and `runs/` once you use
-  `swift-sure run`, always at the repository root, even when you run from a nested package directory), one line appended to `.git/info/exclude`, and `.swift-sure.json` only if you create one or run
-  `swift-sure init --write`. It never modifies a committed file on its own. The one command that touches your
+  `swift-sure run`, always at the repository root, even when you run from a nested package directory), one line appended to `.git/info/exclude`, and `.swift-sure.json` only if you create one. It never modifies a committed file on its own. The one command that touches your
   working tree is `swift-sure run --without`, which takes your uncommitted changes under a pathspec out for one
   test run and puts every byte back, checked by content hash, keeping a record and copies under
   `.swift-sure/set-aside/` until it has (§12). Also under `.swift-sure/`: `green-builds.json` (and its `.lock`), which
@@ -955,14 +953,14 @@ Worth knowing before pointing it at a codebase that isn't yours:
 | `replay/<uuid>/` | scratch space of one `swift-sure audit --replay`, removed when it ends |
 | `*.lock` | lock files beside the ledgers above, so parallel sessions do not interleave writes |
 
-- `~/.claude/settings.json`, only when you run `install-hook` (or `swift-sure install`, or the bundle's `install.sh`, which runs it): it registers the SessionStart,
-  SubagentStart, PreToolUse and PostToolUse hooks and the `Stop` and `SubagentStop` hooks that run
+- `~/.claude/settings.json`, only when you run `install-hook` (or `swift-sure install`, or the bundle's `install.sh`, which runs it): with `--run-only` it registers only the build and test hooks (PreToolUse running `pre-tool-use --run-only`, PostToolUse and PostToolUseFailure on `Bash`, and the stop hooks); otherwise it registers the SessionStart,
+  SubagentStart, PreToolUse and PostToolUse hooks in full and the `Stop` and `SubagentStop` hooks that run
   `swift-sure stop` (the stop gate, which can block a stop once when Swift was edited without a green build), adds
   `permissions.allow` entries (`Bash(swift-sure digest:*)` and the other lookups; `Bash(swift-sure run -- swift build:*)`
   and the other builds) only when you say yes or pass `--allow-run`/`--allow-lookups`, copies the file to `settings.json.bak-swift-sure`
   before every rewrite that changes it, and removes a legacy sift status line.
   `status` **reads** it back, nothing else, to say when a re-run of `install-hook` is owed.
-- `swift-sure install` and `install-hook` also write, with nothing else of yours touched: `~/.claude/rules/swift-sure.md`
+- `swift-sure install` and `install-hook` (without `--run-only`) also write, with nothing else of yours touched: `~/.claude/rules/swift-sure.md`
   (only where a `SwiftSure.md` ships beside the binary: Homebrew ships one, a bundle install gets it from `install.sh`),
   `~/.claude.json` (the user-scope MCP server, through `claude mcp add`), `~/.cursor/mcp.json` and
   `~/.cursor/hooks.json`, and Codex's `hooks.json` and `config.toml` (the latter through `codex mcp add`). The rule,
@@ -992,15 +990,12 @@ Worth knowing before pointing it at a codebase that isn't yours:
 
 | Command | Purpose |
 |---|---|
-| `swift-sure init [--write] [--force]` | Inspect the repo layout and propose `.swift-sure.json` |
 | `swift-sure index [--full]` | Build or refresh the index |
 | `swift-sure status` | Freshness, counts, module map, index-store discovery; names any agent definition whose `tools:` allowlist shuts these tools out |
 | `swift-sure help [<topic>]` | Reference for rare moments, in eight topics: `run-output` (reading a red `run` block, what `flakes` counts), `answers` (the parse-error banners, semantic staleness, root resolution), `queries` (per-tool depth), `refusals` (the hook's accounting rules), `test-output` (reading `swift-sure test`), `worktree-index` (a store in a linked worktree), `build-output` (reading `build --analyse`) and `affected-limits` (what `affected` cannot see); a name that is a subcommand instead prints that subcommand's usage; omit the topic to list them |
 | `swift-sure digest <target>… [--all] [--signatures-only, or --signaturesOnly] [--offset N] [--at <rev>]` | Declaration surface of a type, file, or module, one member's source given `Type.member`, or a `File.swift:12-40` line range; several targets each answer in one call. A `.md` path answers with its heading outline and line ranges, read live. `--at` answers as of a commit, branch or tag from a syntactic parse of that revision read through git (never the index or the working tree; a module, `.` or `.md` is refused) |
 | `swift-sure where <symbol> [--syntactic] [--refs] [--files] [--decl] [--offset N] [--at <rev>]` | Resolve a symbol: declarations, extensions, conformers, callers (a property's reads and writes, an enum case's uses), overrides, and a type's uses counted on one line; `--refs` adds every reference site, paged with `--offset`; `--files` (implying `--refs`) lists only the files the sweep names, one row each; `--decl` answers only where it is declared (`decl: true` on the MCP tool), from the syntactic index alone, under `digest`'s header, and is refused beside `--refs` or `--files`; `--at` answers as of a revision, declarations from that revision's files and call sites by name only. Where the index store does not answer a function's callers, the call sites matched by name come as their count and the first five, where the MCP tool lists up to 40 |
 | `swift-sure search <query> [--offset N] [--count]` | Find declarations by structural shape — `kind:func attr:Test calls:Task !has:await`; `--count` prints the totals and a per-module breakdown, no listing; past 120 matches the rest come as names by file when they fit about 8 kB, else a `truncated:` cursor |
-| `swift-sure similar <target>` | Rank the declarations whose syntactic shape is closest to one you name — does this helper already exist? |
-| `swift-sure dupes [<paths>…] [--min <overlap>] [--offset <n>] [--tests \| --no-tests]` | Group declarations whose bodies are near-duplicates, across the tree or under a path; copies first, test and preview code last, ten groups a page |
 | `swift-sure strings <query>` | Trace display text to its localization key (or a key to its text) across `.xcstrings`/`.strings` catalogs, with literal Swift call sites, and to the Swift string literals that hold the text |
 | `swift-sure build [--analyse] [--top N] [--build-tests]` | Build a SwiftPM package clean and rank the code slowest to type-check; `--build-tests` includes the test targets in the build and the ranking |
 | `swift-sure test --scheme S --device D [--os V] [--plan P]… [--all-plans] [--only T]… [--skip T]… [--shards N] [--shard-timeout S] [--stock] [--animations] [--project P \| --workspace W] -- <xcodebuild arguments>` | Run a scheme's tests across several simulators at once, creating and deleting the simulators it uses. `--only`/`--skip` take `Target`, `Target/Class` or `Target/Class/test` and repeat; `--shards` defaults to what the host can run at once; `--shard-timeout` is the floor under a shard's wall-clock ceiling, 3600 seconds by default and refused below 30 (a shard silent for 300 seconds, or three times its longest predicted test where that is longer, is ended whatever it says); shards boot slim, with the runtime's disabled services switched off and read back after the boot, wherever the runtime has a service profile and the project's declarations are accounted for, and `--stock` boots every shard stock instead (refused beside `--sweep` and `--analyse` and in a SwiftPM package); the app under UI test runs with UIKit animations off through a library inserted into a copy of the `.xctestrun` (SwiftUI animations still run; the answer says so), and `--animations` keeps them on for the whole run (refused where `--stock` is) |
@@ -1014,18 +1009,15 @@ Worth knowing before pointing it at a codebase that isn't yours:
 | `swift-sure run --without-line <file:line> -- <tests>` | The same proof for a fix that cannot build without its own change: comment out that one line, run, put it back, run again |
 | `swift-sure run --restore` | Put back a set-aside whose run was killed along with its watcher, checked by content hash |
 | `swift-sure affected [--from R [--to R]] [--depth N] [--reached NAME]... [--suites]` | Which tests reference what a diff changed, with the `-only-testing:` and `--filter` arguments — it reports, it never runs and never decides what to skip |
-| `swift-sure diff [<range>] [--member <Type.member>] [--offset N] [--coverage]` | A structural digest of a change for review, in place of the raw `git diff`: every touched file, declarations added/removed/changed with before → after signatures, what changed outside them, callers of changed signatures, an `access:` section naming the declarations the range put at `open`, `public` or `package` with no use outside their module (and the narrowest level their uses allow), test names, and the tests reaching the changed files. `<range>` is a single commit (its own change), `A..B`, `A...B` (against the merge-base), or omitted for the working tree vs `HEAD`. `--member` prints one declaration's before/after; its header ends in an address `path#Type.member:line` (the file, the declaration's label, and its line after the change; `path#Type.member:before:line` for a declaration the range removed, which has no after side), and that whole address can be passed back to `--member`, as the ambiguity refusal's list does. `--coverage` adds what the last `swift-sure run --coverage` measured, where it measured this very tree, and says so where it is stale or absent |
-| `swift-sure checkup [<range>] [--offset N]` | What a change left unproved and what still leans on it, in one answer and one fixed order: findings from the diagnostics that answer for the change, each ending in the command that shows its detail, and every check named as checked or not checked with its reason. `<range>` is `diff`'s; a range `diff` refuses it refuses (exit 1), and it exits 0 whenever it answered. It builds nothing and runs nothing: whether the change was tested is what `run` recorded |
 | `swift-sure usage [--since W] [--root R] [--unredact] [--all-roots] [--include-scratch] [--file P] [--run-file P]` | Summarise the index usage log — calls by tool, root and day, latency, top targets; `--all-roots` lists every root rather than the top five; `--file`/`--run-file` read other copies of `usage.jsonl` and `run.jsonl` |
 | `swift-sure flakes [<name>] [--since W] [--root R] [--unredact] [--file P]` | For every test that has both failed and passed across wrapped runs: how many named it, out of how many, and when one last did; `<name>` answers instead for the tests whose recorded name contains it (`.` and `/` alike, at most 10 printed by real name), counting every test recorded failing, including one that failed in every run; `--file` reads another copy of `run.jsonl`; inside a git work tree `--root` defaults to that repository, and `--root /` is every repository |
 | `swift-sure audit [--since W] [--until W] [--all] [--transcript P] [--projects D] [--unredact] [--include-scratch] [--progress] [--verbs] [--replay [--sample N] [--shapes P] [--against <binary>]] [--scan-diff --against <binary> [--all-windows]] [--summary \| --share \| --by day\|week]` | Audit transcripts for Swift lookups that went around the index, named file by file; `--until` bounds the window above, `--projects` reads another transcript directory. `--replay`, `--against`, `--scan-diff`, `--summary`, `--share` and `--by` are described under **Auditing the misses**; `--verbs` prints in their place one row per kind of answer SwiftSure gave (`where`, `where --refs`, `digest (file)`, `run`…), the costliest first: its calls, median and 90th-percentile answer in characters, its price in tokens and share of the window's, and the share of its calls followed by a `read` of a file the answer names, a `grep` of its target, `swift-sure` again, `other` or `none`; it names nothing in the tree and is refused beside those views |
 | `swift-sure report --deploys` | List each install of the bundle's binary, one line each, newest last: time, build (commit or source tree), version, tree state, size; read from `~/.swift-sure/deploys.jsonl`, which `install.sh` appends to |
 | `swift-sure report [--since W] [--root R] [--out P] [--include-scratch] [--no-open] [--progress] [--file P] [--run-file P] [--projects D]` | Write a self-contained HTML page — conditions awaiting you, index share, estimated savings, failures — and open it; `--file`, `--run-file` and `--projects` read other copies of the usage log, the run log and the transcripts |
-| `swift-sure reconcile` | Diff index against working tree and fix divergences |
 | `swift-sure reset` | Delete `.swift-sure/`; the proved-run ledger, `swift-sure/proved-runs.json` in the shared git directory, is one for every worktree and stays (with `failed-runs.json` beside it), and the answer names it where there is one |
-| `swift-sure install [--agent A]… [--all] [--yes] [--dry-run] [--allow-run] [--allow-lookups] [--cursor-dir D] [--codex-dir D]` | Detect Claude Code, Cursor and Codex and install into each one chosen, asking once per agent found; `--yes` takes every one found, `--all` all three, `--agent` the ones named, `--dry-run` writes and runs nothing, `--allow-run` or `--allow-lookups` add Claude Code's allow rules without asking (both blocks, or the lookups alone), `--cursor-dir` and `--codex-dir` the directory Cursor's or Codex's step writes to. Exits 0 on success, nothing to do, or needing a flag (no terminal); 1 if any agent failed |
+| `swift-sure install [--agent A]… [--all] [--yes] [--dry-run] [--run-only] [--allow-run] [--allow-lookups] [--cursor-dir D] [--codex-dir D]` | Detect Claude Code, Cursor and Codex and install into each one chosen, asking once per agent found; `--yes` takes every one found, `--all` all three, `--agent` the ones named, `--dry-run` writes and runs nothing, `--run-only` installs only the build and test hooks for Claude Code (the default is the full set: the hooks, the MCP server, the rule), `--allow-run` or `--allow-lookups` add Claude Code's allow rules without asking (the builds, or the lookups alone; `--allow-lookups` is refused with `--run-only`), `--cursor-dir` and `--codex-dir` the directory Cursor's or Codex's step writes to. Exits 0 on success, nothing to do, or needing a flag (no terminal); 1 if any agent failed |
 | `swift-sure doctor [--agent A]… [--cursor-dir D] [--codex-dir D] [--json]` | Check that each agent found runs what the install wrote (`--agent` checks the agents it names, found or not): the registration, the registered binary and its version, each hook fed a payload of that agent's shape, the MCP server's tool list; one line per check, agents not found skipped, agents found with nothing of SwiftSure's in them named and not counted. `--cursor-dir` checks that Cursor directory; `--codex-dir` checks that Codex home, found or not (trust is reported where readable, not compared). Exits 1 if any check failed, or if no agent has SwiftSure installed |
-| `swift-sure install-hook [--allow-run \| --no-allow-run \| --allow-lookups] [--agent claude\|cursor\|codex] [--cursor-dir D] [--codex-dir D] [--settings P] [--command C]` | Register the SessionStart/SubagentStart primer, the PreToolUse shell hook, the PostToolUse edit check, the Stop/SubagentStop build check (`swift-sure stop`, which Claude Code runs, not you: it blocks a stop once when Swift was edited with no green `swift-sure run` build since); removes a legacy sift status line and band plugin; names any agent definition whose `tools:` allowlist shuts these tools out. `--allow-run`, `--no-allow-run` and `--allow-lookups` answer the two allow-rule questions (the four lookups, default yes; the run rules, default no) without asking: both blocks, neither, or the lookups alone; `--agent` picks Cursor or Codex instead (§4), `--cursor-dir` and `--codex-dir` naming their directories; `--settings` edits another settings file, `--command` registers another hook command than this binary's path |
+| `swift-sure install-hook [--run-only] [--allow-run \| --no-allow-run \| --allow-lookups] [--agent claude\|cursor\|codex] [--cursor-dir D] [--codex-dir D] [--settings P] [--command C]` | Register, by default, the full set (`--run-only` registers only the PreToolUse shell hook narrowed to builds and tests (`pre-tool-use --run-only`), the PostToolUse and PostToolUseFailure checks on `Bash` and the Stop/SubagentStop build check, and refuses `--command` and `--allow-lookups`): the SessionStart/SubagentStart primer, the PreToolUse shell hook, the PostToolUse edit check, the Stop/SubagentStop build check (`swift-sure stop`, which Claude Code runs, not you: it blocks a stop once when Swift was edited with no green `swift-sure run` build since); removes a legacy sift status line and band plugin; names any agent definition whose `tools:` allowlist shuts these tools out. `--allow-run`, `--no-allow-run` and `--allow-lookups` answer the two allow-rule questions (the four lookups, default yes; the run rules, default no) without asking: both blocks, neither, or the lookups alone; `--agent` picks Cursor or Codex instead (§4), `--cursor-dir` and `--codex-dir` naming their directories; `--settings` edits another settings file, `--command` registers another hook command than this binary's path |
 | `swift-sure uninstall-hook [--only-advice] [--agent A] [--cursor-dir D] [--codex-dir D] [--settings P]` | Take those registrations back out; `--only-advice` removes just the PreToolUse hook; the other flags as for `install-hook` |
 | `swift-sure uninstall [--purge] [--settings P]` | Take the tool back out: the hooks, a legacy status line, the MCP server at user and local scope, the Cursor and Codex registrations too, a legacy band plugin and its marketplace (through `claude plugin`, which edits the user's own settings, so left out when `--settings` is given), the agent rule; list every `.swift-sure/` directory and every `.bak-swift-sure` backup (settings, Cursor, Codex) it left, deleting them with `--purge`; print what removes the binary (`rm`, `brew uninstall` or `npm uninstall`) |
 | `swift-sure pre-tool-use [--command C] [--cwd D]` | Offer the index call that answers a shell lookup (run by the PreToolUse hook) |
@@ -1223,7 +1215,7 @@ Last, it names any indexed root where **at least a tenth of files carry a guesse
 from a directory name because no manifest covered them, so those files answer about a module that does
 not exist. SwiftPM, XcodeGen and `.xcodeproj` are read without configuration, so a root listed here is
 running an older binary (check that first) or is built by something none of the three describe;
-`swift-sure init` proposes a `moduleMap` for that case.
+a `moduleMap` in `.swift-sure.json` (§9) is the remedy for that case.
 
 Five flags turn the audit on the hook itself, for whoever is changing it:
 
@@ -1283,9 +1275,8 @@ struct ModuleResolver
 
 stored properties:
   private let prefixMap: [(prefix: String, module: String)]  :14  /// Path prefix → module name, longest prefix consulted first.
-  let unmappedManifests: [String]  :18  /// Repo-relative SwiftPM manifests that contributed no mapping at all …
   let survey: Survey  :20  /// What each build system contributed, reported by `status` when anything fell back to a guess.
-  … (7 more)
+  … (6 more)
 members:
   init(repoRoot: URL, config: SiftConfig)  :46-72
   func module(for relativePath: String) -> String  :75-78  /// The module for a repo-relative path; …
@@ -1440,7 +1431,7 @@ Six things worth knowing before you wire it into a script:
   9 covered; uncovered: Foo.swift:41-43, Bar.swift:7` (five ranges at most, then `+N more`; `none executable`
   or `none measured` where there is nothing to count; a comment, a blank line or a brace is not counted). It then lists, for each
   declaration the change touched (from `--from`, default `HEAD`, to the working tree), the lines run and not
-  run; `swift-sure diff --coverage` shows the same where the tree is unchanged since. For `xcodebuild test`, run
+  run. For `xcodebuild test`, run
   `xcodegen generate` in `ValidationProjects/TestDemo` and pass `-testPlan Default` with an existing
   simulator's `-destination`: the argv flag `--coverage` adds turns on the coverage that plan switches off.
 - **Nothing is lost.** The complete raw output goes to a file of its own under `.swift-sure/runs/` as it

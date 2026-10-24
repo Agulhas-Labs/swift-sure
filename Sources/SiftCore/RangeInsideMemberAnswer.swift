@@ -47,7 +47,7 @@ struct RangeInsideMemberAnswer {
         let offset = min(max(0, options.offset), all.count)
         var body = Array(all.dropFirst(offset).prefix(cap))
         if single {
-            body = Self.numbered(body, from: window.lowerBound + offset, cited: range.start)
+            body = ReadNumbering.numbered(body, from: window.lowerBound + offset, cited: range.start)
         } else if offset > 0 {
             body.insert("(…\(offset) lines skipped)", at: 0)
         }
@@ -58,26 +58,5 @@ struct RangeInsideMemberAnswer {
         }
         let preamble = try renderer.parseErrorBanner(touching: [row.path]) + renderer.guessedModuleBanner(touching: [row.path])
         return (preamble + [header, ""] + body).joined(separator: "\n")
-    }
-}
-
-private extension RangeInsideMemberAnswer {
-    /// The page's lines laid out as Claude Code's Read lays them out, so the cited line is told from its neighbours without a Read of the same lines.
-    ///
-    /// Each line's number is right-aligned to `numberWidth`, then a tab, then the source line. The cited line has `>` in place of its number's leading padding character, or before the number where it has none.
-    static func numbered(_ page: [String], from first: Int, cited: Int) -> [String] {
-        var lineNumber = first - 1
-        return page.map { line in
-            lineNumber += 1
-            let digits = String(lineNumber)
-            let padded = String(repeating: " ", count: max(0, numberWidth - digits.count)) + digits
-            let label = lineNumber == cited ? (padded.hasPrefix(" ") ? ">" + padded.dropFirst() : ">" + padded) : padded
-            return label + "\t" + line
-        }
-    }
-
-    /// The width a line number is right-aligned to, as Read aligns it.
-    static var numberWidth: Int {
-        6
     }
 }

@@ -7,7 +7,7 @@ extension AffectedRenderer {
     struct Output {
         let body: String
         let axis: SemanticAxis
-        /// The tests the list names, for a caller that renders them in its own words — `diff`, which embeds them as one bounded section rather than the whole answer.
+        /// The tests the list names, for a caller that renders them in its own words rather than as the whole answer.
         var reached: [ReachedTest] = []
         /// How many ways the limits block lists of this answer being short — the number a caller pointing at that block owes its reader.
         var limitCount = 0

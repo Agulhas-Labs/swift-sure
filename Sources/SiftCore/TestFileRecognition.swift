@@ -4,7 +4,7 @@
 
 /// Recognises a test function by the same shape rule `TestSymbolReader` applies against the live index — `@Test`, or a `test…` instance method in a file importing XCTest.
 ///
-/// Without that type's cross-file walk to a base class declared elsewhere, since a diff parses only the two revisions of the files the range itself touches (Docs/Design.md §2). The narrower rule is a stated trade, not a silent one: see `DiffRenderer`'s test-files section.
+/// Without that type's cross-file walk to a base class declared elsewhere, since it parses only the files it is handed, one at a time (Docs/Design.md §2).
 struct TestFileRecognition {
     static func isTestFile(imports: [String]) -> Bool {
         imports.contains("Testing") || imports.contains("XCTest")

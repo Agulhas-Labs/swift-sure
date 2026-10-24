@@ -4,14 +4,16 @@ What SwiftSure's hooks do in Claude Code, what they stay quiet about, and how to
 
 ## Overview
 
-`swift-sure install` registers six hooks in Claude Code (see <doc:Installing>). Each one is a
+`swift-sure install` registers six hooks in Claude Code (see <doc:Installing>); `--run-only` registers
+only the build and test side: `PreToolUse` running `pre-tool-use --run-only` on `Bash`, `PostToolUse` and
+`PostToolUseFailure` on `Bash`, and the stop gate, with no primer and no lookup hook. Each one is a
 call to the `swift-sure` binary that Claude Code makes at a fixed moment. The samples here come from running that
 binary in the sample package of <doc:GettingStarted> (`Distribution/docs-fixture.sh`): a module called
 `Stacks`, its checkout shown as `~/code/Shelf`. Paths under your home directory are shortened to `~`.
 
 ### The session primer
 
-When a session or a subagent starts, the `SessionStart` and `SubagentStart` hooks print a short note naming
+A full install only (not `--run-only`). When a session or a subagent starts, the `SessionStart` and `SubagentStart` hooks print a short note naming
 the four tools and when to reach for them. It prints nothing unless Swift is in view: not in a directory
 with no Swift, and not in a session that never touches it. Run it by hand to see what a directory would get:
 
@@ -137,6 +139,8 @@ line, `swift-sure audit` or the subagent primer.
 - **Codex** gets `SessionStart`, `PreToolUse` and `PostToolUse` in `hooks.json`. It runs a hook only once you
   trust it: approve the prompt on first open, or review the hooks in `/hooks`. An `apply_patch` gets the
   post-edit check for each `.swift` file it adds or updates.
+- **With `--run-only`** each gets the build and test side alone: `pre-tool-use --run-only` and
+  `post-tool-use --run-only`, which answers a shell call's result only, with no session-start hook and no MCP server.
 
 ## Next steps
 

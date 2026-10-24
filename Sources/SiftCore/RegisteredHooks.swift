@@ -30,13 +30,23 @@ public struct RegisteredHooks {
     ///
     /// Unreadable and absent are one answer on purpose: both mean this cannot show that the hooks firing are this binary's, and every use of that answer is one-sided.
     public var registered: String? {
-        let found = SiftClaudeSetup.hooks.fingerprint(of: try? Data(contentsOf: settings))
+        let found = registration(of: data).fingerprint(of: data)
         return found.isEmpty ? nil : found
     }
 
-    /// Whether what that file registers is what this binary registers.
+    /// What that file holds, or `nil` when it cannot be read.
+    private var data: Data? {
+        try? Data(contentsOf: settings)
+    }
+
+    /// The registration of the mode the file holds: the run set where it registers the run-mode `PreToolUse` hook, the index set otherwise.
+    private func registration(of data: Data?) -> HookRegistration {
+        SiftClaudeSetup.mode(of: data) == .run ? SiftClaudeSetup.runHooks : SiftClaudeSetup.hooks
+    }
+
+    /// Whether what that file registers is what this binary registers: a complete run-mode set counts as much as a complete index set.
     public var isCurrent: Bool {
-        registered == SiftClaudeSetup.hooks.fingerprint
+        registered == registration(of: data).fingerprint
     }
 
     /// What `status` should say about the registration, or `nil` when there is nothing to say.
@@ -47,11 +57,20 @@ public struct RegisteredHooks {
     ///
     /// **A partial uninstall gets a sentence of its own rather than either of those two.** `uninstall-hook --only-advice` removes the advice hook and leaves the primer, which is a documented thing to do; reporting that registration as "not this version's — re-run `swift-sure install-hook`" would be false about the registration and would tell someone to run the command that reinstalls what they deliberately took out. Silence is the other wrong answer: it would make a machine with the advice off indistinguishable here from one with it on. So it is reported as what it is, with what would undo it named as a fact rather than prescribed.
     public var note: String? {
-        guard let registered, registered != SiftClaudeSetup.hooks.fingerprint else { return nil }
+        let data = data
+        let expected = registration(of: data)
+        guard let registered else { return nil }
+        if registered == expected.fingerprint {
+            return SiftClaudeSetup.mode(of: data) == .run ? "index: off (installed with --run-only)" : nil
+        }
         if registered == SiftClaudeSetup.hooks.fingerprint(without: SiftClaudeSetup.adviceSubcommands) {
             return "hooks: the session primer is registered and the shell advice is not — what `\(ProductName.current.binary) "
                 + "uninstall-hook --only-advice` leaves. No lookup is then answered in place, which is what "
                 + "removing the advice asked for; `\(ProductName.current.binary) install-hook` registers it again."
+        }
+        if registered == SiftClaudeSetup.runHooks.fingerprint(without: SiftClaudeSetup.adviceSubcommands) {
+            return "hooks: the build and test rewrite is not registered — what `\(ProductName.current.binary) "
+                + "uninstall-hook --only-advice` leaves of a run-mode install; `\(ProductName.current.binary) install-hook` registers it again."
         }
         return "hooks: the registration in your Claude Code settings is not this version's — re-run `\(ProductName.current.binary) "
             + "install-hook`. Until then the hook may not see this server's own calls, so an answer in place "

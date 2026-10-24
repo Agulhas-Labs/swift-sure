@@ -8,11 +8,11 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// `index` and `reconcile` in a tree nobody may write refuse in one line rather than build an index in memory, throw it away and report it done.
+/// `index` in a tree nobody may write refuse in one line rather than build an index in memory, throw it away and report it done.
 @Suite(.temporaryDirectories)
 struct ReadOnlyIndexCommandTests {
     @Test
-    func indexAndReconcileRefuseInATreeNobodyMayWrite() async throws {
+    func indexRefusesInATreeNobodyMayWrite() async throws {
         let repository = try MCPTestRepo.make()
         let registry = try RootsRegistry(fileURL: TemporaryDirectory.make("roots").appendingPathComponent("roots.json"))
         try Self.chmod("a-w", repository)
@@ -21,12 +21,9 @@ struct ReadOnlyIndexCommandTests {
         let index = await #expect(throws: EngineError.self) {
             try await IndexCommand.parse(["--root", repository.path]).run(registry: registry)
         }
-        let reconcile = await #expect(throws: EngineError.self) {
-            try await ReconcileCommand.parse(["--root", repository.path]).run(registry: registry)
-        }
 
         #expect(!FileManager.default.fileExists(atPath: SiftPaths.cache(in: repository).path))
-        for refusal in [index, reconcile].map({ $0.map(String.init(describing:)) ?? "" }) {
+        for refusal in [index].map({ $0.map(String.init(describing:)) ?? "" }) {
             #expect(refusal.contains("cannot be written, so there is no stored index to build or reconcile"), "\(refusal)")
             #expect(!refusal.contains("\n"), "\(refusal)")
         }

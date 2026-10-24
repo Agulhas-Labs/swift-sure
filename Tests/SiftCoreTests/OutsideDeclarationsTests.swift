@@ -13,7 +13,7 @@ struct OutsideDeclarationsTests {
     }
 
     private static func compared(from old: Data, to new: Data) -> FileDiff {
-        FileDiff.compare(path: "Widget.swift", status: .modified, lineStat: nil, bytes: (old, new))
+        FileDiff.compare(path: "Widget.swift", status: .modified, bytes: (old, new))
     }
 
     private static func change(_ category: OutsideDeclarations.Category, in file: FileDiff) -> OutsideChange? {
@@ -114,13 +114,6 @@ struct OutsideDeclarationsTests {
         #expect(file.lineChanges == [LineChange(kind: .whitespace, old: nil, new: DeclarationRange(line: 3, endLine: 3))])
     }
 
-    @Test func identicalSidesAreSaidToBeIdentical() {
-        let file = Self.compared(from: "struct W {}\n", to: "struct W {}\n")
-
-        #expect(file.identical)
-        #expect(!file.reportsChanges)
-    }
-
     // MARK: Text in front of a type
 
     /// A type's header is its signature; the comments in front of it are text of their own, named with their lines — alongside, not instead of, a member edit elsewhere in the file.
@@ -188,24 +181,6 @@ struct OutsideDeclarationsTests {
         #expect(file.lineChanges.isEmpty)
     }
 
-    /// Every changed line is printed — adjacent ones merged, none cut to a count — and a multi-line text with its whole range.
-    @Test func everyLineIsPrintedWithItsWholeRange() {
-        let comments = (1 ... 20).map { "// note \($0)\nlet x\($0) = \($0)\n" }.joined()
-        let file = Self.compared(
-            from: comments + "final class H {\n    deinit {\n        emit(0)\n    }\n}\n",
-            to: comments.replacingOccurrences(of: "// note", with: "// line") + "final class H {\n    deinit {\n        emit(1)\n    }\n}\n"
-        )
-        let range = DiffRange(from: "HEAD", to: .workingTree, described: "working tree vs HEAD")
-        let rendered = DiffRenderer.render(DiffRenderer.Input(
-            range: range, files: [file], notBrokenDown: [], nonSwift: [], callers: [], workingTreeIsAfterSide: true,
-            tests: nil, options: DiffOptions(range: range), rawDiffBytes: 0, axis: .syntacticOnly
-        )).body
-
-        #expect(rendered.contains("+ comments or doc comments  " + (1 ... 20).map { ":\(2 * $0 - 1)" }.joined(separator: ", ")))
-        #expect(!rendered.contains(" more"))
-        #expect(rendered.contains("~ deinit in H  :42-44"))
-    }
-
     // MARK: Bytes, not decoded text
 
     /// Decoding drops a byte-order mark, so two decoded sides compare equal; the bytes do not, and the mark is named.
@@ -213,7 +188,6 @@ struct OutsideDeclarationsTests {
         let source = "struct W {\n    func f() -> Int { 1 }\n}\n"
         let file = Self.compared(from: Data(source.utf8), to: Data([0xEF, 0xBB, 0xBF]) + Data(source.utf8))
 
-        #expect(!file.identical)
         #expect(file.lineChanges.map(\.kind) == [.byteOrderMark(added: true)])
     }
 
@@ -232,7 +206,6 @@ struct OutsideDeclarationsTests {
     @Test func aChangeOfUnicodeNormalizationIsADeclarationChange() {
         let file = Self.compared(from: "let greeting = \"caf\u{E9}\"\n", to: "let greeting = \"cafe\u{301}\"\n")
 
-        #expect(!file.identical)
         #expect(file.changes.map(\.name) == ["greeting"])
     }
 

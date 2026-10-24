@@ -103,14 +103,14 @@ struct AdviceLedgerTests {
         let noted = SuppressionLog(fileURL: directory.appendingPathComponent("suppressions.jsonl"))
         let cwd = FileManager.default.currentDirectoryPath
         let first = try #require(PreToolUseCommand.lookup(
-            command: #"echo "=== a ==="; grep -rn "SimilarTarget" Sources"#,
+            command: #"echo "=== a ==="; grep -rn "Depot" Sources"#,
             payload: [:],
             in: cwd,
             noting: noted,
             couldAnswer: { _, _ in true }
         ))
         let second = try #require(PreToolUseCommand.lookup(
-            command: #"echo "=== b ==="; grep -rn "SimilarTarget" Sources"#,
+            command: #"echo "=== b ==="; grep -rn "Depot" Sources"#,
             payload: [:],
             in: cwd,
             noting: noted,

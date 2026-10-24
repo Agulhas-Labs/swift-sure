@@ -51,7 +51,6 @@ struct AffectedNestedProjectTests {
         engine.callerDirectory = engine.repoRoot.path
         try await engine.awaitSemanticStore()
         let affected = try await engine.affected(options: AffectedOptions(range: AffectedOptions.CommitRange(from: "HEAD~1", to: "HEAD")), freshness: engine.ensureFresh())
-        let diff = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
 
         #expect(affected.contains("semantic: partial (1 test file has no unit in the store"), "\(affected)")
         #expect(affected.contains("1 test file outside any built target: no build of the store's project compiles it"), "\(affected)")
@@ -59,6 +58,5 @@ struct AffectedNestedProjectTests {
         #expect(affected.contains("build it with `swift-sure run -- swift build --build-tests`"), "\(affected)")
         #expect(affected.split(separator: "\n").contains { $0.contains("walks()") && $0.contains("name match") }, "\(affected)")
         #expect(!affected.contains("SampleUITests"), "\(affected)")
-        #expect(!diff.contains("SampleUITests"), "\(diff)")
     }
 }

@@ -1,9 +1,14 @@
 # SwiftSure — install
 
-Two tools in one binary for AI coding agents working in Swift: build and test output an agent can
-afford to read (`swift-sure run`, and hooks that answer a big file's whole read (about 12 KB and up in a typical 45k-token context, rising to about 20 KB by 120k, as it moves with the context; smaller files are read as asked) with its digest and check
-every edit parses), and semantic lookups for when grep is too noisy (callers, read and write sites,
-reference sweeps, structural search, string-catalog tracing) — as a CLI and an MCP stdio server.
+Two tools in one binary for AI coding agents working in Swift. **Run mode**: build and
+test output an agent can afford to read (`swift-sure run`, which the hooks rewrite a build or test into; in the
+measured cases it was a median 89% fewer bytes and every failure was located). The **index**: semantic lookups for
+when grep is too noisy (callers, read and write sites, reference sweeps,
+structural search, string-catalog tracing) as an MCP stdio server, with hooks that answer a big file's whole read
+(about 12 KB and up in a typical 45k-token context, rising to about 20 KB by 120k; smaller files are read as asked)
+with its digest and check every edit parses. The default install is both. The index adds about 1.2k tokens of tool
+definitions to every session: on longer work in a large codebase it paid for itself (a pooled -9.5% over nine tasks on a
+private app), on short lookups it showed no detectable difference. `--run-only` installs the build and test side alone.
 
 <!-- PROVENANCE -->
 
@@ -34,7 +39,7 @@ open-source components the binary links, and their licenses, are listed in `THIR
 | File | |
 |---|---|
 | `swift-sure` | the binary — one file, no runtime, no package manager |
-| `install.sh` | copies it to `~/.local/bin` and appends a line (time, version, commit or source tree, tree state, binary size) to `~/.swift-sure/deploys.jsonl` (`swift-sure report --deploys` lists them); then, where Claude Code is found (`claude` on the `PATH`, or its directory, `$CLAUDE_CONFIG_DIR` when set and `~/.claude` otherwise, exists), writes its rule, registers the hooks and registers the MCP server at user scope (a per-repository `claude mcp add --scope local` is an alternative to that, never a second step; see `Docs/Guide.md` §3) |
+| `install.sh` | copies it to `~/.local/bin` and appends a line (time, version, commit or source tree, tree state, binary size) to `~/.swift-sure/deploys.jsonl` (`swift-sure report --deploys` lists them); then, where Claude Code is found (`claude` on the `PATH`, or its directory, `$CLAUDE_CONFIG_DIR` when set and `~/.claude` otherwise, exists), registers the full hook set, writes the rule and registers the MCP server at user scope (a per-repository `claude mcp add --scope local` is an alternative to that, never a second step; see `Docs/Guide.md` §3) |
 | `BUILD_INFO` | the version, build and tree state this bundle was built from, which `install.sh` records; without it the line carries `null` for them. The build is `commit`, the commit a release was cut from, or `sourceTree`, for a local build, the git tree hash of the source (a tree, not a commit); exactly one is present. `tree` is the clean or dirty state |
 | `SwiftSure.md`, `README.md` | the agent guide and the overview |
 | `Docs/Guide.md` | the full reference: config, indexing, freshness, troubleshooting, every command |
@@ -69,10 +74,12 @@ With `swift-sure` on your `PATH` (Homebrew puts it there; from this bundle, `sh 
 `~/.codex`), lists what it found and the files it would write there, and asks once per agent found (default
 yes). It runs the same installers as `install-hook`, so nothing new is written:
 
-- **Claude Code:** the hooks in `~/.claude/settings.json`, the MCP server at user scope
-  (through `claude mcp add`), and, where a `SwiftSure.md` ships beside the binary (Homebrew ships one, so `swift-sure install` from it writes the rule), the agent rule at
-  `~/.claude/rules/swift-sure.md`; a bundle install gets the rule from `install.sh`. Then start a **new** session for the
-  primer, the tool list and the rule.
+- **Claude Code:** the full set: every hook event in `~/.claude/settings.json`, the MCP server at user scope
+  (through `claude mcp add`) and, where a `SwiftSure.md` ships beside the binary (Homebrew ships one; a bundle install
+  gets it from `install.sh`), the agent rule at `~/.claude/rules/swift-sure.md`. With `--run-only` it registers the build
+  and test hooks alone: `PreToolUse` on `Bash` running `pre-tool-use --run-only` (it rewrites a build or test into
+  `swift-sure run --` and does nothing for a lookup), `PostToolUse` and `PostToolUseFailure` on `Bash`, and `Stop` and
+  `SubagentStop`; no MCP server, no rule, no session primer. Then start a **new** session.
 - **Cursor:** `~/.cursor/mcp.json` and `~/.cursor/hooks.json`. Then restart Cursor.
 - **Codex:** `hooks.json` in the Codex home and the MCP server (through `codex mcp add`). Then restart Codex; it
   shows a trust prompt for the hooks the first time it opens, and they run once you approve it.
@@ -82,15 +89,19 @@ yes). It runs the same installers as `install-hook`, so nothing new is written:
 | `--yes` | install into every agent found, without asking |
 | `--all` | install into all three, found or not, without asking |
 | `--agent claude\|cursor\|codex` | install into that one, found or not, without asking; repeat for more |
+| `--run-only` | install only the build and test hooks, in every agent installed into (no MCP server, rule, session primer or lookup hooks) |
 | `--dry-run` | say what was found and what would be written; write nothing, and ask `simwalk`, if found, for its own dry run |
 
-Where it installs Claude Code's hooks on a terminal, it also asks two questions about allow rules, the same two
-`install-hook` asks: whether `swift-sure digest`, `where`, `search` and `strings` may run without a permission prompt
+The mode is a re-run: `--run-only` over a full install takes out the server, the rule, the primer and the lookup
+hooks (a rule that is a symlink, a checkout's own file, is left), and the default over a `--run-only` install restores them.
+Both directions are idempotent.
+
+Where it installs Claude Code's hooks on a terminal, it also asks about allow rules, the same questions
+`install-hook` asks. With `--run-only` that is one: whether `swift-sure run -- swift build`, `swift test`, `xcodebuild` and
+`swiftlint` may run without a prompt (`[y/N]`, default no: a build runs package manifests and build plugins). Otherwise it asks first whether `swift-sure digest`, `where`, `search` and `strings` may
 (`[Y/n]`, default yes: they write only SwiftSure's own index and caches, the
-repository's `.swift-sure/` (and its `.git/info/exclude` entry) and `~/.swift-sure`, and run git with the repository's fsmonitor and git hooks switched off; a no is remembered in `~/.swift-sure`, and the question then defaults to no until a yes or `--allow-lookups`), then whether `swift-sure run -- swift build`,
-`swift test`, `xcodebuild` and `swiftlint` may (`[y/N]`, default no: a build runs package manifests and build
-plugins). Each adds only its own block. With no terminal neither is asked and nothing is added; the Claude Code
-section names `swift-sure install-hook --allow-run` (both blocks) and `--allow-lookups` (the lookups alone), and
+repository's `.swift-sure/` (and its `.git/info/exclude` entry) and `~/.swift-sure`, and run git with the repository's fsmonitor and git hooks switched off; a no is remembered in `~/.swift-sure`, and the question then defaults to no until a yes or `--allow-lookups`), then the build question above. Each adds only its own block. With no terminal neither is asked and nothing is added; the Claude Code
+section names `swift-sure install-hook --allow-run` (both blocks; with `--run-only`, the builds alone) and `--allow-lookups` (the lookups alone, refused with `--run-only`), and
 `--no-allow-run` adds neither. `swift-sure install --allow-run` and `swift-sure install --allow-lookups` answer for the Claude Code
 step without a terminal (`--no-allow-run` is `install-hook` only).
 
@@ -102,7 +113,7 @@ unsupported there. Re-running is idempotent (a second run says there is nothing 
 Where `simwalk` is on the `PATH` or beside the binary, `swift-sure install` then runs one `simwalk install --yes` carrying an `--agent <agent>` for each agent picked
 (with `--dry-run` under a dry run), including an agent whose own step failed, so the family is set up in one step.
 
-The per-agent commands (`install-hook`, with `--agent cursor` or `--agent codex`) stay for scripting; the
+The per-agent commands (`install-hook`, with `--run-only` for the build and test hooks alone, or `--agent cursor` or `--agent codex`) stay for scripting; the
 sections below are their reference.
 
 If you already manage Claude Code through plugin marketplaces, a SwiftSure plugin for Claude Code is the other
@@ -122,23 +133,26 @@ That is the harness working as intended. Type it at the prompt with a leading `!
 ! sh install.sh --allow-run
 ```
 
-A `!` command has no terminal either, so nothing is asked: `--allow-run` adds both blocks of allow rules (the
-lookups and the wrapped builds), `--allow-lookups` the lookups alone, and with neither no rule is added and the
-output names the command that adds them. Then start a new Claude Code session.
+A `!` command has no terminal either, so nothing is asked: `--allow-run` adds the allow rule for the wrapped builds
+(both blocks: the lookups and the builds; with `--run-only`, the builds alone), `--allow-lookups` the lookups alone (with
+`--run-only` `install.sh` refuses the flag), and with neither no rule is added and the output names the command that adds
+them. Then start a new Claude Code session.
+
+`sh install.sh` registers the full set, the MCP server and the rule. `sh install.sh --run-only` registers the build and test hooks alone.
 
 The MCP server is registered only where `claude` is on the `PATH`; the Claude desktop app's embedded CLI is not.
 Where it is missing, `install.sh` prints the `claude mcp add …` command to run by hand, and running it is the fix.
 
-Re-running it is the upgrade path. On a terminal its `install-hook` step asks the two allow-rule questions above
-(lookups default yes, or no after a remembered no; builds default no). With no terminal, as when an agent runs it,
+Re-running it is the upgrade path. On a terminal its `install-hook` step asks the allow-rule questions above
+(builds default no; unless `--run-only`, lookups too, default yes, or no after a remembered no). With no terminal, as when an agent runs it,
 nothing is asked or added and the output names the command that adds the rules; `sh install.sh --allow-run` (both
-blocks) or `sh install.sh --allow-lookups` (the lookups alone) answers up front, and is the one command to install
+blocks; with `--run-only`, the builds alone) or `sh install.sh --allow-lookups` (the lookups alone) answers up front, and is the one command to install
 and allow. An agent installing for a user passes them only when the user asked for it. Any other flag is refused.
 Where Claude Code is not found (no `claude` on the `PATH`, no Claude directory), `install.sh` installs the binary only, writes nothing under `~/.claude`, and points to `swift-sure install`. It registers Claude Code only; run `swift-sure install` afterwards for Cursor and
 Codex. It strips the quarantine flag (the binary is ad-hoc signed, so an AirDropped copy would be refused), copies the new
 binary to a temporary name beside the destination and then renames it over the old one (never copy over
 the old inode: macOS SIGKILLs the result, exit 137, silently; the rename gives the new binary an inode of
-its own, and there is never a moment with no binary), refreshes the user rule, and **removes any existing `swift-sure` MCP
+its own, and there is never a moment with no binary), and, unless `--run-only`, refreshes the user rule and **removes any existing `swift-sure` MCP
 registration before adding this one** (at user scope; for a per-repository registration use the `claude mcp add --scope local` command in `Docs/Guide.md` §3 instead, never as well, or the server is registered twice), since `claude mcp add` fails outright on a name that already
 exists.
 
@@ -148,7 +162,7 @@ copied to (`~/.local/share/sift/sift-mod`) and the marketplace file beside it th
 still succeeds and prints the commands to run by hand.
 
 On an upgrade, a running Claude Code session's server re-executes into the new binary before its next request and
-the hooks apply at once; after a first install, and for the session primer, the tool list and the rule file, start
+the hooks apply at once; after a first install, and for an index install's session primer, tool list and rule file, start
 a **new** session. In any Swift repo:
 
 ```sh
@@ -156,12 +170,12 @@ swift-sure status     # freshness, counts, module map, index-store discovery —
 ```
 
 The first query indexes the repo (once, and longer on a large tree); there is no separate
-setup step. On a large codebase, `swift-sure init` reports which files got their module from a
-directory-name guess rather than a build file and proposes the `moduleMap` entries that fix it; run it
-before trusting `digest <Module>`.
+setup step. On a large codebase, a file no build file declares gets its module from a
+directory-name guess; the answers say so, and a `moduleMap` entry in `.swift-sure.json` fixes it.
 
 ## The agent guide — nothing to wire, nothing to commit
 
+This section and the next do not apply to a `--run-only` install, which writes neither the rule nor the primer.
 Where Claude Code is found, `install.sh` puts `SwiftSure.md` at `~/.claude/rules/swift-sure.md`. It applies to every repo on the machine, and
 its frontmatter (`paths: ["**/*.swift"]`) keeps it out of context unless Swift is in play. To share it
 with a team instead, copy it to `.claude/rules/swift-sure.md` inside a repo and commit it.
@@ -176,8 +190,9 @@ been indexed; above several roots it names the ones a query can pass as `root:`.
 
 ```sh
 swift-sure session-start --cwd .    # see what this directory would get
-swift-sure install-hook             # re-register by hand (idempotent; re-run after moving the binary)
-swift-sure uninstall-hook           # take it back out (--only-advice keeps the primer)
+swift-sure install-hook             # re-register the full set by hand (idempotent; re-run after moving the binary)
+swift-sure install-hook --run-only  # only the build and test hooks: no server, primer, lookup hooks or rule
+swift-sure uninstall-hook           # take either mode back out (--only-advice keeps the primer)
 ```
 
 The hooks run the binary `install-hook` was started as: the path you typed, or for a bare `swift-sure` the one
@@ -260,7 +275,7 @@ swift-sure uninstall            # hooks, MCP server, agent rule (and a legacy st
 swift-sure uninstall --purge    # the same, and deletes those directories: every index, run log, usage log and recorded run proof
 ```
 
-It takes out what `install.sh` put in: the hooks in `~/.claude/settings.json` (as
+It takes out what `install.sh` put in, in either mode: the hooks in `~/.claude/settings.json` (as
 `uninstall-hook` does, which also removes a legacy sift status line), the MCP server at user scope and, run in each project's directory, at local scope (through `claude mcp remove swift-sure`), a legacy band plugin and its marketplace (through `claude plugin uninstall
 sift-band@sift` and `claude plugin marketplace remove sift`, when registered), and `~/.claude/rules/swift-sure.md`. Without `--purge` it deletes nothing from a repository; it lists each `.swift-sure/`
 it knows of, each of those repositories' run ledgers (`swift-sure/` under its git directory), and `~/.swift-sure`;
@@ -320,7 +335,7 @@ store directory itself — the one holding `v<N>/units`, relative to the repo ro
 `<path>/Index.noindex/DataStore` for `-derivedDataPath <path>`. The discovery
 order is in `Docs/Guide.md` §7.
 
-**MCP server not appearing in Claude Code.** Start a new session first, then check `claude mcp list`.
+**MCP server not appearing in Claude Code.** A `--run-only` install registers none; re-run `swift-sure install` without it. Start a new session first, then check `claude mcp list`.
 When registering by hand, `--scope` must come *before* the `--`, or the binary receives it:
 
 ```sh

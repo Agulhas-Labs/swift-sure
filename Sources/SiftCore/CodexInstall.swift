@@ -28,10 +28,12 @@ public struct CodexInstall {
     }
 
     /// Registers the hooks and the server in `home` for `binary`, an absolute path, the same path shell-quoted as the first word of each hook's command.
-    public static func install(home: Home, binary: String, binaryWord: String, runner: any CodexMcpRunner) throws -> InstallOutcome {
+    ///
+    /// `mode` is the set registered: index by default, or run mode, which registers the shell hooks alone and takes our server out through `runner`. Either way the other mode's handlers of ours are taken out in the same write of `hooks.json`, so a re-run switches modes.
+    public static func install(home: Home, binary: String, binaryWord: String, runner: any CodexMcpRunner, mode: SiftClaudeSetup.InstallMode = .index) throws -> InstallOutcome {
         let hooksURL = home.directory.appendingPathComponent(CodexHooksFile.fileName)
         let original = try SettingsFile.read(hooksURL, agent: agent, flag: "--codex-dir")
-        let hooks = try SettingsFile.merge(hooksURL, agent: agent) { try CodexHooksFile.apply(to: original, binaryWord: binaryWord) }
+        let hooks = try SettingsFile.merge(hooksURL, agent: agent) { try CodexHooksFile.install(into: original, binaryWord: binaryWord, mode: mode) }
         // Codex refuses a CODEX_HOME that is not there, so the directory is made before it is asked anything.
         do {
             try FileManager.default.createDirectory(at: home.directory, withIntermediateDirectories: true)
@@ -41,14 +43,24 @@ public struct CodexInstall {
         let found = try SiftCodexSetup.server.find(runner: runner, home: home.directory)
 
         var outcome = InstallOutcome(lines: [], notes: [], written: [])
+        let wanted = CodexHooksFile.hooks(for: mode)
+        if mode == .run {
+            outcome.lines.append("run mode — index off; re-run without --run-only for the lookup tools")
+        }
         if hooks.changed {
+            outcome.lines += hooks.removed.map { "hooks: removed \($0)" }
             outcome.lines += hooks.replaced.map { "hooks: replaced stale registration (\($0))" }
-            outcome.lines += CodexHooksFile.hooks.map { "hooks: registered \($0.event) — \(CodexHooksFile.command(for: $0, binaryWord: binaryWord))" }
+            outcome.lines += CodexHooksFile.movedEvents(from: original, to: hooks.data).map { "hooks: \($0) groups after ours moved up; Codex will ask to trust them again" }
+            outcome.lines += wanted.map { "hooks: registered \($0.event) — \(CodexHooksFile.command(for: $0, binaryWord: binaryWord))" }
         } else {
-            outcome.lines.append("hooks: already registered — \(CodexHooksFile.hooks.map(\.event).joined(separator: ", "))")
+            outcome.lines.append("hooks: already registered — \(wanted.map(\.event).joined(separator: ", "))")
         }
         try SettingsFile.write(&outcome, hooksURL, hooks.data, original: original, if: hooks.changed, tool: .sift)
-        try register(binary, found: found, home: home, runner: runner, into: &outcome)
+        if mode == .index {
+            try register(binary, found: found, home: home, runner: runner, into: &outcome)
+        } else {
+            try unregister(found: found, home: home, runner: runner, afterIndexInstall: !hooks.removed.isEmpty, into: &outcome)
+        }
         var registered = outcome.failures.isEmpty
         var foreign = false
         if case .foreign = found {
@@ -65,7 +77,7 @@ public struct CodexInstall {
         guard PathKind.of(home.directory) != .absent else { return outcome }
         let hooksURL = home.directory.appendingPathComponent(CodexHooksFile.fileName)
         let original = try SettingsFile.read(hooksURL, agent: agent, flag: "--codex-dir")
-        let hooks = try SettingsFile.merge(hooksURL, agent: agent) { try CodexHooksFile.remove(from: original) }
+        let hooks = try SettingsFile.merge(hooksURL, agent: agent) { try CodexHooksFile.removeEitherMode(from: original) }
         let found = try SiftCodexSetup.server.find(runner: runner, home: home.directory)
 
         outcome.lines += hooks.removed.map { "hooks: removed \($0)" }
@@ -173,6 +185,28 @@ public struct CodexInstall {
             return outcome.failures.append("mcp: not registered — `codex \(arguments.prefix(3).joined(separator: " "))` failed: \(reason); run: \(manual(arguments, home: home))")
         }
         outcome.lines.append("mcp: registered \(name) — \(registered)")
+    }
+
+    /// Run mode registers no server: takes out ours and leaves a foreign one of the name, saying so; without `codex` to ask it notes the command to run after an index install.
+    private static func unregister(found: CodexMcpServer.Found, home: Home, runner: any CodexMcpRunner, afterIndexInstall: Bool, into outcome: inout InstallOutcome) throws {
+        let name = SiftCursorSetup.mcp.server.name
+        let remove = SiftCodexSetup.server.removeArguments
+        switch found {
+        case let .ours(command):
+            let removal = try runner.run(remove, home: home.directory)
+            if let removal, removal.succeeded {
+                outcome.lines.append("mcp: removed \(name) — \(command) \(SiftCursorSetup.mcp.server.arguments.joined(separator: " "))")
+            } else {
+                let reason = removal.map(\.failureReason) ?? "`codex` is no longer on PATH"
+                outcome.failures.append("mcp: not removed — `codex \(remove.joined(separator: " "))` failed: \(reason); run: \(manual(remove, home: home))")
+            }
+        case let .foreign(existing):
+            outcome.lines.append("mcp: left alone — a server named \(name) runs something else (\(existing))")
+        case .noCodex where afterIndexInstall:
+            outcome.notes.append("mcp: not checked — `codex` is not on PATH; if Codex runs this tool's server, run: \(manual(remove, home: home))")
+        case .absent, .noCodex:
+            break
+        }
     }
 
     /// `codex` with `arguments` as a person pastes it, naming the home in `CODEX_HOME` when it came from `--codex-dir`, where a plain `codex` would not look.

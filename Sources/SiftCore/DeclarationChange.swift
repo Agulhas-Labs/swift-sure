@@ -41,9 +41,6 @@ struct DeclarationChange: Sendable {
     let extentChanged: Bool
     /// On a `.moved` entry, whether its whole lines are byte for byte what they were — every descendant of a moved type unchanged included — so "text unchanged" is never said of a type whose member was edited.
     let movedIntact: Bool
-    /// Both sides' whole lines — kept only for the declaration a `--member` answer names, since a large range holds a great many.
-    let oldBody: String?
-    let newBody: String?
     /// Every function nested anywhere under a wholly added/removed *container* — empty otherwise.
     ///
     /// Not printed by the declarations section (which reports the container as one line, `memberCount` and all), but the test-files section needs the individual names even here: a deleted suite is not a suite that lost no tests.
@@ -64,35 +61,6 @@ extension DeclarationChange {
 
     var conditionChanged: Bool {
         kind == .changed && !SourceText.same(oldCondition, newCondition)
-    }
-
-    /// This change with both sides' bodies attached.
-    func withBodies(old: String?, new: String?) -> DeclarationChange {
-        DeclarationChange(
-            kind: kind,
-            containerPath: containerPath,
-            containerDisplay: containerDisplay,
-            name: name,
-            symbolKind: symbolKind,
-            oldSignature: oldSignature,
-            newSignature: newSignature,
-            oldRange: oldRange,
-            newRange: newRange,
-            oldCondition: oldCondition,
-            newCondition: newCondition,
-            oldAccess: oldAccess,
-            newAccess: newAccess,
-            signatureChanged: signatureChanged,
-            textChanged: textChanged,
-            memberCount: memberCount,
-            oldSpans: oldSpans,
-            newSpans: newSpans,
-            extentChanged: extentChanged,
-            movedIntact: movedIntact,
-            oldBody: old,
-            newBody: new,
-            nestedFunctions: nestedFunctions
-        )
     }
 
     /// The label `--member` and the ambiguity refusal address this declaration by: its container path and its name.

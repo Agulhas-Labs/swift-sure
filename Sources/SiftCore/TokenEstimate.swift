@@ -8,9 +8,9 @@ import Foundation
 ///
 /// What the tool measures is bytes: the source a digest stood in for, less the bytes it served. What a developer reading `usage` or the report page wants to know is how much source the index's answers stood in for, and an agent's context is counted in tokens, not kilobytes, so that is the unit the headline figure is stated in: a kilobyte has to be converted in the head before it means anything, and a token count beside a context limit does not.
 ///
-/// **It is an estimate, and it says so.** The tool never tokenizes anything; it counts bytes and divides. Every rendering carries the tilde, and the faces with room for it (`usage`, the report page, `diff`'s size line) print the measured bytes and the ratio beside the estimate so the arithmetic can be checked. The status line states no saving at all: it has room for the tilde and not for the baseline, and a figure without its baseline reads as a measurement.
+/// **It is an estimate, and it says so.** The tool never tokenizes anything; it counts bytes and divides. Every rendering carries the tilde, and the faces with room for it (`usage`, the report page) print the measured bytes and the ratio beside the estimate so the arithmetic can be checked. The status line states no saving at all: it has room for the tilde and not for the baseline, and a figure without its baseline reads as a measurement.
 ///
-/// In Core rather than beside the MCP faces that first used it, because `diff` is a CLI answer built in Core and prices itself in the same unit — one rendering, so no two surfaces can state the same saving differently.
+/// In Core rather than beside the MCP faces that first used it, so that no two surfaces can state the same saving differently.
 ///
 /// **The ratio is a fixed estimate, not a tokenizer count.** Claude's tokenizer lands between three and four bytes a token on source code — Swift is dense with punctuation and short identifiers, which tokenize *worse* than prose, not better — so four bytes a token is the low end of what those bytes would cost. That makes the *conversion* conservative, and nothing more: the bytes it converts are a counterfactual, priced only where it was observed (``baseline``).
 public struct TokenEstimate {

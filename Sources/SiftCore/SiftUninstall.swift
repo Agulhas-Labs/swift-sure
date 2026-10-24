@@ -166,7 +166,7 @@ public struct SiftUninstall {
     static func cursorStep(_ directory: URL?) -> (outcome: InstallOutcome, failure: String?) {
         guard let directory else { return (InstallOutcome(lines: [], notes: [], written: []), nil) }
         return agentStep("cursor") {
-            var outcome = try SiftCursorSetup.install.uninstall(directory: directory)
+            var outcome = try SiftCursorSetup.uninstall(directory: directory)
             let legacy = try LegacyCursorCleanup.settle(directory: directory, installing: false, written: outcome.written)
             outcome.lines += legacy.lines
             outcome.notes += legacy.notes

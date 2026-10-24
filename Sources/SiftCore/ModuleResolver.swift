@@ -16,10 +16,6 @@ struct ModuleResolver {
     let targetNames: [String: String]
     /// Which SwiftPM targets can reach which, from the manifests' dependency lists.
     let reach: SwiftPMReach
-    /// Repo-relative SwiftPM manifests that contributed no mapping at all — no literal target path and nothing under the convention directories.
-    ///
-    /// Surfaced by `init`, because these files' modules will be guessed while a build file that should name them sits right there.
-    let unmappedManifests: [String]
     /// What each build system contributed, reported by `status` when anything fell back to a guess.
     let survey: Survey
     /// Paths a target's `sources` entry explicitly excludes, which no prefix may resolve through.
@@ -49,7 +45,7 @@ struct ModuleResolver {
     ///
     /// 2: syntactic manifest parsing + manifest exclusion.
     ///
-    /// 3: `.xcodeproj` targets read directly — this is the mechanism that spares anyone a per-repository `swift-sure init` after an upgrade, since bumping it re-attributes every existing index on its next query.
+    /// 3: `.xcodeproj` targets read directly — this is the mechanism that spares anyone a per-repository `moduleMap` entry after an upgrade, since bumping it re-attributes every existing index on its next query.
     ///
     /// 4: XcodeGen specs discovered anywhere in the tree and identified by *shape* rather than by name — the file may be called anything, `--spec` takes any path — and their `sources` resolved against the spec's own directory.
     ///
@@ -69,7 +65,6 @@ struct ModuleResolver {
         Self.addXcodeProjectTargets(projects: scan.xcodeProjects, repoRoot: repoRoot, into: &accumulator)
         var map = accumulator.map
         var hasher = accumulator.hasher
-        let unmapped = accumulator.unmappedManifests
         let inputs = accumulator.inputPaths
         let exclusions = accumulator.excluded
         let found = accumulator.survey
@@ -86,7 +81,6 @@ struct ModuleResolver {
             .map { PrefixEntry(prefix: $0.key, module: $0.value, isDeclared: !undeclared.contains($0.key)) }
             .sorted { $0.prefix.count > $1.prefix.count }
         excludedPrefixes = exclusions.sorted { $0.path < $1.path }
-        unmappedManifests = unmapped.sorted()
         inputPaths = inputs.sorted()
         projectDirectories = Set(accumulator.projectDirectories).sorted()
         packageDirectories = Set(accumulator.packageDirectories).sorted()
@@ -102,7 +96,7 @@ struct ModuleResolver {
 
     /// The module a build file actually declares for this path, or `nil` when only the fallback applies.
     ///
-    /// The distinction is invisible in `module(for:)` by design — every file gets *a* module either way — but it is the whole question `init` asks. A fallback module is a guess from the directory name, so `digest <Module>` and `where Module.Type` are wrong for those files in a way nothing in the output admits.
+    /// The distinction is invisible in `module(for:)` by design — every file gets *a* module either way — but it is the whole question the guessed-module banner asks. A fallback module is a guess from the directory name, so `digest <Module>` and `where Module.Type` are wrong for those files in a way nothing in the output admits.
     func resolvedModule(for relativePath: String) -> String? {
         guard let claim = claim(for: relativePath), claim.isDeclared else { return nil }
         return claim.module
@@ -191,9 +185,6 @@ struct ModuleResolver {
             }
             if mapped > 0 {
                 accumulator.survey.swiftPMManifests += 1
-            }
-            if mapped == 0 {
-                accumulator.unmappedManifests.append(manifestPath)
             }
         }
     }
@@ -450,7 +441,6 @@ extension ModuleResolver {
         var excluded: [Exclusion] = []
         /// Every SwiftPM manifest read, for the dependency graph.
         var manifests: [SwiftPMManifest] = []
-        var unmappedManifests: [String] = []
         var inputPaths: [String] = []
         var projectDirectories: [String] = []
         var packageDirectories: [String] = []

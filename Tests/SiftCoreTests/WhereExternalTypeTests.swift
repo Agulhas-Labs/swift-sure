@@ -67,12 +67,12 @@ struct WhereExternalTypeTests {
         #expect(output.contains("could not resolve the path Missing.count — count is declared, but not under Missing:"), "\(output)")
     }
 
-    /// The repository's own declarations of the member's name, on other types, are listed under a heading that never says the member is not under the type.
+    /// The repository's own declarations of the member's name, on other types, are counted in a line that never says the member is not under the type.
     @Test
     func theRepositorysSameNamedMembersAreListed() async throws {
         let output = try await Self.answer("Tally.count")
 
-        #expect(output.contains("other declarations of count in this repository (1):\n  Sources.Widget.count — var — Sources/App/Widget.swift:2"), "\(output)")
+        #expect(output.contains("count is declared 1 time on other types in this repository — where count lists them"), "\(output)")
         #expect(!output.contains("not under Tally"), "\(output)")
     }
 

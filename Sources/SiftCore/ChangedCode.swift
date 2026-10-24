@@ -54,7 +54,7 @@ public extension ChangedCode {
             if !rewritten.isEmpty {
                 touched[change.path] = Set(rewritten)
             }
-            let file = FileDiff.compare(path: change.path, status: old[offset] == nil ? .added : .modified, lineStat: nil, bytes: (old[offset], new))
+            let file = FileDiff.compare(path: change.path, status: old[offset] == nil ? .added : .modified, bytes: (old[offset], new))
             for entry in file.changes where entry.kind != .removed && !(entry.kind == .moved && entry.movedIntact) {
                 let lines = entry.newSpans.map { $0.line ... $0.endLine }
                 guard !lines.isEmpty else { continue }

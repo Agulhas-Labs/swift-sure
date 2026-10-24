@@ -182,6 +182,20 @@ struct InstallScriptClaudeFoundTests {
         #expect(run.output.contains("--allow-run applies only to Claude Code and was ignored"))
         #expect(!Self.calls(in: calls).contains("install-hook"))
     }
+
+    /// Without Claude Code, `--run-only` is carried into the install command named for Cursor and Codex, never reported as ignored.
+    @Test
+    func runOnlyIsCarriedIntoTheCommandNamedWithoutClaudeCode() throws {
+        let directory = try TemporaryDirectory.make("install-claude-run-only")
+        let calls = directory.appendingPathComponent("sift-calls")
+
+        let run = try Self.install(in: directory, siftCalls: calls, arguments: ["--run-only", "--allow-run"])
+
+        #expect(run.status == 0, "\(run.output)")
+        #expect(run.output.contains("Run 'swift-sure install --run-only' to set swift-sure up in Cursor or Codex"))
+        #expect(!run.output.contains("--run-only applies only to Claude Code"))
+        #expect(run.output.contains("--allow-run applies only to Claude Code and was ignored"))
+    }
 }
 
 extension InstallScriptClaudeFoundTests {

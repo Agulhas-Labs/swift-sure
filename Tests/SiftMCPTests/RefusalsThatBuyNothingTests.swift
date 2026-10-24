@@ -19,15 +19,15 @@ struct RefusalsThatBuyNothingTests {
 
     /// The shape this rule was written for: the one question the index cannot be asked is whether the index is right.
     ///
-    /// A context that ran `where SimilarTarget`, got an empty answer and reached for a grep to find out why is offered `where SimilarTarget` back — the very call whose answer is the thing under investigation.
+    /// A context that ran `where Depot`, got an empty answer and reached for a grep to find out why is offered `where Depot` back — the very call whose answer is the thing under investigation.
     @Test
     func anOfferThisContextHasAlreadyMadeIsNotMadeAgain() throws {
         let directory = try TemporaryDirectory.make("bought-nothing")
         let ledger = Self.ledger(in: directory)
 
-        ledger.noteIndexCall(session: "s", calls: ["where SimilarTarget"])
+        ledger.noteIndexCall(session: "s", calls: ["where Depot"])
 
-        #expect(ledger.decide(session: "s", command: "grep -rn SimilarTarget Sources", offering: ["where SimilarTarget"]) == .allow)
+        #expect(ledger.decide(session: "s", command: "grep -rn Depot Sources", offering: ["where Depot"]) == .allow)
         // And the call it has *not* made is still worth interrupting for, in the same context and on the
         // strength of the same evidence: what is remembered is the call, never the symbol's neighbourhood.
         #expect(ledger.decide(session: "s", command: "grep -rn SimilarHit Sources", offering: ["where SimilarHit"]) == .advise)
@@ -39,9 +39,9 @@ struct RefusalsThatBuyNothingTests {
         let directory = try TemporaryDirectory.make("bought-nothing")
         let ledger = Self.ledger(in: directory)
 
-        ledger.noteIndexCall(session: "s", calls: ["digest SimilarTarget"])
+        ledger.noteIndexCall(session: "s", calls: ["digest Depot"])
 
-        #expect(ledger.decide(session: "s", command: "grep -rn SimilarTarget Sources", offering: ["where SimilarTarget"]) == .advise)
+        #expect(ledger.decide(session: "s", command: "grep -rn Depot Sources", offering: ["where Depot"]) == .advise)
     }
 
     /// An offer of several calls says nothing new only when every one of them has been made; answered in part, it still carries the part that was not.
@@ -50,12 +50,12 @@ struct RefusalsThatBuyNothingTests {
         let directory = try TemporaryDirectory.make("bought-nothing")
         let ledger = Self.ledger(in: directory)
 
-        ledger.noteIndexCall(session: "s", calls: ["where SimilarTarget"])
+        ledger.noteIndexCall(session: "s", calls: ["where Depot"])
 
         #expect(ledger.decide(
             session: "s",
-            command: "grep -rn 'SimilarTarget|SimilarHit' Sources",
-            offering: ["where SimilarTarget", "where SimilarHit"]
+            command: "grep -rn 'Depot|SimilarHit' Sources",
+            offering: ["where Depot", "where SimilarHit"]
         ) == .advise)
     }
 
@@ -70,7 +70,7 @@ struct RefusalsThatBuyNothingTests {
         let callers = CallAttribution(directory: directory.appendingPathComponent("callers", isDirectory: true))
         let taken: [String: Any] = [
             "tool_name": "\(IndexToolName.prefix)where",
-            "tool_input": ["symbol": "SimilarTarget"],
+            "tool_input": ["symbol": "Depot"],
         ]
 
         _ = PreToolUseCommand.adviceTaken(
@@ -83,13 +83,13 @@ struct RefusalsThatBuyNothingTests {
         )
 
         let answered = try #require(PreToolUseCommand.lookup(
-            command: #"grep -rn "SimilarTarget" Sources"#,
+            command: #"grep -rn "Depot" Sources"#,
             payload: [:],
             in: FileManager.default.currentDirectoryPath,
             noting: noted,
             couldAnswer: { _, _ in true }
         ))
-        #expect(answered.suggestion.call == "where SimilarTarget")
+        #expect(answered.suggestion.call == "where Depot")
         let verdict = try PreToolUseCommand.outcome(
             to: answered,
             session: "s",
@@ -271,7 +271,7 @@ struct RefusalsThatBuyNothingTests {
         #expect(ledger.decide(session: "s", command: "grep -n foo A.swift") == .allow)
         // The new field defaulted to empty, so an offer is still an offer: nothing was decoded that could
         // make this context look as though it had already asked.
-        #expect(ledger.decide(session: "s", command: "grep -rn SimilarTarget Sources", offering: ["where SimilarTarget"]) == .advise)
+        #expect(ledger.decide(session: "s", command: "grep -rn Depot Sources", offering: ["where Depot"]) == .advise)
     }
 
     /// A repository with no index of its own draws the nudge like any other, and the index is built on demand by whatever answers.

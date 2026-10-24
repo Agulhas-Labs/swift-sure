@@ -61,10 +61,10 @@ public struct SessionResumeBlock {
     private static func declarationsLine(_ declarations: SessionResumeFacts.ChangedDeclarations) -> String {
         switch declarations.detail {
         case let .names(names, moreCount):
-            let rest = moreCount > 0 ? ", +\(moreCount) more — `\(ProductName.current.binary) diff` has the rest" : ""
+            let rest = moreCount > 0 ? ", +\(moreCount) more" : ""
             return "declarations changed: " + names.joined(separator: ", ") + rest
         case let .fileCountFallback(count):
-            return "\(plural(count, "Swift file")) changed — `\(ProductName.current.binary) diff` has the declarations"
+            return "\(plural(count, "Swift file")) changed"
         }
     }
 

@@ -518,7 +518,7 @@ struct TranscriptAuditTests {
 
         #expect(lines.contains("monorepo"))
         #expect(lines.contains("97%"))
-        #expect(lines.contains("swift-sure init"))
+        #expect(lines.contains("`moduleMap` entry in `.swift-sure.json`"))
     }
 
     /// The handful of loose files every repo has must not fire it, or the signal is buried the day it ships.

@@ -395,6 +395,8 @@ struct MCPServerTests {
         #expect(!served.text.contains("semantic:"), "\(served.text)")
         #expect(served.text.contains("declarations (1):"), "\(served.text)")
         #expect(served.text.hasSuffix("`where Alpha` without --decl covers its uses, extensions, conformers, callers and overrides."), "\(served.text)")
+        // The small declaration's source, numbered as Read numbers it, sits between its row and the pointer.
+        #expect(served.text.contains("     2\tstruct Alpha {\n     3\t    let one = 1\n"), "\(served.text)")
     }
 
     /// A `root:` term inside a search query is the root argument, misplaced — `search uses:colorScheme root:/path/to/app` would otherwise be refused as "unknown field root".

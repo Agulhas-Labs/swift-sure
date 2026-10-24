@@ -78,38 +78,6 @@ Index lookups that answer from the parsed tree, with an explicit freshness line 
 
 - **Mentioned in:** README, Guide §4, §8, §11, MCP tool description, DocC (TheFourTools).
 
-### `swift-sure similar`
-
-- **Does:** Ranks the declarations whose syntactic shape is closest to one you name, to find code to reuse before writing more.
-- **Flags:** `--root` repository root.
-- **Needs a build:** no.
-- **Typical time:** 0.1 s on the docs fixture.
-- **Sample:**
-
-  ```
-  similar Library.lend(title:to:days:) — Sources/Stacks/Library.swift:16-27
-  no declaration reached 0.35 shared-callee overlap or better (rarity-weighted; the score also weighs control flow and written types) — of 23 with a bo…
-  syntactic shape match on written names over the working tree — never stale; a hit is a lead to confirm with digest Type.member, and the list is a low…
-  ```
-
-- **Mentioned in:** Guide §4, §11, SwiftSure.md.
-
-### `swift-sure dupes`
-
-- **Does:** Groups declarations whose bodies are near-duplicates, across the tree or under a path.
-- **Flags:** `--min` the shared-callee overlap, 0 to 1, a pair must reach (default 0.50); `--offset` skip this many groups (pagination); `--tests` rank test and preview code too; `--no-tests` leave test and preview code out (with neither, it is ranked after the rest); `--root` repository root.
-- **Needs a build:** no.
-- **Typical time:** 0.2 s on the docs fixture.
-- **Sample:**
-
-  ```
-  tree: Stacks  source: live
-  dupes .
-  no pair of declarations reached 0.50 shared-callee overlap or better (rarity-weighted; the score also weighs control flow and written types), sharing…
-  ```
-
-- **Mentioned in:** Guide §4, §11.
-
 ### `swift-sure strings`
 
 - **Does:** Traces display text to its localization key (or a key to its text) across string catalogs, and to the Swift literals that hold it.
@@ -149,49 +117,6 @@ Index lookups that answer from the parsed tree, with an explicit freshness line 
   ```
 
 - **Mentioned in:** README, Guide §4, §6, §11, SwiftSure.md, DocC (RunningBuildsAndTests).
-
-### `swift-sure diff`
-
-- **Does:** Summarises which declarations a git range added, removed or changed, who calls the changed signatures and which tests reach the changed files, in place of the raw diff. An `access:` section names the declarations the range put at `open`, `public` or `package` that nothing outside their module uses.
-- **Flags:** `--member` show one changed declaration's before and after body; `--offset` skip this many declaration entries (pagination); `--coverage` add the coverage the last `run --coverage` recorded; `--root` repository root.
-- **Needs a build:** a compiler index store sharpens it.
-- **Typical time:** 0.4 s on the docs fixture.
-- **Sample:**
-
-  ```
-  tree: Stacks  head: ec26cde  dirty: 1  parse_errors: 0  semantic: stale since last build (1 cited file changed: Sources/Stacks/Library.swift)
-  diff: working tree vs HEAD — staged, unstaged and untracked changes
-  1 file changed — 1 Swift file broken down below (declarations: 0 removed, 1 changed, 0 added)
-
-  Sources/Stacks/Library.swift (modified, +4/-2):
-    Library:
-      ~ func lend(title:to:days:)  :16-27 (body changed; signature unchanged)
-    outside declarations:
-      + comments or doc comments  :71
-  tests reaching the changed files (3 tests in 1 target) — from `swift-sure affected`: the declarations the diff touched in each changed file (every declarat…
-    StacksTests.LibraryTests/givingBackRestocks() — 1 hop, name match — Tests/StacksTests/LibraryTests.swift:20
-  ```
-
-- **Mentioned in:** README, Guide §4, §11, §12.
-
-### `swift-sure checkup`
-
-- **Does:** Lists what a change left unproved and what still leans on it, in one answer and one fixed order, over the change `diff` reads: each finding ends in the command that shows its detail, and every check is named as checked or not checked, with its reason. It builds nothing and runs nothing; whether the change was tested is what `run` recorded.
-- **Flags:** `--offset` skip this many finding lines (pagination); `--root` repository root. The range is `diff`'s: a commit, `A..B`, `A...B`, or omitted for the working tree against `HEAD`.
-- **Needs a build:** no.
-- **Typical time:** under a second on the docs fixture.
-- **Sample:**
-
-  ```
-  tree: app  head: 3f2a9c1  clean  semantic: fresh
-  checkup: main...HEAD — HEAD against its merge-base with main, 81c0d2e · 3 findings over 4 changed files — 1 callers, 1 unproved, 1 duplicate
-  checked: callers (store open; 1 name-matched), test runs (recorded), exposure, flaky tests (over 9 runs), duplicates · not checked: changed-line coverage (none recorded on this content in this checkout — swift-sure run --coverage --from 81c0d2e -- swift test)
-  callers    Sources/App/Gizmo.swift:41  Gizmo.spin(speed:) removed; 3 callers on lines this change did not edit, first Sources/App/Rig.swift:88 (name-matched) — swift-sure diff
-  unproved   no unnarrowed test run is proved green on this content (last green: swift test --filter GizmoTests, narrowed, 4m ago); 12 tests reach the change — swift-sure run -- swift test
-  duplicate  Sources/App/Gizmo.swift:60-88  Gizmo.wobble() and Widget.wobble() at Sources/App/Widget.swift:12-40 clear both gates (0.72) — swift-sure similar Gizmo.wobble
-  ```
-
-- **Mentioned in:** Guide §11.
 
 ## Builds and tests
 
@@ -239,7 +164,7 @@ Commands that run the toolchain and report what happened.
     Sources/Stacks/Library.swift:39 · 5.55 ms · Library.count(for:)
   ```
 
-- **Mentioned in:** README, Guide §4, §11, §12, SwiftSure.md.
+- **Mentioned in:** README, Guide §4, §11, §12.
 
 ### `swift-sure test`
 
@@ -267,27 +192,6 @@ Commands that run the toolchain and report what happened.
 - **Mentioned in:** README, Guide §4, §10, §11, §12, SwiftSure.md, DocC (RunningBuildsAndTests).
 
 ## Setup and health of the index
-
-### `swift-sure init`
-
-- **Does:** Inspects the repository layout and proposes a `.swift-sure.json` (module resolution, indexed roots), writing it only when asked.
-- **Flags:** `--write` write `.swift-sure.json` instead of only printing the proposal; `--force` merge into an existing `.swift-sure.json`, keeping its values; `--root` repository root.
-- **Needs a build:** no.
-- **Typical time:** 0.6 s on the 5-file docs fixture.
-- **Sample:**
-
-  ```
-  scanned 5 Swift source file(s) (+1 build manifest(s))
-
-  modules resolved from build files: 2 covering 5 file(s)
-    Stacks (4)  StacksTests (1)
-
-  every file's module comes from a build file — no moduleMap needed
-
-  roots: every top-level directory holds Swift — left empty (index the whole repo)
-  ```
-
-- **Mentioned in:** Guide §9, §10, §11, DocC (GettingStarted).
 
 ### `swift-sure index`
 
@@ -342,21 +246,6 @@ Commands that run the toolchain and report what happened.
   ```
 
 - **Mentioned in:** Guide §4, §7, §11, SwiftSure.md, DocC (GettingStarted, TheFourTools, Troubleshooting).
-
-### `swift-sure reconcile`
-
-- **Does:** Diffs the index against the working tree and fixes every divergence.
-- **Flags:** `--root` repository root.
-- **Needs a build:** no.
-- **Typical time:** 0.2 s on the docs fixture.
-- **Sample:**
-
-  ```
-  tree: Stacks  head: ec26cde  clean  semantic: syntactic-only
-  reconcile: removed 0, reindexed 0
-  ```
-
-- **Mentioned in:** Guide §6, §11, DocC (Troubleshooting).
 
 ### `swift-sure reset`
 
@@ -437,7 +326,7 @@ Reports built from the usage log, the run log and the agents' transcripts.
   28 sessions against scratch roots (temporary, cache or .build directories) not counted
   ```
 
-- **Mentioned in:** README, Guide §4, §10, §11, SwiftSure.md, DocC (HowTheHooksBehave, Installing).
+- **Mentioned in:** README, Guide §4, §10, §11, DocC (HowTheHooksBehave, Installing).
 
 ### `swift-sure report`
 
@@ -466,7 +355,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 - **Sample:**
 
   ```
-  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.2.2","name":"swift-sure"}},"jsonrpc":"2.0"}
+  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.3.0","name":"swift-sure"}},"jsonrpc":"2.0"}
   ```
 
 - **Mentioned in:** Guide §3, §4, §11, DocC (Installing, Troubleshooting).
@@ -488,7 +377,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 ### `swift-sure install`
 
 - **Does:** Sets SwiftSure up in every agent found on the machine (Claude Code, Cursor, Codex), asking once per agent; idempotent.
-- **Flags:** `--agent` install into this agent whether or not it was found (repeatable); `--all` install into all three agents; `--yes` install into every agent found without asking; `--dry-run` say what would be written, write nothing; `--allow-run` Claude Code: add both blocks of allow rules without asking; `--allow-lookups` Claude Code: add only the lookup allow rules; `--cursor-dir` the directory holding Cursor's `mcp.json` and `hooks.json`; `--codex-dir` the Codex home to install into.
+- **Flags:** `--agent` install into this agent whether or not it was found (repeatable); `--all` install into all three agents; `--yes` install into every agent found without asking; `--dry-run` say what would be written, write nothing; `--run-only` install only the build and test hooks, in every agent (the default is the full set: hooks, MCP server, rule); `--allow-run` Claude Code: add the build allow rules without asking (both blocks unless `--run-only`); `--allow-lookups` Claude Code: add only the lookup allow rules (refused with `--run-only`); `--cursor-dir` the directory holding Cursor's `mcp.json` and `hooks.json`; `--codex-dir` the Codex home to install into.
 - **Needs a build:** no.
 - **Typical time:** 0.1 s for `--dry-run`.
 - **Sample:**
@@ -519,7 +408,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
   claude hooks: pass — registered for SessionStart, SubagentStart, PreToolUse, PostToolUse, PostToolUseFailure, Stop, SubagentStop
   claude server: pass — swift-sure — ~/.local/bin/swift-sure mcp
   claude binary: pass — ~/.local/bin/swift-sure runs
-  claude version: pass — registered 0.2.2, running 0.2.2
+  claude version: pass — registered 0.3.0, running 0.3.0
   claude hook SessionStart: pass — exit 0, silent
   claude hook SubagentStart: pass — exit 0, silent
   ```
@@ -528,8 +417,8 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 
 ### `swift-sure install-hook`
 
-- **Does:** Registers the session primer, the PreToolUse advice hook, the PostToolUse nudge and the Stop build check with an agent; idempotent.
-- **Flags:** `--settings` settings file to edit; `--command` the primer's command, spelled `<path>/swift-sure session-start` (the other hooks keep this binary's path); `--allow-run` add the allow rules for lookups and builds without asking; `--no-allow-run` add neither block of allow rules; `--allow-lookups` add only the lookup allow rules; `--agent` claude (default), cursor or codex; `--cursor-dir` with Cursor: the directory holding its config; `--codex-dir` with Codex: the Codex home.
+- **Does:** Registers the full set with an agent: the session primer, the lookup hooks, the PostToolUse nudge and the Stop build check; with `--run-only` only the build and test hooks; idempotent, and re-running switches the mode.
+- **Flags:** `--run-only` register only the build and test hooks, not the primer, the lookup hooks or the lookup allow rules; `--settings` settings file to edit; `--command` (refused with `--run-only`) the primer's command, spelled `<path>/swift-sure session-start` (the other hooks keep this binary's path); `--allow-run` add the allow rules for lookups and builds without asking (builds only with `--run-only`); `--no-allow-run` add neither block of allow rules; `--allow-lookups` add only the lookup allow rules (refused with `--run-only`); `--agent` claude (default), cursor or codex; `--cursor-dir` with Cursor: the directory holding its config; `--codex-dir` with Codex: the Codex home.
 - **Needs a build:** no.
 - **Typical time:** 0.06 s against a scratch settings file.
 - **Sample:**

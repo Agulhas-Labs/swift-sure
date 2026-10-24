@@ -6,7 +6,7 @@ import Foundation
 
 /// Names the files in an answer whose module nothing declared.
 ///
-/// Without it, this is a failure with no in-band warning at all. Module resolution reads SwiftPM manifests, XcodeGen specs (any file name, identified by shape) and `.xcodeproj` targets; anything else falls back to the first path component, and those files still answer — they just answer about a module that does not exist. `swift-sure init` reports it, but only to whoever runs `init`, and the answer that acts on the wrong module says nothing.
+/// Without it, this is a failure with no in-band warning at all. Module resolution reads SwiftPM manifests, XcodeGen specs (any file name, identified by shape) and `.xcodeproj` targets; anything else falls back to the first path component, and those files still answer — they just answer about a module that does not exist. `status` reports it, but only to whoever runs it, and the answer that acts on the wrong module says nothing.
 ///
 /// Deliberately a *notice*, not a refusal. The declarations are correct; only the module label is a guess, so withholding the answer would cost more than it saves. It follows `ParseErrorNotice` exactly — same banner shape, same "only when this answer's own files are affected" rule — because a reader who has learned to read one should not have to learn another.
 public struct GuessedModuleNotice: Sendable {
@@ -41,18 +41,18 @@ public struct GuessedModuleNotice: Sendable {
 
     /// The remedy, worded as an instruction to pass on rather than a note to absorb.
     ///
-    /// A banner addressed to the agent can fire on every answer from a repository and never reach the person who could act on it. That is not a banner too quiet; it is one addressed to the wrong reader. The reader of a tool result is the agent, `init` is a CLI command with no MCP tool behind it, and an agent handed advice it cannot execute drops it silently rather than relaying it. So the banner names who has to do it, and says that no amount of querying will.
+    /// A banner addressed to the agent can fire on every answer from a repository and never reach the person who could act on it. That is not a banner too quiet; it is one addressed to the wrong reader. The reader of a tool result is the agent, a `moduleMap` entry is a file edit in the user's repository that the agent should not make unasked, and an agent handed advice it cannot act on drops it silently rather than relaying it. So the banner names who has to do it, and says that no amount of querying will.
     ///
-    /// It does not *lead* with `init`: SwiftPM packages, XcodeGen specs and `.xcodeproj` targets are all read automatically, and a per-repository setup step nobody remembers to run across ten checkouts is not a remedy. What reaches this banner is a build system the tool cannot read, so the honest first line is that these files belong to no build file it understands — and a hand-written `moduleMap` is the escape hatch for that, not a setup step anybody should be performing per repository.
+    /// It does not *lead* with the config entry: SwiftPM packages, XcodeGen specs and `.xcodeproj` targets are all read automatically, and a per-repository setup step nobody remembers to run across ten checkouts is not a remedy. What reaches this banner is a build system the tool cannot read, so the honest first line is that these files belong to no build file it understands — and a hand-written `moduleMap` is the escape hatch for that, not a setup step anybody should be performing per repository.
     static var remedy: String {
-        "No query can fix this, and no build file this tool reads (SwiftPM, XcodeGen, .xcodeproj) declares them — if they do belong to a target, tell the user to run `\(ProductName.current.binary) init` here and take its `moduleMap` proposals"
+        "No query can fix this, and no build file this tool reads (SwiftPM, XcodeGen, .xcodeproj) declares them — if they do belong to a target, tell the user to write a `moduleMap` entry for them in `\(ProductName.current.configFileName)`"
     }
 
     /// The same remedy addressed to the person who can carry it out, for the one surface a human reads directly.
     ///
     /// ``remedy`` says "tell the user", because its reader is the agent relaying it. The `report` page has no relay in it, and agent-facing wording on a page written for the user is the same mistake inverted — a message addressed past its reader. Kept here rather than in the page so that the three wordings this condition has sit in one file: the day one changes, the others are on the screen.
     public static var humanRemedy: String {
-        "No build file this tool reads (SwiftPM, XcodeGen, .xcodeproj) declares these files. Check the binary is current first — an upgraded one re-attributes an existing index without being asked — then, if the files do belong to a target, run `\(ProductName.current.binary) init` there and take its `moduleMap` proposals."
+        "No build file this tool reads (SwiftPM, XcodeGen, .xcodeproj) declares these files. Check the binary is current first — an upgraded one re-attributes an existing index without being asked — then, if the files do belong to a target, write a `moduleMap` entry for them in `\(ProductName.current.configFileName)`."
     }
 
     /// The line an answer carries when its own files are among the affected.
@@ -127,7 +127,7 @@ public struct GuessedModuleNotice: Sendable {
 public extension GuessedModuleNotice {
     /// Why a file's module is a guess.
     ///
-    /// Two causes with two remedies. Where no build file this tool reads claims a file, `swift-sure init` drafts a `moduleMap` entry from its directory name. Where a build file claims it but renames its module through a setting this tool cannot read — `PRODUCT_MODULE_NAME: $(FOO)`, an xcconfig with an `#include` — the module carries the target's name, which the build is known to replace: a banner saying no build file declares these files would be false, and `init`'s draft would be that same target name, confirming the wrong module to whoever follows it.
+    /// Two causes with two remedies. Where no build file this tool reads claims a file, a hand-written `moduleMap` entry names its module. Where a build file claims it but renames its module through a setting this tool cannot read — `PRODUCT_MODULE_NAME: $(FOO)`, an xcconfig with an `#include` — the module carries the target's name, which the build is known to replace: a banner saying no build file declares these files would be false, and a module name drafted from the target would be that same name, confirming the wrong module to whoever follows it.
     enum Reason: Sendable, CaseIterable {
         case undeclared
         case unreadableRename
@@ -165,9 +165,9 @@ public extension GuessedModuleNotice {
 }
 
 extension GuessedModuleNotice {
-    /// The remedy for a module a build file renames unreadably: only someone who knows the real name can supply it, so `init` is named for what it cannot do rather than offered as the fix.
+    /// The remedy for a module a build file renames unreadably: only someone who knows the real name can supply it, so the remedy names who must supply it.
     static var renameRemedy: String {
-        "No query can fix this, and `\(ProductName.current.binary) init` cannot propose the name — tell the user to map these files to the module the build really produces with a `moduleMap` entry in `\(ProductName.current.configFileName)`"
+        "No query can fix this, and the name cannot be guessed from the build — tell the user to map these files to the module the build really produces with a `moduleMap` entry in `\(ProductName.current.configFileName)`"
     }
 
     /// Each file whose module is a guess, by why it is one.

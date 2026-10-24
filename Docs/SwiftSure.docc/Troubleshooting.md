@@ -43,8 +43,8 @@ removed .swift-sure/ — the next query rebuilds it; kept ~/code/Shelf/.git/swif
 ```
 
 `reset` also deletes the logs `swift-sure run` keeps under `.swift-sure/runs/`, and those are not rebuilt. If the index
-only seems to have drifted from the working tree, `swift-sure reconcile` repairs the difference and deletes
-nothing. After an upgrade, an index written by an earlier version is dropped and rebuilt once, on its
+only seems to have drifted from the working tree, the next query repairs the difference, and `swift-sure index --full` forces a full sweep up front; neither deletes
+anything. After an upgrade, an index written by an earlier version is dropped and rebuilt once, on its
 repository's next query; `swift-sure index` does it up front.
 
 ### There is no index store
@@ -72,7 +72,8 @@ rejected.
 ### Check the install with `swift-sure doctor`
 
 `swift-sure doctor` proves that each agent SwiftSure is installed into really runs it. It reads the registration the
-install wrote, runs the registered binary, feeds every hook a canned payload, and starts the MCP server.
+install wrote, runs the registered binary, feeds every hook a canned payload, and starts the MCP server (a `--run-only`
+install has none, and reads healthy with one line, `index: off (installed with --run-only)`).
 Unless you name an agent, it checks the ones found on this machine, and it exits 1 when any check fails:
 
 ```text
@@ -110,7 +111,7 @@ there), and not run it from `npx`, which the install refuses.
 
 - **It dies at once with no output (exit 137).** A new binary was copied over an installed one in place. Copy
   to a temporary name beside it, then rename it over the old one (new inode).
-- **The MCP server does not appear in Claude Code.** Start a new session first, then check `claude mcp list`.
+- **The MCP server does not appear in Claude Code.** A `--run-only` install registers none; `swift-sure install` without it does. Start a new session first, then check `claude mcp list`.
   When registering by hand, the scope option must come before the `--`.
 - **`where` says the store is "still warming".** A large store takes minutes to read the first time, and the
   query answers with declarations meanwhile. It is not the staleness refusal. Ask again shortly.

@@ -117,7 +117,7 @@ struct WhereByNameLaterLabelsTests {
         ]
         for (symbol, listing) in expected.sorted(by: { $0.key < $1.key }) {
             let answer = try await engine.lookup(symbol: symbol, freshness: engine.ensureFresh())
-            let rows = answer.split(separator: "\n").map(String.init)
+            let rows = MentionRows.compacted(answer).split(separator: "\n").map(String.init)
             #expect(rows.contains(Self.unbuilt + listing), "\(symbol): \(answer)")
             #expect(rows.count { $0.hasPrefix(Self.unbuilt) } == 1, "\(symbol): \(answer)")
         }
@@ -132,7 +132,7 @@ struct WhereByNameLaterLabelsTests {
         try await engine.awaitSemanticStore()
 
         let answer = try await engine.lookup(symbol: "Seeds.of", freshness: engine.ensureFresh())
-        let row = answer.split(separator: "\n").map(String.init).first { $0.hasPrefix(Self.unbuilt) } ?? ""
+        let row = MentionRows.compacted(answer).split(separator: "\n").map(String.init).first { $0.hasPrefix(Self.unbuilt) } ?? ""
 
         #expect(row == Self.unbuilt + "Fixtures/GizmoTests.swift:10,13", "\(answer)")
     }
@@ -146,7 +146,7 @@ struct WhereByNameLaterLabelsTests {
         try await engine.awaitSemanticStore()
 
         let answer = try await engine.lookup(symbol: "Seeds.of", freshness: engine.ensureFresh(), options: WhereOptions(includeReferences: true))
-        let row = answer.split(separator: "\n").map(String.init).first { $0.hasPrefix(Self.unbuilt) } ?? ""
+        let row = MentionRows.compacted(answer).split(separator: "\n").map(String.init).first { $0.hasPrefix(Self.unbuilt) } ?? ""
 
         #expect(row.contains("Fixtures/WidgetTests.swift:4,8"), "\(answer)")
         #expect(row.contains("Fixtures/GizmoTests.swift:10,13"), "\(answer)")
@@ -210,7 +210,7 @@ struct WhereByNameLaterLabelsTests {
 
     private static func unbuiltRow(for symbol: String, in engine: SiftEngine) async throws -> String {
         let answer = try await engine.lookup(symbol: symbol, freshness: engine.ensureFresh())
-        return answer.split(separator: "\n").map(String.init).first { $0.hasPrefix(unbuilt) } ?? "no row: \(answer)"
+        return MentionRows.compacted(answer).split(separator: "\n").map(String.init).first { $0.hasPrefix(unbuilt) } ?? "no row: \(answer)"
     }
 
     /// Trailing closures count whether labelled, spread over lines, or on the line after the parenthesis, and a label no parameter has refuses the call.

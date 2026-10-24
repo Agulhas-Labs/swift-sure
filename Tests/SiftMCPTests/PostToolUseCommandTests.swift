@@ -191,7 +191,7 @@ private extension PostToolUseCommandTests {
         }
 
         static var expectedLine: String {
-            "swift-sure: Catalogue.restock() resembles Depot.stock() — Sources/App/Depot.swift:3 (overlap 1.00); compare with swift-sure similar 'Catalogue.restock()'"
+            "swift-sure: Catalogue.restock() resembles Depot.stock() — Sources/App/Depot.swift:3 (overlap 1.00)"
         }
 
         /// Four calls no other function in the fixture makes, as a function body.

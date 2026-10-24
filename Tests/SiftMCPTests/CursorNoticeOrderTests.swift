@@ -14,7 +14,7 @@ struct CursorNoticeOrderTests {
         let output = #"{"hookSpecificOutput":{"updatedInput":{"command":"swift-sure run -- swift test"},"additionalContext":"rewritten"}}"#
         var events: [String] = []
 
-        PreToolUseCommand.deliver(
+        CursorPreToolUseHook.deliver(
             output,
             payload: ["tool_name": "Bash", "session_id": "s", "tool_use_id": "t1"],
             agent: .cursor,

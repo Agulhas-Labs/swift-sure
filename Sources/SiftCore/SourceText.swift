@@ -2,7 +2,7 @@
 // Copyright © Agulhas Labs
 //
 
-/// How `diff` compares two pieces of source text: as the bytes git compares, never as Swift strings.
+/// How the declaration comparison compares two pieces of source text: as the bytes git compares, never as Swift strings.
 ///
 /// Swift's `String` equality is canonical equivalence, so a composed and a decomposed `é` compare equal — and a review tool built on it says "unchanged" about a change git shows. The one difference folded away is a line terminator: `\r\n` and `\n` compare equal here, so a line-ending conversion is not reported as every multi-line declaration's body changing; the line diff underneath the answer still sees it, and names it for what it is.
 struct SourceText {

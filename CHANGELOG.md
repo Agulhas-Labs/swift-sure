@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Removed: the `checkup`, `similar` and `dupes` subcommands (no agent called them in fourteen days). The `post-tool-use` reuse nudge stays, without its pointer to `similar`.
+- Removed: the `diff`, `init` and `reconcile` subcommands (no agent called them in fourteen days). A module name no build file declares is fixed by a `moduleMap` entry in `.swift-sure.json`, which the banners now say; `swift-sure index --full` forces the full sweep `reconcile` ran; the reconcile backstop itself still runs inside every query's freshness.
+- Added: `--run-only` (`install`, `install-hook`, `install.sh`) installs only the build and test hooks (`pre-tool-use --run-only`, `PostToolUse`, `Stop`), with no MCP server, rule or session primer; the default stays the full set, re-running switches the mode either way, and `doctor` and `status` read a `--run-only` install as healthy with `index: off (installed with --run-only)`. The index paid on longer work in a large codebase (a pooled -9.5% over nine tasks) and showed no difference on short lookups; `run`'s compression of builds and tests is the measured saving either way.
+- Added: `--run-only` reaches Cursor and Codex too (`install --run-only`, `install-hook --agent cursor|codex --run-only`): no MCP server, no session-start hook, `pre-tool-use --run-only`, and `post-tool-use --run-only`, which answers a shell call's result alone since neither harness's registration can match on the tool; re-running switches the mode, uninstall removes both, and `doctor` reads it as healthy.
+- Fixed: `where Dep.member` and `digest Dep.member` for a dependency's type no longer list every same-named member of other types (50 rows for `write`): one count line says how many, and the answer ends with the cross-root pointer to the sibling root declaring or extending the type.
+- Fixed: `where --refs` for a property, subscript or enum case lists each site once, folding `references to` against the reads and writes (or uses) listed above it, where it listed every site twice.
+- Changed: `where` lists the lines of test files outside the build, and of files new since the build, one row per line with the line's text when there are 40 or fewer, where it printed their line numbers alone and a caller opened the files to read them.
+- Changed: the agent rule is cut from 1,699 to 1,090 bytes, an estimated 230 tokens fewer in every session that opens a Swift file, keeping the lead and the digest, where, search and strings rows and folding test, affected and checkup into its closing line, where it gave them rows and lines of their own.
+- Changed: `where --decl` prints the source of each declaration of 30 lines or fewer under its row, numbered as Read numbers it, up to 40 lines an answer, where it printed the range alone and a definition lookup took a Read to see the body.
+- Fixed: `where --at <rev>` labels a declaration under `#else` with the condition it is the else of, as the working-tree answer does, where it printed `[#else]` alone.
+- Changed: the README's index figures add a paired bench on three public corpora (`Benchmarks/RESULTS-public-corpora.md`): short lookups and fixes in two iOS apps cost 6-7% more with the index, and build and test fixes in a SwiftPM package 5.3% less.
+
 ## 0.2.2
 
 - Added: the bench's live hook check records every file it tried in `session.json` (`hook_probe_tried`: path, rule, token and answer bytes), where it kept only the file it settled on.

@@ -44,27 +44,16 @@ struct WhereRowReadabilityTests {
         ])
     }
 
-    /// The grouped (`where`) truncation line sits at the row's own 4-space indent, not the 2-space indent of the file heading above it.
+    /// The truncation line sits at the row's own 4-space indent, not the 2-space indent of the file heading above it.
     @Test
     func theGroupedTruncationLineSitsAtTheRowIndent() {
-        let sites = (1 ... 5).map { SyntacticCallSite(path: "Sources/App/Use.swift", line: $0, enclosing: "run()") }
-
-        let lines = WrapperAttributeSites.lines(sites, named: "Clamp", for: "init(wrappedValue:)", cap: 2, grouped: true)
-        let truncated = lines.last { $0.contains("truncated:") }
-
-        #expect(truncated?.hasPrefix("    ") == true, "\(lines)")
-        #expect(truncated?.hasPrefix("     ") == false, "\(lines)")
-    }
-
-    /// The ungrouped (`diff`) truncation line is untouched: `diff` output must not change.
-    @Test
-    func theUngroupedTruncationLineStaysAtTwoSpaces() {
         let sites = (1 ... 5).map { SyntacticCallSite(path: "Sources/App/Use.swift", line: $0, enclosing: "run()") }
 
         let lines = WrapperAttributeSites.lines(sites, named: "Clamp", for: "init(wrappedValue:)", cap: 2)
         let truncated = lines.last { $0.contains("truncated:") }
 
-        #expect(truncated == "  truncated: 3 more call sites", "\(lines)")
+        #expect(truncated?.hasPrefix("    ") == true, "\(lines)")
+        #expect(truncated?.hasPrefix("     ") == false, "\(lines)")
     }
 
     /// A block with a folded `(×2)` row and a 4-space truncation line still reads as entirely inside the block: nothing it lists leaks out as a located line.

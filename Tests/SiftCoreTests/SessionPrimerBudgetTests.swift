@@ -15,6 +15,11 @@ struct SessionPrimerBudgetTests {
     /// 900 bytes held the primer near 200 tokens until the standing caveats moved into it from every `where` and `search` answer (Docs/Design.md §2), and stayed there until they were left to the two tool descriptions and `swift-sure help answers`; the longest primer, a subagent's pointing at the CLI, is about 0.83 kB since the trim of the fixed start.
     static let budget = 880
 
+    /// Bytes of the path-scoped rule, which Claude Code loads at the first Swift file and re-sends on every later request.
+    ///
+    /// At 1,699 bytes it measured about 650 tokens net at the first Swift touch (the next request grew a median 1,071 tokens past its results, against 414 for a first Swift Read); the cut to 1,090 bytes keeps the lead and the four lookup rows and folds the rest into one closing line.
+    static let ruleBudget = 1100
+
     @Test(arguments: [SessionPrimer.Audience.session, .subagent])
     func thePrimerInsideAnIndexedRootFitsTheBudget(audience: SessionPrimer.Audience) throws {
         let primer = try #require(SessionPrimer.render(.insideRoot("/repos/App"), audience: audience))
@@ -71,6 +76,23 @@ struct SessionPrimerBudgetTests {
             .deletingLastPathComponent() // the repository root
         let rule = try String(contentsOf: root.appendingPathComponent("SwiftSure.md"), encoding: .utf8)
 
-        #expect(rule.utf8.count <= 1700, "\(rule.utf8.count) bytes")
+        #expect(rule.utf8.count <= Self.ruleBudget, "\(rule.utf8.count) bytes")
+    }
+
+    /// The cut keeps what moved agents: the lead (the variant without "`where` instead of grep" sent agents to raw `sed` and `grep`), the cheaper views `--decl`, `--refs` and `--files` (naming one moved agents to it), the cited-line route, and the pointer to the verbs the rule no longer lists.
+    @Test
+    func theShortRuleStillNamesTheHabitsThatMovedAgents() throws {
+        let root = URL(filePath: #filePath)
+            .deletingLastPathComponent() // SiftCoreTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // the repository root
+        let rule = try String(contentsOf: root.appendingPathComponent("SwiftSure.md"), encoding: .utf8)
+
+        for phrase in [
+            "`where` instead of grep", "`digest` before a Read", "`swift-sure run --`", "`--decl`", "`--refs`",
+            "`--files`", "`digest File.swift:120`", "`swift-sure help` lists the topics",
+        ] {
+            #expect(rule.contains(phrase), "the rule no longer contains \(phrase)")
+        }
     }
 }

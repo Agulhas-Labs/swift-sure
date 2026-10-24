@@ -74,17 +74,4 @@ struct RunCoverageXcodebuildTests {
 
         #expect(matched == ["Sources/Shared/Used.swift": [3: 2], "Sources/Shared/Protocols.swift": [:]])
     }
-
-    @Test func diffCoverageAppendsTheSectionAndTakesNoRange() async throws {
-        let repository = try MCPTestRepo.make()
-        let registry = try RootsRegistry(fileURL: TemporaryDirectory.make("roots").appendingPathComponent("roots.json"))
-
-        let (text, refused) = try await DiffCommand.parse(["--coverage", "--root", repository.path]).answer(registry: registry)
-
-        #expect(!refused)
-        #expect(text.split(separator: "\n").last?.hasPrefix("coverage: none recorded") == true)
-        await #expect(throws: ValidationError.self) {
-            try await DiffCommand.parse(["HEAD~1..HEAD", "--coverage", "--root", repository.path]).answer(registry: registry)
-        }
-    }
 }

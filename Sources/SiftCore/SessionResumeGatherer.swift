@@ -7,7 +7,7 @@ import Foundation
 
 /// Reads git, the run ledger and blob content to build ``SessionResumeFacts``.
 ///
-/// Strictly read-only, so a `SessionStart` hook can never trigger an index rebuild. Never opens a ``SiftEngine`` or an ``IndexStore`` for exactly that reason: the declaration comparison goes through ``DiffGatherer``'s own static, storeless `fileDiff(_:old:new:stat:member:)`, parsing each side fresh from bytes this type reads itself, the same way `swift-sure diff` parses a historical revision it holds no index for. Every git it runs goes through ``GitContext``, whose reads never write the index, so not even `git status`'s refresh of it is written back.
+/// Strictly read-only, so a `SessionStart` hook can never trigger an index rebuild. Never opens a ``SiftEngine`` or an ``IndexStore`` for exactly that reason: the declaration comparison goes through ``DiffGatherer``'s own static, storeless `fileDiff(_:old:new:stat:member:)`, parsing each side fresh from bytes this type reads itself, the same way a historical revision with no index is parsed. Every git it runs goes through ``GitContext``, whose reads never write the index, so not even `git status`'s refresh of it is written back.
 ///
 /// Every fact is gathered independently, so one failing — no default branch, a detached `HEAD`, a merge base that does not exist, an unreadable ledger — only ever drops what it was going to say, never the others.
 public struct SessionResumeGatherer {
@@ -271,7 +271,7 @@ private extension SessionResumeGatherer {
 
     /// Every declaration changed across `comparisons` since `mergeBase`, or the fallback line when a bound was not enough to say so.
     ///
-    /// Old-side bytes come from `mergeBase` at each comparison's base path, new-side from disk — including any uncommitted edit — so a declaration edited only in the working tree still shows, and a renamed file is compared with what it was before the move. `DiffGatherer.fileDiff` parses each side fresh and keeps no body (`member: nil`), the same discipline a full `swift-sure diff` observes.
+    /// Old-side bytes come from `mergeBase` at each comparison's base path, new-side from disk — including any uncommitted edit — so a declaration edited only in the working tree still shows, and a renamed file is compared with what it was before the move. `DiffGatherer.fileDiff` parses each side fresh and keeps no body (`member: nil`).
     static func declarations(
         mergeBase: String,
         comparisons: [Comparison],

@@ -50,7 +50,7 @@ struct WhereRefsPagingTests {
             let first = try await engine.lookup(symbol: "Gizmo", freshness: freshness, options: WhereOptions(includeReferences: true))
             let second = try await engine.lookup(symbol: "Gizmo", freshness: freshness, options: WhereOptions(includeReferences: true, offset: WhereRenderer.listCap))
 
-            #expect(first.contains("not in the build, mention the name: Fixtures/BetaTests.swift:5"), "\(first)")
+            #expect(MentionRows.compacted(first).contains("not in the build, mention the name: Fixtures/BetaTests.swift:5"), "\(first)")
             #expect(second.contains("files skipped"), "\(second)")
             #expect(!second.contains("not in the build, mention the name"), "\(second)")
         }
@@ -80,7 +80,7 @@ struct WhereRefsPagingTests {
         let first = try await engine.lookup(symbol: "Gizmo", freshness: freshness, options: WhereOptions(includeReferences: true))
         let second = try await engine.lookup(symbol: "Gizmo", freshness: freshness, options: WhereOptions(includeReferences: true, offset: 1))
 
-        #expect(first.contains("new since last build, not in the store, mention the name: Sources/Lib/Late.swift:1"), "\(first)")
+        #expect(MentionRows.compacted(first).contains("new since last build, not in the store, mention the name: Sources/Lib/Late.swift:1"), "\(first)")
         #expect(second.contains("file skipped"), "\(second)")
         #expect(!second.contains("new since last build, not in the store"), "\(second)")
     }

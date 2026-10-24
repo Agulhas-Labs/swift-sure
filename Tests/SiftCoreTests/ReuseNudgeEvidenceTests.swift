@@ -5,7 +5,7 @@
 @testable import SiftCore
 import Testing
 
-/// The reuse nudge wants the shared callees to weigh something, besides `similar`'s overlap fraction.
+/// The reuse nudge wants the shared callees to weigh something, besides the overlap fraction.
 struct ReuseNudgeEvidenceTests {
     /// Fillers that make `map`, `joined` and `filter` as common in the scan as they are in a real module.
     private static let crowd = (1 ... 8).map { index in

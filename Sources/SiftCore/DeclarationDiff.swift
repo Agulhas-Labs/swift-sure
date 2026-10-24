@@ -4,37 +4,17 @@
 
 import Foundation
 
-/// The pure tree diff behind `swift-sure diff`: two parses of one file in, every declaration that was added, removed, changed, or moved out.
+/// The pure tree diff behind the session-resume block: two parses of one file in, every declaration that was added, removed, changed, or moved out.
 ///
 /// Never touches git, the index store, or disk — `DiffGatherer` gathers both sides first (Docs/Design.md's "parse only the files the range touches, on both sides" rule lives there, not here). Every comparison is of bytes (``SourceText``), and of whole signatures: a signature is cut only when it is printed.
 struct DeclarationDiff {
-    /// Every declaration change between two parses of one file.
-    ///
-    /// `nil` on either side reads as "this file does not exist there" — a deleted file's every declaration reads as removed, an added file's every declaration reads as added, through the same recursion that handles a present-on-one-side container. Bodies, when kept, are both sides' lines on each change; a summary drops them, since a large range holds a great many.
-    static func changes(old: DiffFileSide?, new: DiffFileSide?, keepBodies: Bool = true) -> [DeclarationChange] {
-        changes(old: old, new: new) { _ in keepBodies }
-    }
-
-    /// The same, keeping bodies only on the changes `keepsBody` picks — the one declaration a `--member` answer names, rather than every body in the range.
-    ///
-    /// `hunks`, the line diff of the two sides, lets a reorder be told for what the reader's diff shows: a declaration whose text is intact but whose lines git moved is reported as moved, whichever of two swapped siblings the order comparison happened to pick.
-    static func changes(
-        old: DiffFileSide?,
-        new: DiffFileSide?,
-        hunks: [LineDiff.Hunk]? = nil,
-        keepingBodiesOf keepsBody: @escaping (DeclarationChange) -> Bool
-    ) -> [DeclarationChange] {
-        compare(old: old, new: new, hunks: hunks, keepingBodiesOf: keepsBody).changes
-    }
-
-    /// The changes, and what the line-diff check needs to finish the answer: where every declaration present on both sides sits on each — what tells a declaration whose unchanged lines a line diff shows displaced from a change nobody named — and, for every type matched on both sides and not already reported, the entry that says where it opens or closes moved, should a hunk be found there.
+    /// Every declaration change between two parses of one file, and what the line-diff check needs to finish the answer: where every declaration present on both sides sits on each — what tells a declaration whose unchanged lines a line diff shows displaced from a change nobody named — and, for every type matched on both sides and not already reported, the entry that says where it opens or closes moved, should a hunk be found there.
     static func compare(
         old: DiffFileSide?,
         new: DiffFileSide?,
-        hunks: [LineDiff.Hunk]?,
-        keepingBodiesOf keepsBody: @escaping (DeclarationChange) -> Bool
+        hunks: [LineDiff.Hunk]? = nil
     ) -> Comparison {
-        let walk = Walk(old: Side(old), new: Side(new), hunks: hunks, aligned: aligned(hunks, oldCount: old?.lines.count ?? 0), keepsBody: keepsBody, paired: PairLog())
+        let walk = Walk(old: Side(old), new: Side(new), hunks: hunks, aligned: aligned(hunks, oldCount: old?.lines.count ?? 0), paired: PairLog())
         let changes = walk.diffChildren(oldParent: nil, newParent: nil, path: Path())
         return Comparison(changes: changes, pairs: walk.paired.ranges, extents: walk.paired.extents)
     }
@@ -158,7 +138,6 @@ private extension DeclarationDiff {
         let hunks: [LineDiff.Hunk]?
         /// Before-side line → the after-side line the line diff kept it as (0 in a hunk) — the tie-break between declarations with identical text.
         let aligned: [Int]
-        let keepsBody: (DeclarationChange) -> Bool
         let paired: PairLog
     }
 
@@ -329,7 +308,7 @@ private extension DeclarationDiff.Walk {
         // members answer for themselves.
         let headerOnly = kind == .changed && isContainer
         let accessChanged = kind == .changed && oldSymbol?.accessLevel != newSymbol?.accessLevel
-        let summary = DeclarationChange(
+        return DeclarationChange(
             kind: kind,
             containerPath: path.dotted,
             containerDisplay: path.display,
@@ -352,14 +331,8 @@ private extension DeclarationDiff.Walk {
             newSpans: newIndex.map { headerOnly ? ownLines(of: $0, in: new) : [new.range($0)] } ?? [],
             extentChanged: extent,
             movedIntact: kind == .moved && SourceText.same(oldIndex.map { old.body($0) }, newIndex.map { new.body($0) }),
-            oldBody: nil,
-            newBody: nil,
             nestedFunctions: wholeContainer ? index.map { nestedFunctions(of: $0, in: side) } ?? [] : []
         )
-        // A container matched on both sides has no body of its own to show — its members are diffed separately — and
-        // a move has nothing to show but where it went.
-        guard kind != .moved, !headerOnly, keepsBody(summary) else { return summary }
-        return summary.withBodies(old: oldIndex.map { old.body($0) }, new: newIndex.map { new.body($0) })
     }
 
     /// A container's own lines on one side — its header through its opening brace, and the line of its closing brace — less any line one of its members stands on, which is that member's to answer for.

@@ -74,7 +74,10 @@ such lines has no file heading.
 `where --decl` (`decl: true`) asks no index store, so its header is `digest`'s, with no `semantic:` field (an `--at`
 answer keeps its own), and no line about the store follows it. Under the header it keeps the lines that qualify the
 syntactic index (`index: in memory`, an `--at` answer's parsed-files line, the parse-error banner and floor note), then
-the declarations block a plain `where` prints, then for a `T.init` query the `declared with no init of their own`
+the declarations block a plain `where` prints, each declaration row of 30 lines or fewer (its `start-end`) followed
+by its source lines, one per line as `<number right-aligned to 6><tab><source line>` (Read's numbering, no `>` mark),
+in printed order while the answer's inlined lines total at most 40 (the first row that would pass 40 and every row
+after it have none; rows over 30 lines, extension rows, and unreadable or stale rows are skipped and the rows after them go on; the compact form has none), then for a `T.init` query the `declared with no init of their own`
 block without its call sites, then one line: `` `where <query>` without --decl covers its uses, extensions,
 conformers, callers and overrides. `` A block cut by its cap ends `truncated: <k> more declarations`, and where a plain
 answer's tail would name extensions, `— where <query> lists <j> of them under extensions of <Type>` in its place. A

@@ -6,7 +6,7 @@ import Foundation
 
 /// The lines that write a symbol's name in the test files the build left out, which a semantic `where` lists beside its lower bound: `not in the build, mention the name: Tests/Fixtures/GizmoTests.swift:48,176 · Tests/Fixtures/GadgetTests.swift:408`.
 ///
-/// The store records no occurrence in a file it holds no unit for, a test target the last build skipped or a file outside any target it builds, so a rename trusting the sweep misses those lines however honestly the count is called a lower bound. The files are the ones ``ZeroUseVerdict`` already classified, so nothing is recomputed, and none are read where no test build ran, every test file lacking a unit and the lower bound's build advice the remedy, except in a `--refs` sweep, which reads every file of the test targets instead (``WhereTestTargetScan``). Each file is read once, as bytes, and searched for the name's bytes; only a file that holds them is lexed, once, by ``SwiftMentionLexer``, with no parse, and at most ``scanCap`` files are read, the rest counted as not scanned, so the line costs a bounded read of the outside files and nothing in a tree whose build holds every test file. A name is not a symbol: a mention is the name written as a whole word, `$name` and a backticked name included, never resolved, in code or in a string literal, which a rename has to look at too, but not in a comment. Every mentioning line is listed or counted in the closing marker, never dropped.
+/// The store records no occurrence in a file it holds no unit for, a test target the last build skipped or a file outside any target it builds, so a rename trusting the sweep misses those lines however honestly the count is called a lower bound. The files are the ones ``ZeroUseVerdict`` already classified, so nothing is recomputed, and none are read where no test build ran, every test file lacking a unit and the lower bound's build advice the remedy, except in a `--refs` sweep, which reads every file of the test targets instead (``WhereTestTargetScan``). Each file is read once, as bytes, and searched for the name's bytes; only a file that holds them is lexed, once, by ``SwiftMentionLexer``, with no parse, and at most ``scanCap`` files are read, the rest counted as not scanned, so the line costs a bounded read of the outside files and nothing in a tree whose build holds every test file. A name is not a symbol: a mention is the name written as a whole word, `$name` and a backticked name included, never resolved, in code or in a string literal, which a rename has to look at too, but not in a comment. Every mentioning line is listed or counted in the closing marker, never dropped. Where the lines to list number at most ``WhereRenderer/siteTextLineCap`` they head one row each under their file with the line's text (``rows(listing:unscanned:listsEveryLine:heading:unscannedNoun:under:)``); past it they stay the one compact line.
 struct WhereUnbuiltMentions {
     /// Files listed one by one before the rest are only counted.
     static var fileCap: Int {
@@ -84,5 +84,38 @@ struct WhereUnbuiltMentions {
             entries.append("\(unscanned) \(unscannedNoun)\(unscanned == 1 ? "" : "s") not scanned")
         }
         return heading + entries.joined(separator: " · ")
+    }
+
+    /// The answer lines for `mentions`: where they number at most ``WhereRenderer/siteTextLineCap``, the `heading` (its trailing space dropped, so it ends in a colon) then each file in path order as `  path (n):` with one row per line, ascending, `    :34  | gizmo.record(…)`, closing on the line's text as read now from the file under `rootPath` (no text where it cannot be read), and the `unscanned` files as a last row, `  2 outside files not scanned`, so a caller can judge each line without opening the file; otherwise, with none to list or more than the cap, the one compact ``line(listing:unscanned:listsEveryLine:heading:unscannedNoun:)`` or no line where that is `nil`.
+    static func rows(
+        listing mentions: [NameMention],
+        unscanned: Int = 0,
+        listsEveryLine: Bool = false,
+        heading: String = "not in the build, mention the name: ",
+        unscannedNoun: String = "outside file",
+        under rootPath: String
+    ) -> [String] {
+        guard !mentions.isEmpty, mentions.count <= WhereRenderer.siteTextLineCap else {
+            return line(listing: mentions, unscanned: unscanned, listsEveryLine: listsEveryLine, heading: heading, unscannedNoun: unscannedNoun).map { [$0] } ?? []
+        }
+        var paths: [String] = []
+        var linesByPath: [String: [Int]] = [:]
+        for mention in mentions {
+            if linesByPath[mention.path] == nil {
+                paths.append(mention.path)
+            }
+            linesByPath[mention.path, default: []].append(mention.line)
+        }
+        var rows = [String(heading.dropLast(heading.hasSuffix(" ") ? 1 : 0))]
+        for path in paths {
+            let lines = linesByPath[path] ?? []
+            let text = WhereRenderer.StoreSiteText(path: rootPath + "/" + path, state: .live)
+            rows.append("  \(path) (\(lines.count)):")
+            rows += lines.map { "    :\($0)" + NameMatchedSites.textSuffix(text.text(at: $0)) }
+        }
+        if unscanned > 0 {
+            rows.append("  \(unscanned) \(unscannedNoun)\(unscanned == 1 ? "" : "s") not scanned")
+        }
+        return rows
     }
 }

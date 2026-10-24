@@ -412,7 +412,7 @@ extension TranscriptAudit.CallRedaction {
     static var subcommandsByTool: [String: [Set<String>]] {
         let index: [Set<String>] = [[
             "digest", "where", "search", "strings", "run", "test", "affected", "flakes",
-            "report", "usage", "audit", "servers", "status", "similar", "dupes", "help", "build",
+            "report", "usage", "audit", "servers", "status", "help", "build",
         ]]
         return otherSubcommandsByTool.merging(ProductName.recognised.map { ($0.binary, index) }) { first, _ in first }
     }

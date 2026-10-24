@@ -12,10 +12,10 @@ public struct LegacyCursorCleanup {
 
     /// Takes out, for each earlier name, the server and the hooks `directory` holds that run this tool, returning the lines to print and the files written.
     ///
-    /// Ownership is what the uninstall counts: the earlier name's binary run with `mcp` for the server, and its binary with each hook's subcommand and the `--agent cursor` flag for the hooks. A server named for an earlier release that runs something else is left and unmentioned, since an install that runs on every upgrade should not keep naming it. With `installing`, a legacy server stays until the current name's server is in `mcp.json` and legacy hooks stay when `installFailed`, each with a line naming the install that settles it, so the cleanup never leaves a machine with neither. The uninstall passes `installing: false` and takes out what is ours under every name.
+    /// Ownership is what the uninstall counts: the earlier name's binary run with `mcp` for the server, and its binary with each hook's subcommand and the `--agent cursor` flag for the hooks. A server named for an earlier release that runs something else is left and unmentioned, since an install that runs on every upgrade should not keep naming it. With `installing`, a legacy server stays until the current name's server is in `mcp.json` and legacy hooks stay when `installFailed`, each with a line naming the install that settles it, so the cleanup never leaves a machine with neither. A run-mode install registers no server, so with `mode: .run` the legacy server goes once the install has not failed. The uninstall passes `installing: false` and takes out what is ours under every name.
     ///
     /// Each file is backed up once a run, under the current name and from the bytes it had before the run's first rewrite: `written` is what the step before this one already rewrote, and a file named there, or by an earlier pass here, is rewritten with no backup of its own.
-    public static func settle(directory: URL, installing: Bool, installFailed: Bool = false, written: [String] = []) throws -> InstallOutcome {
+    public static func settle(directory: URL, installing: Bool, installFailed: Bool = false, mode: SiftClaudeSetup.InstallMode = .index, written: [String] = []) throws -> InstallOutcome {
         var outcome = InstallOutcome()
         let mcpURL = directory.appendingPathComponent(CursorMcpFile.fileName)
         let hooksURL = directory.appendingPathComponent(CursorHooksFile.fileName)
@@ -23,7 +23,7 @@ public struct LegacyCursorCleanup {
         var hooksData = try SettingsFile.read(hooksURL, agent: "cursor", flag: flag)
         let current = ProductName.current
         var rewritten = Set(written)
-        let serverInPlace = try !installing || SettingsFile.merge(mcpURL, agent: "cursor") { try SiftCursorSetup.mcp.remove(from: mcpData) }.changed
+        let serverInPlace = try !installing || (mode == .run && !installFailed) || SettingsFile.merge(mcpURL, agent: "cursor") { try SiftCursorSetup.mcp.remove(from: mcpData) }.changed
         let currentHeldByAnother = !serverInPlace && holdsServer(mcpData, named: current.mcpServer)
         for (name, legacy) in zip(ProductName.recognised, SiftCursorSetup.recognisedInstalls).dropFirst() {
             let server = try SettingsFile.merge(mcpURL, agent: "cursor") { try legacy.mcp.remove(from: mcpData) }

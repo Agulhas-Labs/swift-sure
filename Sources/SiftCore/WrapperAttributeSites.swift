@@ -44,8 +44,8 @@ struct WrapperAttributeSites {
         let state = { (site: SyntacticCallSite) in occurrences.state(of: root.appendingPathComponent(site.path).path) }
         let marker = { (site: SyntacticCallSite) in state(site).marker ?? "" }
         filesCollector?.recordSites((assigned[row.id] ?? []) + (unassigned[row.id] ?? []), state: state)
-        return Self.lines(assigned[row.id] ?? [], named: type, for: owner, cap: cap, grouped: true, marker: marker)
-            + Self.lines(unassigned[row.id] ?? [], named: type, for: Self.unassignedOwner(path), cap: cap, grouped: true, marker: marker)
+        return Self.lines(assigned[row.id] ?? [], named: type, for: owner, cap: cap, marker: marker)
+            + Self.lines(unassigned[row.id] ?? [], named: type, for: Self.unassignedOwner(path), cap: cap, marker: marker)
     }
 
     /// The sites `lines(for:owner:cap:judgedBy:under:)` lists for `row` within `cap`, which the name scan beside a refused initializer then lists no second time.
@@ -164,36 +164,25 @@ struct WrapperAttributeSites {
 
     /// The name-matched block listed after the store's answer for `owner`, headed as every name-matched block is so it is never read as resolved.
     ///
-    /// `grouped` lists each file's path once with its rows under it, as `where` lists every name-matched site, under a short heading pointing at the rule in `swift-sure help answers` (call sites); `diff` keeps a path on each row and keeps the full heading, since `diff` output is never rewritten once written.
+    /// Each file's path is listed once with its rows under it, as `where` lists every name-matched site, under a short heading pointing at the rule in `swift-sure help answers` (call sites).
     static func lines(
         _ sites: [SyntacticCallSite],
         named type: String,
         for owner: String,
         cap: Int,
-        grouped: Bool = false,
         marker: (SyntacticCallSite) -> String = { _ in "" }
     ) -> [String] {
         guard !sites.isEmpty else { return [] }
         let fileCount = Set(sites.map(\.path)).count
         let count = sites.count == 1 ? "1 call site" : "\(sites.count) call sites"
-        let heading = grouped
-            ? "\(NameMatchedSites.headingOpening) where the index store records no call — see \(ProductName.current.binary) help answers (call sites)"
-            : "\(NameMatchedSites.headingOpening) where the index store records no call: each is a property wrapper's @T attribute, which calls its initializer, on a line where the store records the type and no call of its initializers, as on a function's parameter; a name is not a symbol, so verify a hit — see \(ProductName.current.binary) help answers"
         var lines = [
             "",
-            heading,
-            "\"@\(type)\" (\(count)\(grouped ? " by written name" : "") in \(fileCount) file\(fileCount == 1 ? "" : "s") — for \(owner)):",
+            "\(NameMatchedSites.headingOpening) where the index store records no call — see \(ProductName.current.binary) help answers (call sites)",
+            "\"@\(type)\" (\(count) by written name in \(fileCount) file\(fileCount == 1 ? "" : "s") — for \(owner)):",
         ]
-        if grouped {
-            lines += NameMatchedSites.rows(sites.prefix(cap)) { "in \($0.enclosing)\($0.projection?.flag ?? "")\(marker($0))" }
-        } else {
-            for site in sites.prefix(cap) {
-                lines.append("  \(site.path):\(site.line)  in \(site.enclosing)\(site.projection?.flag ?? "")\(marker(site))")
-            }
-        }
+        lines += NameMatchedSites.rows(sites.prefix(cap)) { "in \($0.enclosing)\($0.projection?.flag ?? "")\(marker($0))" }
         if sites.count > cap {
-            let indent = grouped ? "    " : "  "
-            lines.append("\(indent)truncated: \(sites.count - cap) more call sites")
+            lines.append("    truncated: \(sites.count - cap) more call sites")
         }
         return lines
     }

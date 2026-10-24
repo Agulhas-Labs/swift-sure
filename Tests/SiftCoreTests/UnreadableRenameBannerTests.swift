@@ -6,7 +6,7 @@ import Foundation
 @testable import SiftCore
 import Testing
 
-/// A build file that renames a target's module through a setting this tool cannot read does declare those files; the banner and `swift-sure init` say so, rather than that nothing declares them, and `init` proposes no module for them, since the target's own name is the one the build replaces.
+/// A build file that renames a target's module through a setting this tool cannot read does declare those files; the banner says so, rather than that nothing declares them, and `init` proposes no module for them, since the target's own name is the one the build replaces.
 @Suite(.temporaryDirectories)
 struct UnreadableRenameBannerTests {
     /// A spec whose framework target `Kit` over `Sources/Kit` is renamed through `$(FOO)`, beside a directory no build file claims.
@@ -45,27 +45,6 @@ struct UnreadableRenameBannerTests {
         #expect(!digest.contains(GuessedModuleNotice.bannerOpening), Comment(rawValue: digest))
         #expect(!digest.contains("take its `moduleMap` proposals"), Comment(rawValue: digest))
         #expect(legacy.contains(GuessedModuleNotice.bannerOpening + "Legacy/Old.swift"), Comment(rawValue: legacy))
-    }
-
-    @Test
-    func initListsAnUnreadableRenameApartAndProposesNoModuleForIt() throws {
-        let root = try TestSources.makeTempDirectory()
-        try Self.writeRepo(at: root)
-        let plan = ConfigPlan.make(repoRoot: root, config: SiftConfig(), paths: ["Sources/Kit/Widget.swift", "Legacy/Old.swift"])
-
-        let report = ConfigPlanRenderer.render(plan: plan, wrote: nil)
-
-        #expect(plan.unreadableRenames.map(\.prefix) == ["Sources/Kit"])
-        #expect(plan.unresolvedGroups.map(\.prefix) == ["Legacy"])
-        #expect(plan.resolvedFileCount == 0)
-        #expect(plan.merged(onto: SiftConfig()).moduleMap == ["Legacy": "Legacy"])
-        #expect(report.contains("    \"Sources/Kit\"   — 1 file(s)"), Comment(rawValue: report))
-        #expect(!report.contains("\"Sources/Kit\": \"Kit\""), Comment(rawValue: report))
-        let flat = report.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        for cause in ["conditional value", "settings group", "quoted xcconfig value", "or one that is missing"] {
-            #expect(flat.contains(cause), Comment(rawValue: report))
-        }
-        #expect(report.contains("⚠ 1 file(s) in 1 group(s) have NO declaring build file."), Comment(rawValue: report))
     }
 
     /// Answers printed as one keep one banner per reason, and a part that opens on both loses both.

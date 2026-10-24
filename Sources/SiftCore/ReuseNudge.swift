@@ -5,9 +5,9 @@
 import Fieldwork
 import Foundation
 
-/// A declaration an edit has just added, paired with the existing declaration in its module whose shape is closest by the `similar` ranking.
+/// A declaration an edit has just added, paired with the existing declaration in its module whose shape is closest by shape.
 ///
-/// What the `PostToolUse` hook tells the model after a write: "this helper may already exist". It is `similar` asked on the model's behalf at the one moment the question is cheapest to act on, so it uses `similar`'s own ranking, floor and exclusion rule unchanged — the only declaration a hit may not be is the added one itself.
+/// What the `PostToolUse` hook tells the model after a write: "this helper may already exist". It is that question asked on the model's behalf at the one moment it is cheapest to act on — the only declaration a hit may not be is the added one itself.
 public struct ReuseNudge: Sendable {
     /// The declaration the edit added.
     public let added: DeclarationFingerprint
@@ -19,12 +19,11 @@ public struct ReuseNudge: Sendable {
         self.hit = hit
     }
 
-    /// The one line the hook hands the model, in the voice of an answer: what resembles what, where, how closely, and the call that shows the whole ranking.
+    /// The one line the hook hands the model, in the voice of an answer: what resembles what, where, and how closely.
     public var line: String {
         let found = hit.fingerprint.declaration
-        let overlap = SimilarRenderer.formatted(hit.calleeOverlap)
-        return "\(ProductName.current.binary): \(added.declaration.qualifiedName) resembles \(found.qualifiedName) — \(found.path):\(found.line) (overlap \(overlap)); "
-            + "compare with \(ProductName.current.binary) similar \(Self.shellWord(added.declaration.qualifiedName))"
+        let overlap = String(format: "%.2f", hit.calleeOverlap)
+        return "\(ProductName.current.binary): \(added.declaration.qualifiedName) resembles \(found.qualifiedName) — \(found.path):\(found.line) (overlap \(overlap))"
     }
 }
 
@@ -43,7 +42,7 @@ public extension ReuseNudge {
 
     /// Each declaration in `path` whose name `before` lacks, paired with its best hit among `fingerprints`, closest first.
     ///
-    /// Split out so the choice is exercisable over sources held in memory. A test function draws no nudge toward another test function, and no declaration draws one toward a declaration its own body calls. A declaration too thin to rank, or with nothing at `similar`'s floor whose shared callees weigh enough (`SimilarityScore.nudgeEvidenceFloor`, and `nudgeTestEvidenceFloor` for a test), earns nothing.
+    /// Split out so the choice is exercisable over sources held in memory. A test function draws no nudge toward another test function, and no declaration draws one toward a declaration its own body calls. A declaration too thin to rank, or with nothing at the overlap floor whose shared callees weigh enough (`SimilarityScore.nudgeEvidenceFloor`, and `nudgeTestEvidenceFloor` for a test), earns nothing.
     static func closest(addedTo path: String, before: Set<String>, among fingerprints: [DeclarationFingerprint]) -> [ReuseNudge] {
         let added = fingerprints.filter { fingerprint in
             fingerprint.declaration.path == path
@@ -56,7 +55,7 @@ public extension ReuseNudge {
             let pool = subject.isTest ? nonTests : fingerprints
             // A declaration the added one calls is what it is built on, not a copy of it: a test and the helper it drives share callees because one calls the other.
             let candidates = pool.filter { !subject.callees.contains($0.declaration.baseName) }
-            guard case let .ranked(_, hits, _) = SimilarSearch.rank(subject: subject, among: candidates) else { return nil }
+            let hits = SimilarSearch.rank(subject: subject, among: candidates)
             // Overlap is a fraction, and two bodies that share only `map` and `joined` reach a high one on almost no evidence: the nudge also wants the shared callees to weigh something, more of it for a test, whose bodies all share the lookup-and-expect calls.
             let evidence = subject.isTest ? SimilarityScore.nudgeTestEvidenceFloor : SimilarityScore.nudgeEvidenceFloor
             guard let best = hits.first(where: { $0.sharedEvidence >= evidence }) else { return nil }
@@ -71,7 +70,7 @@ public extension ReuseNudge {
 }
 
 extension ReuseNudge {
-    /// The nudges as the public form works them out, with `scan` in place of `similar`'s scan of a module's paths: the seam a test counts or holds the scans through.
+    /// The nudges as the public form works them out, with `scan` in place of the scan of a module's paths: the seam a test counts or holds the scans through.
     ///
     /// The closure passed last runs once the work has started and before the budget's clock does, so a test can start the clock at a point in the work of its choosing rather than race it.
     static func findings(
@@ -94,7 +93,7 @@ extension ReuseNudge {
 
     /// Works out the nudges an edit of each of `files` earns, closest first, handing each file's to `found` as soon as they are known, in the order of `files`.
     ///
-    /// **New means new to the file's index record**: the function-like declarations with a body whose qualified name the index did not hold for the file before this call brings it up to date. Every file's record is read before that one refresh, which brings every dirty file in the repository up to date: read after it, a function another file of the same edit added would count as one the index already held. A file whose record gained no name adds nothing, and its module is not scanned for it: a comment-only change to a file of another module costs nothing. A file the index never held adds nothing — a first write of a whole file is not a reuse question, and every declaration in it would otherwise count as just written. A file whose record before or after this call carries a parse error adds nothing either — a broken parse can be missing declarations that are genuinely still there, and everything the reindex finds would then read as newly added. The candidates are every indexed file in the same module, read from the working tree as `similar` reads them.
+    /// **New means new to the file's index record**: the function-like declarations with a body whose qualified name the index did not hold for the file before this call brings it up to date. Every file's record is read before that one refresh, which brings every dirty file in the repository up to date: read after it, a function another file of the same edit added would count as one the index already held. A file whose record gained no name adds nothing, and its module is not scanned for it: a comment-only change to a file of another module costs nothing. A file the index never held adds nothing — a first write of a whole file is not a reuse question, and every declaration in it would otherwise count as just written. A file whose record before or after this call carries a parse error adds nothing either — a broken parse can be missing declarations that are genuinely still there, and everything the reindex finds would then read as newly added. The candidates are every indexed file in the same module, read from the working tree.
     static func findings(
         forFiles files: [String],
         atRoot root: String,
@@ -158,12 +157,6 @@ private extension ReuseNudge {
             }
             return names.joined(separator: ".")
         })
-    }
-
-    /// `name` as one shell word: bare where it is only letters, digits, dots and underscores, single-quoted otherwise.
-    static func shellWord(_ name: String) -> String {
-        let bare = name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" }
-        return bare ? name : "'\(name)'"
     }
 }
 

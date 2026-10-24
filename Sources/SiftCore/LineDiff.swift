@@ -6,7 +6,7 @@ import Foundation
 
 /// A line-level diff of one file's two sides, as bytes: the runs of lines — hunks — one side had and the other has in their place.
 ///
-/// `diff`'s structural pass names changes by what they are; this is what that pass is checked against. Every line that differs between the two sides lands in some hunk, and every hunk must meet a line the answer names (`FileDiff`'s safety net), so nothing a line diff sees can go without a line in the answer.
+/// The structural pass names changes by what they are; this is what that pass is checked against. Every line that differs between the two sides lands in some hunk, and every hunk must meet a line the answer names (`FileDiff`'s safety net), so nothing a line diff sees can go without a line in the answer.
 ///
 /// Lines are compared as bytes with their terminators, so a line-ending conversion, an added byte-order mark and a change of Unicode normalization are all differences — as they are to git. The algorithm is git's default one, Myers' O(ND) diff, in its linear-space form, so hunks fall where `git diff` puts them in all but the cases where equal lines leave the placement open; and it is bounded — past ``stepBudget`` the region still being searched is reported as one hunk, which can only make a hunk larger, never lose one.
 struct LineDiff {

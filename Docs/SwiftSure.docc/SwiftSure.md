@@ -5,7 +5,7 @@
 }
 
 Two tools in one binary for AI coding agents working in Swift: build and test output an agent can afford to
-read, and semantic lookups for when grep is too noisy.
+read, and semantic lookups for when grep is too noisy (both in the default install; `swift-sure install --run-only` keeps the first alone).
 
 ## Overview
 

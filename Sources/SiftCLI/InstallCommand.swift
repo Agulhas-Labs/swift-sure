@@ -31,10 +31,18 @@ struct InstallCommand: ParsableCommand {
     @Flag(name: .customLong("yes"), help: "Install into every agent found, without asking.")
     var yes = false
 
+    @Flag(name: .customLong("run-only"), help: "Register only the build and test hooks (run mode), in every agent installed into: no MCP server, rule, session primer or lookup hooks, and a server and rule an earlier install added are removed. Without it the full set is installed.")
+    var runOnly = false
+
+    /// Whether the full set is installed, which is every install without `--run-only`.
+    var index: Bool {
+        !runOnly
+    }
+
     @Flag(name: .customLong("dry-run"), help: "Say what was found and what an install would write; write nothing and run nothing.")
     var dryRun = false
 
-    @Flag(name: .customLong("allow-run"), help: "For Claude Code, add both blocks of allow rules, the lookups and the builds the hook wraps in `\(ProductName.current.binary) run`, without asking.")
+    @Flag(name: .customLong("allow-run"), help: "For Claude Code, add the allow rules without asking: both blocks, the lookups and the builds the hook wraps in `\(ProductName.current.binary) run`; with --run-only, the builds alone.")
     var allowRun = false
 
     @Flag(name: .customLong("allow-lookups"), help: "For Claude Code, add only the allow rules for `\(ProductName.current.binary) digest`, `where`, `search` and `strings`, without asking.")
@@ -72,6 +80,9 @@ struct InstallCommand: ParsableCommand {
 
     /// Refuses `--cursor-dir` or `--codex-dir` when the agents named leave that agent out, so the flag is never silently ignored.
     func validate() throws {
+        guard !allowLookups || !runOnly else {
+            throw ValidationError("--allow-lookups adds the lookup rules and --run-only registers no lookups; drop one")
+        }
         guard cursorDirectory == nil || agents.isEmpty || agents.contains(.cursor) else {
             throw ValidationError("--cursor-dir applies only when Cursor is installed — add --agent cursor")
         }
@@ -108,7 +119,7 @@ struct InstallCommand: ParsableCommand {
             break
         case let .install(picks) where dryRun:
             directories.ignoredNotes(picks: picks).forEach(output.emit)
-            for line in InstallDryRun.lines(picks, detection: detection, binary: binary, environment: environment, claudeOnPath: machine.pathLookup("claude") != nil, directories: directories) {
+            for line in InstallDryRun.lines(picks, detection: detection, binary: binary, environment: environment, claudeOnPath: machine.pathLookup("claude") != nil, directories: directories, index: index) {
                 output.emit(line)
             }
             try runFamily(picks, binary: binary, siftFailed: false)
@@ -183,18 +194,19 @@ struct InstallCommand: ParsableCommand {
                         runner: claude ?? ClaudeCLI(environment: environment),
                         prompt: prompt,
                         allowRun: allowRun,
-                        allowLookups: allowLookups
+                        allowLookups: allowLookups,
+                        index: index
                     ).run(output: capture.output)
                 case .cursor:
-                    var report = try SiftCursorSetup.step.run(binary: binary, environment: environment, directory: cursorDirectory)
+                    var report = try SiftCursorSetup.step(mode: index ? .index : .run, binary: binary, environment: environment, directory: cursorDirectory)
                     let directory = cursorDirectory.map { URL(fileURLWithPath: $0) } ?? AgentPaths.cursorDirectory(environment: environment)
-                    let legacy = try LegacyCursorCleanup.settle(directory: directory, installing: true, installFailed: !report.failures.isEmpty, written: report.written)
+                    let legacy = try LegacyCursorCleanup.settle(directory: directory, installing: true, installFailed: !report.failures.isEmpty, mode: index ? .index : .run, written: report.written)
                     report.lines += legacy.lines + legacy.notes
                     report.written += legacy.written.filter { !report.written.contains($0) }
                     report.lines.forEach(capture.output.emit)
                     return report
                 case .codex:
-                    return try CodexInstallStep.run(binary: binary, environment: environment, directory: codexDirectory, runner: codex ?? CodexCLI(environment: environment), output: capture.output)
+                    return try CodexInstallStep.run(binary: binary, environment: environment, directory: codexDirectory, runner: codex ?? CodexCLI(environment: environment), output: capture.output, mode: index ? .index : .run)
                 }
             } catch let exit as ExitCode {
                 throw InstallStepStopped(status: exit.rawValue)
@@ -212,6 +224,7 @@ extension InstallCommand {
         case dryRun
         case allowRun
         case allowLookups
+        case runOnly
         case cursorDirectory
         case codexDirectory
     }

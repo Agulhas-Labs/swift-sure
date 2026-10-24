@@ -26,11 +26,14 @@ struct ClaudeInstallStep {
     /// Who answers the allow-rule questions, for the terminal or its absence.
     let prompt: AllowRunPrompt
 
-    /// Both blocks of allow rules, added without asking, as `install-hook --allow-run` does.
+    /// Both blocks of allow rules (the builds alone in run mode), added without asking, as `install-hook --allow-run` does.
     var allowRun = false
 
     /// The lookups block alone, added without asking, as `install-hook --allow-lookups` does.
     var allowLookups = false
+
+    /// The index as well as the build and test hooks, the default; false is `install-hook --run-only`: run mode, which takes the MCP server and the rule out.
+    var index = true
 
     /// Every name this install answers to, the current one first, which `install-hook` replaces the others' registrations with the current name's for.
     var names = ProductName.recognised
@@ -50,6 +53,7 @@ struct ClaudeInstallStep {
         hook.prompt = prompt
         hook.allowRun = allowRun ? true : nil
         hook.allowLookups = allowLookups
+        hook.runOnly = !index
         hook.arguments = arguments
         hook.environment = environment
         hook.executable = executable
@@ -61,14 +65,23 @@ struct ClaudeInstallStep {
         if try hook.install() {
             report.written.append(SettingsFile.named(settings))
         }
-        let server = try SiftClaudeSetup.mcp.install(config: AgentPaths.claudeConfig(environment: environment), binary: binary, runner: runner)
-        emit(server, to: output)
-        let rule = try SiftClaudeSetup.rule.install(source: SiftClaudeSetup.rule.source(forBinary: binary), destination: AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: environment))
+        let ruleDestination = AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: environment)
+        let server: ClaudeInstallOutcome
+        let rule: ClaudeInstallOutcome
+        if index {
+            server = try SiftClaudeSetup.mcp.install(config: AgentPaths.claudeConfig(environment: environment), binary: binary, runner: runner)
+            emit(server, to: output)
+            rule = try SiftClaudeSetup.rule.install(source: SiftClaudeSetup.rule.source(forBinary: binary), destination: ruleDestination)
+        } else {
+            server = SiftClaudeSetup.mcp.uninstall(config: AgentPaths.claudeConfig(environment: environment), runner: runner)
+            emit(server, to: output)
+            rule = SiftClaudeSetup.rule.uninstall(destination: ruleDestination)
+        }
         emit(rule, to: output)
         let settled = hook.settleLegacyRegistrations()
         settled.lines.forEach(output.emit)
         report.written += server.written + rule.written
-        report.registered = !server.written.isEmpty || settled.removed
+        report.registered = (index && !server.written.isEmpty) || settled.removed
         report.failures = server.failures + rule.failures
         return report
     }

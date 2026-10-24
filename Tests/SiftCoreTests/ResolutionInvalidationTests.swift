@@ -160,15 +160,4 @@ struct ResolutionInvalidationTests {
         #expect(try upgraded.store.moduleNames() == ["Linter"])
         #expect(try upgraded.store.filesWithGuessedModule().isEmpty)
     }
-
-    /// `init` still counts manifests apart even though the index never stores them.
-    @Test
-    func initStillCountsManifestsItWillNeverIndex() throws {
-        let root = try Self.makeToolFirstRepo()
-        let engine = try SiftEngine(directory: root)
-
-        let report = try engine.initializeConfig(write: false, force: false)
-
-        #expect(report.contains("scanned 1 Swift source file(s) (+1 build manifest(s))"))
-    }
 }

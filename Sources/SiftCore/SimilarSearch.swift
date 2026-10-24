@@ -4,37 +4,15 @@
 
 import Foundation
 
-/// Ranks the repository's declarations by how close their syntactic shape is to one target's.
+/// Scores the repository's declarations against one subject's syntactic shape: the engine under the `PostToolUse` reuse nudge.
 ///
-/// Reads the **working tree**, not the index, for the same reason `search` does (Docs/Design.md §3): the axes it compares — a body's calls, its control flow, its written types — are not stored, and storing them would buy nothing a re-parse does not already give while adding an invalidation problem where there is none. So it has no staleness axis and never refuses.
+/// Reads the **working tree**, not the index (Docs/Design.md §3): the axes it compares — a body's calls, its control flow, its written types — are not stored, and storing them would buy nothing a re-parse does not already give.
 ///
-/// Every file is parsed once, its fingerprints extracted inside that call, and its tree dropped there — the rule that no syntax tree survives its file, kept at the only place in this answer where one exists.
+/// Every file is parsed once, its fingerprints extracted inside that call, and its tree dropped there — the rule that no syntax tree survives its file, kept at the only place where one exists.
 struct SimilarSearch {
-    let repoRoot: URL
-    let enumerator: FileEnumerator
-
-    func run(target: String) async -> SimilarAnswer {
-        let paths = enumerator.swiftFiles()
-        let fingerprints = await Self.scan(paths: paths, repoRoot: repoRoot)
-        return Self.answer(target: target, fingerprints: fingerprints, filesScanned: paths.count)
-    }
-
-    /// The whole answer given the fingerprints, with no filesystem in it.
-    ///
-    /// Split out so the ranking is exercisable over sources held in memory: every property that decides what an answer means — the rarity weighting, the floor, the thin-target refusal, the target's exclusion from its own results, the tie order — is a property of this function, and a test that had to lay a repository on disk to reach it would be testing the enumerator instead.
-    static func answer(target: String, fingerprints: [DeclarationFingerprint], filesScanned: Int) -> SimilarAnswer {
-        let census = SimilarAnswer.Census(filesScanned: filesScanned, candidates: fingerprints.count)
-        let outcome: SimilarAnswer.Outcome = switch SimilarTarget.resolve(target, among: fingerprints) {
-        case .missing: .unresolved
-        case let .ambiguous(candidates): .ambiguous(candidates)
-        case let .one(subject): rank(subject: subject, among: fingerprints)
-        }
-        return SimilarAnswer(target: target, census: census, outcome: outcome)
-    }
-
-    /// The ranking, or the refusal a body too thin to compare earns instead.
-    static func rank(subject: DeclarationFingerprint, among fingerprints: [DeclarationFingerprint]) -> SimilarAnswer.Outcome {
-        guard subject.callees.count >= SimilarityScore.minimumCallees else { return .thin(subject: subject) }
+    /// The hits for `subject`, closest first and capped, or none when its body is too thin to compare.
+    static func rank(subject: DeclarationFingerprint, among fingerprints: [DeclarationFingerprint]) -> [SimilarHit] {
+        guard subject.callees.count >= SimilarityScore.minimumCallees else { return [] }
         let rarity = CalleeRarity(fingerprints: fingerprints)
         let cleared = fingerprints
             .lazy
@@ -43,12 +21,12 @@ struct SimilarSearch {
             .map { SimilarityScore.hit(for: $0, against: subject, rarity: rarity) }
             .filter { $0.calleeOverlap >= SimilarityScore.calleeFloor }
             .sorted { left, right in
-                // Score first, then path and line: a tie between two equally close shapes must land the same way on every run, or a second look at the same question reads as a change in the codebase.
+                // Score first, then path and line: a tie between two equally close shapes must land the same way on every run.
                 guard left.score == right.score else { return left.score > right.score }
                 return (left.fingerprint.declaration.path, left.fingerprint.declaration.line)
                     < (right.fingerprint.declaration.path, right.fingerprint.declaration.line)
             }
-        return .ranked(subject: subject, hits: Array(cleared.prefix(SimilarityScore.resultCap)), above: cleared.count)
+        return Array(cleared.prefix(SimilarityScore.resultCap))
     }
 
     /// Every file's fingerprints, parsed in parallel and ordered by path then line.

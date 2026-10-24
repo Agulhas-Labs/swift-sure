@@ -50,13 +50,13 @@ struct DigestExternalTypeTests {
         #expect(DigestMiss.isMiss(inAnswer: answer.text), "\(answer.text)")
     }
 
-    /// The repository's own `count` on another type is listed under a heading that says nothing of `Tally`, never as a mistyped path.
+    /// The repository's own `count` on another type is counted in a line that says nothing of `Tally`, never as a mistyped path.
     @Test
     func theRepositorysSameNamedMembersAreListed() async throws {
         let answer = try await Self.answer("Tally.count", extraFiles: Self.box)
 
         #expect(answer.text.contains(Self.headline), "\(answer.text)")
-        #expect(answer.text.contains("other declarations of count in this repository (1):\n  GizmoCore.Box.count — var — Sources/GizmoCore/Box.swift:2"), "\(answer.text)")
+        #expect(answer.text.contains("count is declared 1 time on other types in this repository — where count lists them"), "\(answer.text)")
         #expect(!answer.text.contains("could not resolve the path"), "\(answer.text)")
         #expect(!answer.text.contains("is declared, but not under"), "\(answer.text)")
     }

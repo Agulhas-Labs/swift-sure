@@ -82,7 +82,8 @@ public struct ReportPage {
             <p class="condition-headline">\(escaped(condition.headline))</p>
             <p class="condition-fact">\(inlineCode(condition.fact))</p>
             <p class="condition-action">\(inlineCode(condition.action))</p>
-            <pre class="command">\(escaped(condition.command))</pre>
+            <p class="condition-file">Add to \(escaped(condition.file)):</p>
+            <pre class="snippet">\(escaped(condition.snippet))</pre>
             <p class="condition-path">\(escaped(condition.root))</p>
             </li>
             """
@@ -376,6 +377,7 @@ public struct ReportPage {
         .condition-root { margin: 0; font-weight: 600; }
         .condition-headline { margin: 0.2rem 0 0.6rem; font-size: 1.05rem; }
         .condition-fact, .condition-action { margin: 0 0 0.6rem; color: var(--dim); }
+        .condition-file { margin: 0; color: var(--dim); }
         .condition-path { margin: 0.5rem 0 0; color: var(--dim); font-size: 0.78rem; }
         .figure { font-size: 2.6rem; font-weight: 600; margin: 0 0 0.5rem; letter-spacing: -0.02em; }
         .caption { margin: 0.4rem 0 0; color: var(--dim); font-size: 0.85rem; }
@@ -383,7 +385,7 @@ public struct ReportPage {
         code, pre, .path, .days, .count { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
         code { font-size: 0.87em; background: color-mix(in srgb, var(--ink) 8%, transparent);
                padding: 0.05em 0.32em; border-radius: 4px; }
-        pre.command { margin: 0.5rem 0 0; padding: 0.6rem 0.75rem; overflow-x: auto;
+        pre.snippet { margin: 0.5rem 0 0; padding: 0.6rem 0.75rem; overflow-x: auto;
                       background: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 6px; font-size: 0.85rem; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         th { text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase;

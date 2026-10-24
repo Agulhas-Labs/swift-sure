@@ -6,6 +6,6 @@
 public struct SiftVersion {
     /// The semantic version of the `swift-sure` binary.
     public static var current: String {
-        "0.2.2"
+        "0.3.0"
     }
 }

@@ -43,7 +43,7 @@ struct AffectedBlindSpots {
         return "the reference walk stops at \(depth) hop\(depth == 1 ? "" : "s")\(exception) — a test further out is not listed"
     }
 
-    /// `diff`'s tests section's clause for the changed files the walk went on from, which says toward a first test and not to one.
+    /// The clause for the changed files the walk went on from, which says toward a first test and not to one.
     static func walkedOnClause(_ files: Int) -> String {
         files == 0 ? "" : ", and on from \(files == 1 ? "1 changed file" : "\(files) changed files") that reached no test within them, toward \(files == 1 ? "its" : "each one's") first test as far as `\(ProductName.current.binary) affected` says it went"
     }

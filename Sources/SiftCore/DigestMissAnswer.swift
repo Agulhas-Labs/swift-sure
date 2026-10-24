@@ -164,7 +164,7 @@ struct DigestMissAnswer {
 
     /// The answer for a target on a type the repository writes and declares nowhere, ahead of every miss that would read as a mistyped path, or `nil` where the type is not external.
     private func externalTypeAnswer(name: String, qualifiers: [String], module: String?, options: DigestOptions) throws -> MeasuredAnswer? {
-        try DigestExternalTypeAnswer(renderer: renderer).answer(name: name, qualifiers: qualifiers, options: options) { siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module)) }
+        try DigestExternalTypeAnswer(renderer: renderer).answer(name: name, qualifiers: qualifiers, options: options) { siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module), orTypeNamed: qualifiers.last) }
     }
 
     /// The answer for a path that names something real but addresses it wrongly, or `nil` when nothing of the name is declared outside the path.
@@ -223,9 +223,15 @@ struct DigestMissAnswer {
     /// A pointer, deliberately not a proxy answer — serving the sibling's digest here would put another repository's content under this repository's freshness header. The parenthetical states the claim's real strength: it comes from that root's *last* index, so it is a lead to follow with a re-rooted query, not a freshness-contracted fact.
     ///
     /// The *whole* target goes to the probe, never its last component. Probing the base name and printing the path would claim what had not been checked: `Type.column` would be answered with unrelated repositories, each of which merely had something named `column` somewhere in it, under a line reading "Type.column is declared in …" — a lead worse than none, since following it costs every one of those repositories opened.
-    private func siblingPointerLines(for target: String) -> [String] {
+    ///
+    /// `type` is the external-type answer's fallback: where no sibling root declares the whole path, the roots that declare or extend the type are pointed at under the type's name, which is what they were checked for.
+    private func siblingPointerLines(for target: String, orTypeNamed type: String? = nil) -> [String] {
         guard let siblingRoots = renderer.siblingRoots else { return [] }
         let pointers = siblingRoots(target)
+        if pointers.isEmpty, let type {
+            let typePointers = siblingRoots(type)
+            return typePointers.isEmpty ? [] : [""] + typePointers.map { $0.line(for: type) }
+        }
         guard !pointers.isEmpty else { return [] }
         return [""] + pointers.map { $0.line(for: target) }
     }

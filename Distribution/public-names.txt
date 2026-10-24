@@ -14,3 +14,4 @@
 
 swift-fieldwork  # a public repository: the family's shared library, which this package may name
 Games  # a category folder holding game projects, not a project: its name is a common word, and Apple's simulator service label com.apple.gamesaved, which the bundled service profile carries, contains it
+fieldwork-bench  # a public repository: the benchmark corpora this package's README cites so anyone can re-run its benches

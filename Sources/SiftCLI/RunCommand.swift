@@ -403,7 +403,7 @@ struct RunCommand: ParsableCommand {
         return TreeContentHash.runKey(of: arguments, in: workingDirectory, repositoryRoot: root)
     }
 
-    /// The `--coverage` section, measured in the checkout the command builds, whose history `--from` names and where `diff --coverage` looks for the record.
+    /// The `--coverage` section, measured in the checkout the command builds, whose history `--from` names and where the record is looked for.
     ///
     /// A directory spelled through a variable names no checkout to measure against, so the section is one refusal saying so rather than a measurement of the checkout `swift-sure run` was started in; one in no repository has no section, as a run outside a repository has none.
     private func coverageSection(_ checkouts: RunCheckouts, workingDirectory: URL, treeBefore: TreeKey?, started: Date) -> [String] {

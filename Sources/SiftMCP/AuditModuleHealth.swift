@@ -34,11 +34,11 @@ struct AuditModuleHealth {
         var lines = ["", "module resolution — roots where a module is mostly inferred from a directory name, not read from a manifest:"]
         for (root, snapshot) in guessing.prefix(10) {
             let share = snapshot.guessedModules * 100 / snapshot.files
-            // Not led by `swift-sure init`: SwiftPM, XcodeGen and `.xcodeproj` are all read automatically, so a root
+            // Not led by a `moduleMap` entry: SwiftPM, XcodeGen and `.xcodeproj` are all read automatically, so a root
             // still guessing after an upgrade is either running an older binary or built by something none of
             // those describe — and the first of those is the likelier and the cheaper to check.
             let rootName = redactor?.root(root) ?? name(root, among: guessing.map(\.root))
-            lines.append("  \(TranscriptAudit.pad(share))% \(rootName) — \(snapshot.guessedModules) of \(snapshot.files) files; upgrade first (SwiftPM, XcodeGen and .xcodeproj all resolve on their own now, and an upgraded binary re-attributes without being asked), then `\(ProductName.current.binary) init` there if it persists")
+            lines.append("  \(TranscriptAudit.pad(share))% \(rootName) — \(snapshot.guessedModules) of \(snapshot.files) files; upgrade first (SwiftPM, XcodeGen and .xcodeproj all resolve on their own now, and an upgraded binary re-attributes without being asked), then a `moduleMap` entry in `\(ProductName.current.configFileName)` there if it persists")
         }
         lines.append("  (answers from those files arrive on time and name a module that does not exist — invisible in every count above)")
         return lines

@@ -173,26 +173,4 @@ struct SemanticEnumCaseUseTests {
 
         #expect(WhereRenderer.collapsedUses([use]).map(\.access) == [nil])
     }
-
-    /// `swift-sure diff` resolves a changed case's uses through the same store query, so a case the store records as used is listed, where before a changed case was left out of the section altogether.
-    @Test
-    func aChangedCasesUsesInADiffAreResolvedFromTheStore() async throws {
-        let root = try TestSources.makeTempRepo()
-        try Self.writePackage(in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try TestSources.write(Self.mode(value: "case value(Int = 0)"), to: "Sources/GizmoCore/Mode.swift", in: root)
-        try TestSources.commitAll(in: root, message: "default")
-        try await TestSources.swiftBuild(packageAt: root)
-
-        let engine = try SiftEngine(directory: root)
-        TestSources.raiseOpenBudgetForAColdStore(engine)
-        try await engine.awaitSemanticStore()
-        let freshness = try await engine.ensureFresh()
-        let range = try DiffRange.resolve("HEAD", git: GitContext(repoRoot: root))
-        let output = try await engine.diff(options: DiffOptions(range: range, member: nil, offset: 0), freshness: freshness)
-
-        #expect(output.contains("~ Mode.value(_:) — resolved by the index store: 4 uses"))
-        #expect(output.contains("      maker — Sources/GizmoCore/Picker.swift:15"))
-        #expect(output.contains("      run(_:) — Sources/GizmoApp/Use.swift:4"))
-    }
 }

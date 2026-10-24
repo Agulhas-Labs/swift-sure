@@ -183,7 +183,7 @@ struct AffectedAfterEditSeeds {
         return DeclaredTypeName.last(ofPath: path[..<end])
     }
 
-    /// Each side of one file the change set names, compared as `diff` compares it: the before side from the range's start, or `HEAD`, and the after side from its end, or the working tree.
+    /// Each side of one file the change set names, compared as the declaration comparison does: the before side from the range's start, or `HEAD`, and the after side from its end, or the working tree.
     static func fileDiffs(of changes: [GitContext.Change], range: AffectedOptions.CommitRange?, git: GitContext, repositoryRoot: URL) throws -> [FileDiff] {
         guard !changes.isEmpty else { return [] }
         let from = range?.from ?? "HEAD"

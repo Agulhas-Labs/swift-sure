@@ -6,7 +6,7 @@ import Foundation
 
 /// The in-tree stores one engine reads for `where`: the walk that found them and each store's open, kept across queries and let go as soon as discovery stops naming them.
 ///
-/// Only `where` asks for these, so nothing `affected`, `diff`, `status` or the deletion ledger reads depends on them.
+/// Only `where` asks for these, so nothing `affected`, `status` or the deletion ledger reads depends on them.
 final class InTreeStoreSet: @unchecked Sendable {
     /// The last walk of the ignored directories, reused while it still holds.
     private var walk: InTreeStoreWalk?

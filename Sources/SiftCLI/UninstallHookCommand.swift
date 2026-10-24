@@ -55,7 +55,7 @@ struct UninstallHookCommand: ParsableCommand {
     func run() throws {
         if agent == .cursor {
             let directory = cursorDirectory.map { URL(fileURLWithPath: $0) } ?? AgentPaths.cursorDirectory(environment: environment)
-            let result = try SiftCursorSetup.installer.uninstall(directory: directory)
+            let result = try SiftCursorSetup.uninstaller(directory: directory)
             let legacy = try LegacyCursorCleanup.settle(directory: directory, installing: false, written: result.outcome.written)
             guard !legacy.lines.isEmpty else {
                 result.printed.forEach(output.emit)

@@ -169,25 +169,6 @@ struct WhereInitializerCallsTests {
         #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/Box.swift:6  in b"), "\(output)")
     }
 
-    /// `swift-sure diff` names a changed initializer's callers by the same scan, so its calls through the type are among them.
-    @Test
-    func aDiffListsAChangedInitializersCallsThroughItsType() async throws {
-        let root = try Self.repo()
-        try TestSources.write(
-            Self.box.replacingOccurrences(of: "init(size: Int) {", with: "init(size: Int, depth: Int = 1) {"),
-            to: "Sources/App/Box.swift",
-            in: root
-        )
-
-        let output = try await DiffEngineTests.diff(root)
-
-        #expect(output.contains("Box.init(size:) — name-matched on \"Box\""), "\(output)")
-        #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/Uses.swift:3  in Crate.init()"), "\(output)")
-        #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/Uses.swift:13  in plain"), "\(output)")
-        #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/Uses.swift:17  in handed"), "\(output)")
-        #expect(!WhereStoreSiteTextTests.located(output).contains("Uses.swift:19"), "\(output)")
-    }
-
     /// With a fresh store, the initializer's callers are its calls through the type and its references, each marked as what it is.
     @Test
     func theStoresCallersOfAnInitializerIncludeEverySpelling() async throws {
@@ -494,39 +475,5 @@ extension WhereInitializerCallsTests {
         #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/State.swift:8  in Screen.count"), "\(output)")
         #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/State.swift:9  in Screen.total"), "\(output)")
         #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("Sources/App/State.swift:10  in Screen.depth"), "\(output)")
-    }
-
-    /// `swift-sure diff` counts an implicit `.init` of an untold type beside a changed initializer without narrowing it by labels, so it does not say it did.
-    @Test
-    func aDiffCountsAnUntoldImplicitInitializerWithoutClaimingItsLabels() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(
-            """
-            struct Box {
-                init(size: Int) {}
-            }
-            func take(_ box: Box) {}
-            let untold = [take(\(Self.implied)(size: 9))]
-            """,
-            to: "Sources/App/Box.swift",
-            in: root
-        )
-        try TestSources.commitAll(in: root, message: "fixture")
-        try TestSources.write(
-            """
-            struct Box {
-                init(size: Int, depth: Int = 1) {}
-            }
-            func take(_ box: Box) {}
-            let untold = [take(\(Self.implied)(size: 9))]
-            """,
-            to: "Sources/App/Box.swift",
-            in: root
-        )
-
-        let output = try await DiffEngineTests.diff(root)
-
-        #expect(output.contains("but an implicit .init is called once on a type the scan cannot tell"), "\(output)")
-        #expect(!output.contains("with those labels"), "\(output)")
     }
 }

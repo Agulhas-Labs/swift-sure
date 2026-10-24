@@ -14,7 +14,7 @@ struct SemanticUnitTests {
         "written code only"
     }
 
-    /// The core module's declarations, with `theme` declared as given — a second commit that re-spells it is a changed member to `swift-sure diff`.
+    /// The core module's declarations, with `theme` declared as given — a second commit that re-spells it is a changed member to the declaration comparison.
     static func shapes(theme: String = "public var theme = \"dark\"") -> String {
         """
         public struct Point: Equatable {
@@ -259,7 +259,8 @@ struct SemanticUnitTests {
 
             #expect(spare.contains("no references to GizmoCore.Dial.spare recorded in the store"))
             #expect(!spare.contains("Dial.swift (1): 3"))
-            #expect(level.contains("  Sources/GizmoCore/Dial.swift (1):\n    :8  | public func bump() { level += 1 }"))
+            #expect(level.contains("  Sources/GizmoCore/Dial.swift (1):\n    :8  bump() — read and write  | public func bump() { level += 1 }"))
+            #expect(level.contains("references to GizmoCore.Dial.level (2 in 2 files, 2 of them the reads and writes above):"))
         }
     }
 
@@ -287,28 +288,5 @@ struct SemanticUnitTests {
             #expect(!theme.contains(Self.writtenCodeBoundary))
             #expect(!low.contains(Self.writtenCodeBoundary))
         }
-    }
-
-    /// `swift-sure diff` states the same gap beside a changed property's store-resolved uses: "0 uses" of a field a synthesized conformance reads is not proof it can go.
-    @Test
-    func aDiffSaysWhatTheStoreCannotSeeBesideAResolvedPropertysUses() async throws {
-        let root = try TestSources.makeTempRepo()
-        try Self.writePackage(in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try TestSources.write(Self.shapes(theme: "public var theme: String = \"dark\""), to: "Sources/GizmoCore/Shapes.swift", in: root)
-        try TestSources.commitAll(in: root, message: "annotate")
-        try await TestSources.swiftBuild(packageAt: root)
-
-        let engine = try SiftEngine(directory: root)
-        TestSources.raiseOpenBudgetForAColdStore(engine)
-        // `diff` states what the store resolved in its body, not in the header, so a warming open shows up here as a
-        // count that is simply wrong rather than as a refusal — all the more reason to wait for the store first.
-        try await engine.awaitSemanticStore()
-        let freshness = try await engine.ensureFresh()
-        let range = try DiffRange.resolve("HEAD", git: GitContext(repoRoot: root))
-        let output = try await engine.diff(options: DiffOptions(range: range, member: nil, offset: 0), freshness: freshness)
-
-        #expect(output.contains("~ Prefs.theme — resolved by the index store: 0 uses"))
-        #expect(output.contains("  a use the index store resolves is one written in code: a synthesized conformance's"))
     }
 }

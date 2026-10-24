@@ -6,7 +6,7 @@ import Foundation
 
 /// Path-prefix → target-name mappings read straight out of an `.xcodeproj`, so an app built by Xcode needs no `moduleMap`.
 ///
-/// This is the build file the largest repositories actually use: without reading it, every file of an app built by Xcode falls back to a directory-name guess, and a per-repository `swift-sure init` is a remedy nobody runs across ten checkouts. A guess that arrives on time and names a module that does not exist is the one failure no count in the audit can see.
+/// This is the build file the largest repositories actually use: without reading it, every file of an app built by Xcode falls back to a directory-name guess, and a per-repository `moduleMap` entry is a remedy nobody runs across ten checkouts. A guess that arrives on time and names a module that does not exist is the one failure no count in the audit can see.
 ///
 /// `project.pbxproj` is an OpenStep property list, which Foundation reads directly — no vendored parser, no regex over a format that nests.
 struct XcodeProjectTargets {

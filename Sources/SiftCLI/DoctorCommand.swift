@@ -117,10 +117,18 @@ struct DoctorCommand: ParsableCommand {
                     notInstalled.append(agent)
                     continue
                 }
+                if DoctorClaudeRunMode.applies(environment: machine.environment) {
+                    checks += DoctorClaudeRunMode(environment: machine.environment, probe: probe, expectedTools: MCPToolCatalog.toolNames).checks()
+                    continue
+                }
                 checks += doctor.checks()
             case .cursor:
                 let directory = cursorDirectory.map { URL(fileURLWithPath: $0) } ?? AgentPaths.cursorDirectory(environment: machine.environment)
                 let doctor = DoctorCursor(directory: directory, probe: probe, install: SiftCursorSetup.install, expectedTools: MCPToolCatalog.toolNames)
+                if DoctorCursorRunMode.applies(directory: directory) {
+                    checks += DoctorCursorRunMode(directory: directory, probe: probe, expectedTools: MCPToolCatalog.toolNames).checks()
+                    continue
+                }
                 let recognised = SiftCursorSetup.recognisedInstalls.map { DoctorCursor(directory: directory, probe: probe, install: $0, expectedTools: MCPToolCatalog.toolNames) }
                 if !named, recognised.allSatisfy(\.hasNothingInstalled) {
                     notInstalled.append(agent)
@@ -129,12 +137,14 @@ struct DoctorCommand: ParsableCommand {
                 checks += doctor.checks()
             case .codex:
                 let home = CodexInstall.home(flag: codexDirectory, environment: machine.environment)
-                let doctor = DoctorCodex(home: home, runner: codex ?? CodexCLI(environment: machine.environment), probe: probe, hooks: SiftCodexSetup.hooks, server: SiftCodexSetup.server, expectedTools: MCPToolCatalog.toolNames)
+                let runner = codex ?? CodexCLI(environment: machine.environment)
+                let runMode = DoctorCodexRunMode.applies(home: home)
+                let doctor = DoctorCodex(home: home, runner: runner, probe: probe, hooks: runMode ? SiftCodexSetup.runHooks : SiftCodexSetup.hooks, server: SiftCodexSetup.server, expectedTools: MCPToolCatalog.toolNames)
                 if !named, doctor.hasNothingInstalled {
                     notInstalled.append(agent)
                     continue
                 }
-                checks += doctor.checks()
+                checks += runMode ? DoctorCodexRunMode(home: home, runner: runner, probe: probe, expectedTools: MCPToolCatalog.toolNames).checks() : doctor.checks()
             }
         }
         return DoctorReport(tool: .sift, checks: checks, skipped: skipped, notInstalled: notInstalled)

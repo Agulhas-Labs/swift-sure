@@ -9,7 +9,7 @@ import Testing
 /// A checkout nobody may write — a vendored package, a read-only mount — answers without making `.swift-sure/` in it.
 @Suite(.temporaryDirectories)
 struct ReadOnlyTreeTests {
-    /// The four working-tree reads open no index, so nothing about the store may stop them, and none leaves a `.swift-sure/` behind.
+    /// The working-tree reads open no index, so nothing about the store may stop them, and none leaves a `.swift-sure/` behind.
     @Test
     func theLiveReadsAnswerInATreeNobodyMayWrite() async throws {
         let root = try ReadOnlyTree.make()
@@ -18,13 +18,11 @@ struct ReadOnlyTreeTests {
         let engine = try SiftEngine(directory: root)
         let answers = try await [
             engine.strings(query: "depot"),
-            engine.dupes(scope: []),
-            engine.similar(target: "Depot.save"),
             engine.search(query: "kind:struct"),
         ]
 
         #expect(answers[0].contains("Sources/Depot.swift"), "\(answers[0])")
-        #expect(answers[3].contains("Depot"), "\(answers[3])")
+        #expect(answers[1].contains("Depot"), "\(answers[1])")
         #expect(!FileManager.default.fileExists(atPath: SiftPaths.cache(in: root).path))
         for answer in answers {
             #expect(answer.hasPrefix("tree: "), "\(answer)")

@@ -17,8 +17,16 @@ struct RangeLinks {
 }
 
 extension RangeLinks {
+    /// Where a range's after side reads from.
+    enum End: Sendable, Equatable {
+        case revision(String)
+        case workingTree
+    }
+}
+
+extension RangeLinks {
     /// Reads the before side's tree, and the after side's where that side is a revision.
-    init(from: String, to: DiffRange.End, git: GitContext) throws {
+    init(from: String, to: RangeLinks.End, git: GitContext) throws {
         let before = try git.trackedEntries(at: from)
         let after: FileEnumerator.Modes = switch to {
         case .workingTree: .workingTree

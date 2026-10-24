@@ -330,11 +330,6 @@ final class SemanticStore: @unchecked Sendable {
         occurrences(ofUSR: usr, roles: .reference).map { ($0.location.path, $0.location.moduleName) }
     }
 
-    /// Where every recorded reference to `usr` sits, a call included, read from current units: its absolute path and its line and UTF-8 column.
-    func referencePlaces(ofUSR usr: String) -> [AccessExposure.Reference] {
-        occurrences(ofUSR: usr, roles: .reference).map { AccessExposure.Reference(path: $0.location.path, line: $0.location.line, column: $0.location.utf8Column) }
-    }
-
     /// The USRs of the declarations ``implementedRequirements(ofUSR:)`` names: a call reaching the symbol through a protocol or a superclass is recorded against one of them, never against the symbol.
     func implementedUSRs(ofUSR usr: String) -> [String] {
         var seen: Set<String> = []

@@ -170,7 +170,7 @@ struct WhereByNameLabelsTests {
         ]
         for (symbol, listing) in expected.sorted(by: { $0.key < $1.key }) {
             let answer = try await engine.lookup(symbol: symbol, freshness: engine.ensureFresh())
-            let rows = answer.split(separator: "\n").map(String.init)
+            let rows = MentionRows.compacted(answer).split(separator: "\n").map(String.init)
             #expect(rows.contains(Self.unbuilt + listing), "\(symbol): \(answer)")
             #expect(rows.count { $0.hasPrefix(Self.unbuilt) } == 1, "\(symbol): \(answer)")
         }
@@ -193,14 +193,14 @@ struct WhereByNameLabelsTests {
         try TestSources.write("public func other(holder: Holder) -> Int {\n    _ = holder.path.count\n    _ = Holder().path\n    return Binary.path(invokedAs: \"o\").count\n}\n", to: "Sources/Lib/Other.swift", in: root)
 
         let function = try await engine.lookup(symbol: "Binary.path", freshness: engine.ensureFresh())
-        let rows = function.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let rows = MentionRows.compacted(function).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let property = try await engine.lookup(symbol: "Holder.path", freshness: engine.ensureFresh())
 
         #expect(rows.contains(Self.notInStore + "Sources/Lib/Depot.swift:3"), "\(function)")
         let mark = try #require(rows.firstIndex { $0.contains("Sources/Lib/Caller.swift") && $0.contains("(file changed since last build)") }, "\(function)")
         #expect(rows.dropFirst(mark + 1).prefix(3).contains("    written since the build, by name: :7"), "\(function)")
         #expect(rows.contains("changed since last build, written since the build, by name: Sources/Lib/Other.swift:4"), "\(function)")
-        #expect(property.split(separator: "\n").contains { $0 == Self.notInStore + "Sources/Lib/Depot.swift:2,3" }, "\(property)")
+        #expect(MentionRows.compacted(property).split(separator: "\n").contains { $0 == Self.notInStore + "Sources/Lib/Depot.swift:2,3" }, "\(property)")
     }
 
     /// Every shape a call or a reference can take keeps its line: a call in an interpolation, an unapplied reference through its type, comments inside the parenthesis, a trailing closure for a typealiased closure and after `()`, a keyword label and a backticked name, and an initializer through `.init`, `Type.init` and its type name, and `Self.path`; the local spelling the word and a lowercase value's property of it, `holder.path`, are left out.
@@ -222,7 +222,7 @@ struct WhereByNameLabelsTests {
         ]
         for (symbol, lines) in expected.sorted(by: { $0.key < $1.key }) {
             let answer = try await engine.lookup(symbol: symbol, freshness: engine.ensureFresh())
-            let row = try #require(answer.split(separator: "\n").map(String.init).first { $0.hasPrefix(Self.unbuilt) }, "\(symbol): \(answer)")
+            let row = try #require(MentionRows.compacted(answer).split(separator: "\n").map(String.init).first { $0.hasPrefix(Self.unbuilt) }, "\(symbol): \(answer)")
             #expect(row.contains("Fixtures/GizmoTests.swift:\(lines)") && !row.contains("Fixtures/GizmoTests.swift:\(lines),"), "\(symbol): \(row)")
         }
     }

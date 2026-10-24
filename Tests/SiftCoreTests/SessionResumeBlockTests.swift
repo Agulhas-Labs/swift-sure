@@ -88,7 +88,7 @@ struct SessionResumeBlockTests {
 
         let block = try #require(SessionResumeBlock.render(SessionResumeFacts(declarations: declarations), now: Date()))
 
-        #expect(block.contains("declarations changed: +Foo.bar, ~Baz.qux, +3 more — `swift-sure diff` has the rest"))
+        #expect(block.contains("declarations changed: +Foo.bar, ~Baz.qux, +3 more"))
     }
 
     @Test
@@ -106,7 +106,7 @@ struct SessionResumeBlockTests {
 
         let block = try #require(SessionResumeBlock.render(SessionResumeFacts(declarations: declarations), now: Date()))
 
-        #expect(block.contains("12 Swift files changed — `swift-sure diff` has the declarations"))
+        #expect(block.contains("12 Swift files changed"))
     }
 
     @Test

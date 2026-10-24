@@ -10,14 +10,14 @@ import SiftMCP
 
 /// `swift-sure post-tool-use` — the body of the Claude Code `PostToolUse` hook, run after a write or an edit of a Swift file.
 ///
-/// Where `similar` answers "does this helper already exist?" only for a model that thinks to ask, this asks it on the model's behalf just after a function is written, while undoing the duplicate is still one edit. It holds to the `PreToolUse` hook's invariants, for the same reason — a misbehaving hook degrades every session on the machine: it always exits 0, it prints nothing unless it has a nudge or a parse block, and it gives up in silence past its budget.
+/// This asks "does this helper already exist?" on the model's behalf just after a function is written, while undoing the duplicate is still one edit. It holds to the `PreToolUse` hook's invariants, for the same reason — a misbehaving hook degrades every session on the machine: it always exits 0, it prints nothing unless it has a nudge or a parse block, and it gives up in silence past its budget.
 struct PostToolUseCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "post-tool-use",
             abstract: "Block an edit that left a Swift file unparseable, or point out a declaration like one just added (PostToolUse hook).",
             discussion: """
-            Reads the hook's payload on stdin. After a Write, Edit or MultiEdit of a .swift file that no longer parses, or a Codex apply_patch adding or updating one, it blocks with each syntax error placed at path:line:col, once per content. Otherwise, in an indexed repository, it brings every dirty file's index record up to date and ranks each function-like declaration the edit added — one the index did not hold for the file before — against the rest of its module, as similar does. The closest hit at similar's floor is handed to the model as one line, naming where the existing declaration is and the similar call that shows the whole ranking.
+            Reads the hook's payload on stdin. After a Write, Edit or MultiEdit of a .swift file that no longer parses, or a Codex apply_patch adding or updating one, it blocks with each syntax error placed at path:line:col, once per content. Otherwise, in an indexed repository, it brings every dirty file's index record up to date and ranks each function-like declaration the edit added — one the index did not hold for the file before — against the rest of its module by the callees they share. The closest hit that clears the overlap floor is handed to the model as one line, `\(ProductName.current.binary): A resembles B — path:line (overlap 0.xx)`, naming where the existing declaration is.
 
             Otherwise silent: when nothing clears the floor, for a file the index never held (a first write is not a reuse question), past a one-second budget, on any error, and for a nudge this context has already been given about the same declaration in the same file. \(EnvironmentVariable.noAdvice.name) turns it off, as it does pre-tool-use.
             """
@@ -27,10 +27,14 @@ struct PostToolUseCommand: ParsableCommand {
     @Option(name: .customLong("agent"), help: "The harness whose hook protocol to read and answer in: claude or cursor (default claude). Set by the registration, never guessed from the payload.")
     var agent: HookAgent = .claude
 
+    @Flag(name: .customLong("run-only"), help: "Answer a shell call's result alone (the diagnostics a build printed); a write, an edit or a lookup draws nothing. What `install --run-only` registers for Cursor and Codex, whose registrations cannot match on the tool.")
+    var runOnly = false
+
     func run() {
         let disabled = EnvironmentVariable.noAdvice.value(in: ProcessInfo.processInfo.environment) ?? ""
         guard disabled.isEmpty else { return }
         let payload = Self.hookPayload()
+        guard !runOnly || Self.isShellCall(payload, agent: agent) else { return }
         guard agent == .claude else {
             Self.answerCursor(to: payload)
             return
@@ -42,6 +46,11 @@ struct PostToolUseCommand: ParsableCommand {
         guard !CursorHookPayload.recognises(payload) else { return }
         Self.forgetMissedDigest(payload: payload)
         Self.answer(toEach: CodexApplyPatch.claudePayloads(from: payload) ?? [payload], timeBudget: Self.timeBudget())
+    }
+
+    /// Whether `payload` reports a shell call, the one call run mode answers: Cursor's `Shell`, else a `Bash` call, as Claude Code and Codex name it.
+    static func isShellCall(_ payload: [String: Any], agent: HookAgent) -> Bool {
+        agent == .cursor ? CursorPostToolUse.isShellResult(payload) : payload["tool_name"] as? String == "Bash"
     }
 
     /// The Claude Code event a failing `Bash` call fires instead of `PostToolUse`.

@@ -43,7 +43,6 @@
 # Names this repository *declares* are deliberately absent. Those are code: the compiler governs them,
 # a rename is a build error, and a permit list obliged to carry every one of them would fire
 # on an ordinary morning's work and be switched off inside a week.
-ADep
 ANDGate
 ANDed
 AccessibilityEnabled
@@ -54,7 +53,6 @@ AgentDetection
 AgentPaths
 AirDrop
 AirDropped
-AllCases
 AlmanacApp
 AlmanacCore
 AlphaHelpers
@@ -173,9 +171,7 @@ DegenerateLong
 DemoSpacedTests
 DemoUITests
 DemoUnitTests
-DepLib
 DepTests
-DepTwo
 DependentProductPaths
 DepotBox
 DepotCatalog
@@ -208,7 +204,6 @@ ExpressibleByDictionaryLiteral
 ExpressibleByExtendedGraphemeClusterLiteral
 ExpressibleByFloatLiteral
 ExpressibleByIntegerLiteral
-ExpressibleByNilLiteral
 ExpressibleByStringInterpolation
 ExpressibleByStringLiteral
 ExpressibleByUnicodeScalarLiteral
@@ -241,13 +236,11 @@ GeometryProxy
 GettingStarted
 GhostKit
 GitHub
-GizmoApart
 GizmoApp
 GizmoCore
 GizmoCoreTitle
 GizmoExtras
 GizmoKit
-GizmoOuter
 GizmoTests
 GizmoTitle
 GizmoTools
@@ -302,8 +295,6 @@ LSOverride
 LampTests
 LastUpgradeVersion
 LaunchAction
-LazyCollectionProtocol
-LazySequenceProtocol
 LedgerScopeUITests
 LedgerScopedTests
 LegacyApp
@@ -317,17 +308,14 @@ LibraryTests
 LinkedDerivedData
 LintRule
 LintTests
-LinterTests
 LinuxTests
 ListBuilder
 ListingTests
 LocalTestingActorID
 LocalTestingDistributedActorSystem
-LocalizedError
 LongAgo
 LongBeforeTheWindow
 LongTests
-LosslessStringConvertible
 MainActor
 MainOnly
 ManyTests
@@ -442,7 +430,6 @@ RenamedObjCTests
 ReportProducer
 ResultCache
 ResultCacheEraseTests
-RootLib
 RunOutput
 RunningBuildsAndTests
 SDKStatCaches
@@ -492,7 +479,6 @@ SourcePackages
 SpreadTests
 Sprocket0Tests
 Sprocket7Tests
-SproutKit
 SquareTests
 StacksTests
 StoreExample
@@ -539,10 +525,7 @@ TestPlanReference
 TestPlans
 TestTargets
 TestableReference
-TextOutputStream
-TextOutputStreamable
 TheFourTools
-TheRealName
 TickComment
 TileCard
 TimeInterval
@@ -629,7 +612,6 @@ XcodeGlob
 XcodeGrep
 XcodeRead
 YardView
-ZDep
 ZonePickTests
 aFailingTest
 aFlagAddedAfterThisTableWasWritten
@@ -677,7 +659,6 @@ applyCoupon
 archivePath
 archiveVersion
 argNum
-arrayLiteral
 assertEventually
 assertLayout
 assertThing
@@ -728,7 +709,6 @@ besideIndexCall
 betaOnly
 binaryTarget
 bodyWidth
-booleanLiteral
 branchOnlyRamp
 brandPrimary
 buildAndRunTests
@@ -794,7 +774,6 @@ customMirror
 dSYM
 debugDescription
 decidedAtRuntime
-decodeIfPresent
 defaultLanguage
 defaultPackageRegistryURL
 deleteComponent
@@ -802,7 +781,6 @@ dependencyCall
 deploymentTarget
 devicesAndConfigurations
 dialReadsOne
-dictionaryLiteral
 didSet
 digestHeldWindow
 dimLampWorks
@@ -833,7 +811,6 @@ enablePerformanceTestsDiagnostics
 enableThreadSanitizer
 enableUndefinedBehaviorSanitizer
 enabledPlugins
-endIndex
 endsWith
 enumNamespaces
 erGo
@@ -850,7 +827,6 @@ exportNotarizedApp
 exportOptionsPlist
 exportPath
 extendedBy
-extendedGraphemeClusterLiteral
 externalMacro
 extraFiles
 extraKnownMarketplaces
@@ -864,7 +840,6 @@ fileRef
 fileSha256
 fileSystemSynchronizedGroups
 fileURLWithPath
-floatLiteral
 foldByCaller
 forEach
 forKeys
@@ -877,10 +852,8 @@ freeStanding
 freeStandingToo
 freeWithName
 fromExtension
-futureField
 gateLeg
 generalPurpose
-getEmbeddedNSError
 giveBack
 givingBackRestocks
 globalActor
@@ -910,7 +883,6 @@ importComponent
 importLocalizations
 importPath
 importPlatform
-includingManifests
 includingTests
 inheritsTheSuitesReason
 initialValue
@@ -918,8 +890,6 @@ innerTest
 inputSchema
 inputTokens
 installedRuleName
-intValue
-integerLiteral
 invokedAs
 isBashOptedIn
 isDirectoryKey
@@ -963,10 +933,7 @@ linuxOnly
 liveTest
 loadAlpha
 loadBeta
-loadDelta
-loadEpsilon
 loadGamma
-loadZeta
 localizationPath
 locatedWindow
 loggedIn
@@ -994,7 +961,6 @@ nBuilding
 namedInPrompt
 nestedCall
 newValue
-nilLiteral
 noCall
 noLookup
 noSuchMember
@@ -1039,13 +1005,6 @@ outsideWindow
 overSize
 overdueCountsLongLoans
 overrideOf
-packFive
-packFour
-packOne
-packSeven
-packSix
-packThree
-packTwo
 packageAuthorizationProvider
 packageCachePath
 packageDependencySCMToRegistryTransformation
@@ -1087,7 +1046,6 @@ quotePath
 quotesACount
 quotesAnEnding
 quotesThePhraseInItsFailure
-rawHashValue
 reachesWidgetThroughTheHelper
 readTestResult
 readabilityHandler
@@ -1099,7 +1057,6 @@ recoverySuggestion
 recursionInfoArray
 registryType
 regularExpression
-relayHolder
 remoteSourceControl
 removedNames
 renderHeader
@@ -1167,13 +1124,11 @@ srcBytes
 staleDetail
 standardizedFileURL
 standingFor
-startIndex
 startsWith
 statusLine
 stillQuiet
 stringQuote
 stringUnit
-stringValue
 structuredPatch
 subagentStart
 swallowedFromHereOn
@@ -1280,7 +1235,6 @@ undefinedSymbol
 underGoing
 underestimatedCount
 unheededRun
-unicodeScalarLiteral
 unicodeScalars
 unindexedTree
 unitKeepsADeletedFile
@@ -1293,7 +1247,6 @@ updatedInput
 usableFromInline
 usageStamp
 userHome
-userInfo
 usesWidgetDirectly
 verdictShaped
 viewBox

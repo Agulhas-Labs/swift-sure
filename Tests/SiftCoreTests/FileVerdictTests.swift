@@ -15,7 +15,7 @@ struct FileVerdictTests {
 
     private static let banner = "⚠ module guessed — no build file declares: Sources/App/Depot.swift — `digest <Module>` and `Module.Type` are wrong for them. "
         + "No query can fix this, and no build file this tool reads (SwiftPM, XcodeGen, .xcodeproj) declares them — "
-        + "if they do belong to a target, tell the user to run `swift-sure init` here and take its `moduleMap` proposals."
+        + "if they do belong to a target, tell the user to write a `moduleMap` entry for them in `.swift-sure.json`."
 
     private static var servedNote: String {
         "(20 lines; a digest of 1 declaration over 17 lines of code summarises little the source does not say, so the source itself follows)"

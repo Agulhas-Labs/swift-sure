@@ -4,7 +4,7 @@
 
 /// What `digest` answers for a target on a type the repository writes and declares nowhere, a path or package dependency's, where none of the repository's extensions serves it.
 ///
-/// SwiftSure indexes no dependency sources, so a member the repository's extensions do not declare is neither confirmed nor ruled out: the answer says so, and lists what the repository can answer, its extensions of the type, its own declarations of the member's name on other types, and the `where` query for its uses. Every such answer is a miss, since it serves no source.
+/// SwiftSure indexes no dependency sources, so a member the repository's extensions do not declare is neither confirmed nor ruled out: the answer says so, and lists what the repository can answer, its extensions of the type, how many times the repository declares the member's name on other types, and the `where` query for its uses. Every such answer is a miss, since it serves no source.
 struct DigestExternalTypeAnswer {
     let renderer: DigestRenderer
 
@@ -47,13 +47,7 @@ struct DigestExternalTypeAnswer {
         }
         let elsewhere = try renderer.store.symbols(named: base).filter { $0.kind != .extensionKind }
         if !elsewhere.isEmpty {
-            lines += ["", "other declarations of \(base) in this repository (\(elsewhere.count)):"]
-            for row in elsewhere.prefix(DigestCaps.listCap) {
-                try lines.append("  \(renderer.qualifiedTarget(of: row)) — \(row.kind.rawValue) — \(row.path)\(row.rangeDescription)")
-            }
-            if elsewhere.count > DigestCaps.listCap {
-                lines.append("  truncated: \(elsewhere.count - DigestCaps.listCap) more declarations")
-            }
+            lines += ["", "\(base) is declared \(elsewhere.count) time\(elsewhere.count == 1 ? "" : "s") on other types in this repository — where \(base) lists them"]
         }
         lines += ["", "where --refs \(type).\(base) lists this repository's uses of it"]
         return MeasuredAnswer(text: (lines + pointer()).joined(separator: "\n"), missed: true)

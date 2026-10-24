@@ -248,28 +248,6 @@ struct SemanticPropertyUseTests {
         #expect(!output.contains("no callers recorded in the store for"))
     }
 
-    /// `swift-sure diff` resolves a changed property's sites through the same store query, so a property the store records as read is never "resolved by the index store: 0 uses".
-    @Test
-    func aChangedPropertysUsesInADiffAreResolvedFromTheStore() async throws {
-        let root = try TestSources.makeTempRepo()
-        try Self.writePackage(in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try TestSources.write(Self.limits(gap: "package static let gap: Int = 7"), to: "Sources/GizmoCore/Limits.swift", in: root)
-        try TestSources.commitAll(in: root, message: "annotate")
-        try await TestSources.swiftBuild(packageAt: root)
-
-        let engine = try SiftEngine(directory: root)
-        TestSources.raiseOpenBudgetForAColdStore(engine)
-        try await engine.awaitSemanticStore()
-        let freshness = try await engine.ensureFresh()
-        let range = try DiffRange.resolve("HEAD", git: GitContext(repoRoot: root))
-        let output = try await engine.diff(options: DiffOptions(range: range, member: nil, offset: 0), freshness: freshness)
-
-        #expect(output.contains("~ Limits.gap — resolved by the index store: 2 uses"))
-        #expect(output.contains("      measure() — Sources/GizmoCore/Reader.swift:7"))
-        #expect(output.contains("      total() — Sources/GizmoApp/Use.swift:4"))
-    }
-
     /// A line's units are the build units that recorded something on it, never its occurrences: `count = count + 1` from one build is a write and a read on one line, and one unit; the same line recorded by two builds is two units; and a use two builds put on different lines is drifted evidence, listed on each.
     @Test
     func aLinesUnitsAreTheBuildUnitsThatRecordedItNeverItsOccurrences() {

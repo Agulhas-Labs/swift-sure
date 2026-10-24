@@ -11,16 +11,16 @@ import SiftCore
 struct CodexHookInstaller {
     /// Registers the hooks and the server in `home` for `binary`, an absolute path, and prints the answer; exits 1 when the server could not be registered.
     @discardableResult
-    static func install(home: CodexInstall.Home, binary: String, runner: any CodexMcpRunner, output: CommandOutput) throws -> InstallOutcome {
-        let outcome = try installing(home: home, binary: binary, runner: runner, output: output)
+    static func install(home: CodexInstall.Home, binary: String, runner: any CodexMcpRunner, output: CommandOutput, mode: SiftClaudeSetup.InstallMode = .index) throws -> InstallOutcome {
+        let outcome = try installing(home: home, binary: binary, runner: runner, output: output, mode: mode)
         try exit(outcome)
         return outcome
     }
 
     /// The install without the exit: prints the answer and returns what it did, a server that could not be registered among its failures.
-    static func installing(home: CodexInstall.Home, binary: String, runner: any CodexMcpRunner, output: CommandOutput) throws -> InstallOutcome {
+    static func installing(home: CodexInstall.Home, binary: String, runner: any CodexMcpRunner, output: CommandOutput, mode: SiftClaudeSetup.InstallMode = .index) throws -> InstallOutcome {
         output.emit(home.line)
-        let outcome = try CodexInstall.install(home: home, binary: binary, binaryWord: ShellWord.quoted(binary), runner: runner)
+        let outcome = try CodexInstall.install(home: home, binary: binary, binaryWord: ShellWord.quoted(binary), runner: runner, mode: mode)
         emit(outcome, to: output)
         output.emit(restart)
         for line in CodexInstall.unsupported {

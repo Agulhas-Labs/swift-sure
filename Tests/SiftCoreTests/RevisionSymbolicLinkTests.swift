@@ -75,86 +75,6 @@ struct RevisionSymbolicLinkTests {
         #expect(digest.contains("Sources/Links/Link.swift exists at \(head.prefix(8)) but is excluded: it is a symbolic link"), "\(digest)")
     }
 
-    /// A range between two commits breaks down a file both commits hold as a file, though the working tree holds a link there.
-    @Test
-    func aRangeBreaksDownAFileThoughTheWorkingTreeHoldsALink() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(Self.drum, to: "Sources/Links/Drum.swift", in: root)
-        try TestSources.write(Self.kick, to: "Sources/Links/Link.swift", in: root)
-        try TestSources.commitAll(in: root, message: "drum and kick")
-        let first = try Self.head(of: root)
-        try TestSources.write(Self.kick.replacingOccurrences(of: "enum Kick {\n", with: "enum Kick {\n    static func tune() {}\n"), to: "Sources/Links/Link.swift", in: root)
-        try TestSources.commitAll(in: root, message: "tune the kick")
-        let second = try Self.head(of: root)
-        try Self.link("Sources/Links/Link.swift", to: "Drum.swift", in: root)
-
-        let answer = try await DiffEngineTests.diff(root, range: "\(first)..\(second)")
-
-        #expect(answer.contains("tune"), "\(answer)")
-        #expect(!answer.contains("symbolic link"), "\(answer)")
-    }
-
-    /// A range whose commits hold a link at a path leaves it out, though the working tree holds a file there; so does a deletion of a link, read on the side that held it.
-    @Test
-    func aRangeLeavesOutALinkThoughTheWorkingTreeHoldsAFile() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(Self.drum, to: "Sources/Links/Drum.swift", in: root)
-        try TestSources.write(Self.kick, to: "Sources/Links/Kick.swift", in: root)
-        try Self.link("Sources/Links/Link.swift", to: "Drum.swift", in: root)
-        try Self.link("Sources/Links/Gone.swift", to: "Drum.swift", in: root)
-        try TestSources.commitAll(in: root, message: "drum, kick and two links")
-        let first = try Self.head(of: root)
-        try Self.link("Sources/Links/Link.swift", to: "Kick.swift", in: root)
-        try FileManager.default.removeItem(at: root.appendingPathComponent("Sources/Links/Gone.swift"))
-        try TestSources.commitAll(in: root, message: "point the link at the kick, drop the other")
-        let second = try Self.head(of: root)
-        try Self.unlink("Sources/Links/Link.swift", writing: Self.kick, in: root)
-
-        let answer = try await DiffEngineTests.diff(root, range: "\(first)..\(second)")
-
-        #expect(answer.components(separatedBy: "it is a symbolic link").count == 3, "\(answer)")
-    }
-
-    /// A link that became a file across a range adds the file's declarations, the link's own text read as no source at all.
-    @Test
-    func aRangeReadsALinkThatBecameAFileAsAnAddition() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(Self.drum, to: "Sources/Links/Drum.swift", in: root)
-        try Self.link("Sources/Links/Link.swift", to: "Drum.swift", in: root)
-        try TestSources.commitAll(in: root, message: "drum and a link to it")
-        let first = try Self.head(of: root)
-        try Self.unlink("Sources/Links/Link.swift", writing: Self.kick, in: root)
-        try TestSources.commitAll(in: root, message: "the link becomes the kick")
-        let second = try Self.head(of: root)
-
-        let answer = try await DiffEngineTests.diff(root, range: "\(first)..\(second)")
-
-        #expect(answer.contains("declarations: 0 removed, 0 changed, 1 added"), "\(answer)")
-        #expect(answer.contains("Sources/Links/Link.swift (added"), "\(answer)")
-        #expect(answer.contains("+ enum Kick"), "\(answer)")
-        #expect(!answer.contains("symbolic link"), "\(answer)")
-    }
-
-    /// A file that became a link across a range removes the file's declarations, where it was once left out whole.
-    @Test
-    func aRangeReadsAFileThatBecameALinkAsARemoval() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(Self.drum, to: "Sources/Links/Drum.swift", in: root)
-        try TestSources.write(Self.kick, to: "Sources/Links/Link.swift", in: root)
-        try TestSources.commitAll(in: root, message: "drum and kick")
-        let first = try Self.head(of: root)
-        try Self.link("Sources/Links/Link.swift", to: "Drum.swift", in: root)
-        try TestSources.commitAll(in: root, message: "the kick becomes a link to the drum")
-        let second = try Self.head(of: root)
-
-        let answer = try await DiffEngineTests.diff(root, range: "\(first)..\(second)")
-
-        #expect(answer.contains("declarations: 1 removed, 0 changed, 0 added"), "\(answer)")
-        #expect(answer.contains("Sources/Links/Link.swift (deleted"), "\(answer)")
-        #expect(answer.contains("- enum Kick"), "\(answer)")
-        #expect(!answer.contains("symbolic link"), "\(answer)")
-    }
-
     /// The tests a range affects are sought from a file both commits hold as a file, though the working tree holds a link there.
     @Test
     func anAffectedRangeKeepsAFileThoughTheWorkingTreeHoldsALink() async throws {
@@ -196,39 +116,5 @@ struct RevisionSymbolicLinkTests {
 
         #expect(answer.contains("Sources/Links/Link.swift — deleted"), "\(answer)")
         #expect(!answer.contains("added or modified"), "\(answer)")
-    }
-
-    /// A file at HEAD that an unstaged link replaces in the working tree reads as a removal, the after side tested by `lstat`.
-    @Test
-    func anUnstagedLinkOverAFileReadsAsARemovalAgainstTheWorkingTree() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(Self.drum, to: "Sources/Links/Drum.swift", in: root)
-        try TestSources.write(Self.kick, to: "Sources/Links/Link.swift", in: root)
-        try TestSources.commitAll(in: root, message: "drum and kick")
-        try Self.link("Sources/Links/Link.swift", to: "Drum.swift", in: root)
-
-        let answer = try await DiffEngineTests.diff(root)
-
-        #expect(answer.contains("declarations: 1 removed, 0 changed, 0 added"), "\(answer)")
-        #expect(answer.contains("Sources/Links/Link.swift (deleted"), "\(answer)")
-        #expect(answer.contains("- enum Kick"), "\(answer)")
-        #expect(!answer.contains("symbolic link"), "\(answer)")
-    }
-
-    /// A link at HEAD that an unstaged file replaces in the working tree reads as an addition, the after side tested by `lstat`.
-    @Test
-    func anUnstagedFileOverALinkReadsAsAnAdditionAgainstTheWorkingTree() async throws {
-        let root = try TestSources.makeTempRepo()
-        try TestSources.write(Self.drum, to: "Sources/Links/Drum.swift", in: root)
-        try Self.link("Sources/Links/Link.swift", to: "Drum.swift", in: root)
-        try TestSources.commitAll(in: root, message: "drum and a link to it")
-        try Self.unlink("Sources/Links/Link.swift", writing: Self.kick, in: root)
-
-        let answer = try await DiffEngineTests.diff(root)
-
-        #expect(answer.contains("declarations: 0 removed, 0 changed, 1 added"), "\(answer)")
-        #expect(answer.contains("Sources/Links/Link.swift (added"), "\(answer)")
-        #expect(answer.contains("+ enum Kick"), "\(answer)")
-        #expect(!answer.contains("symbolic link"), "\(answer)")
     }
 }

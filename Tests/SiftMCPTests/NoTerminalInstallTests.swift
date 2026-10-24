@@ -52,7 +52,9 @@ struct NoTerminalInstallTests {
 
         #expect(calls.count == 1)
         #expect(calls.first?.contains("install-hook \"$@\"") == true)
-        #expect(script.contains("--allow-run | --allow-lookups) ;;"))
+        #expect(script.contains("--allow-run) ;;"))
+        #expect(script.contains("--allow-lookups) lookups=1 ;;"))
+        #expect(script.contains("--run-only) index=0 ;;"))
         #expect(script.contains("unknown option"))
     }
 }

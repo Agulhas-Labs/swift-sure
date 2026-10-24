@@ -50,8 +50,7 @@ answer (§2's freshness contract names the commands that open otherwise); invali
 - **No writes to source**, with one specified exception — `rename` (§3), the one edit that is mechanical
   once the symbol is resolved. "Help me refactor" stays out: vagueness is where a write tool starts
   guessing. `run --without` sets uncommitted changes aside for one test run and restores every byte,
-  checked by content hash. The tool does write its own files: the `.swift-sure/` cache and `~/.swift-sure`, a
-  `.swift-sure.json` on `init --write`, the report page, the Claude Code settings `install-hook` edits and their
+  checked by content hash. The tool does write its own files: the `.swift-sure/` cache and `~/.swift-sure`, the report page, the Claude Code settings `install-hook` edits and their
   `settings.json.bak-swift-sure` backup, and one line of `.git/info/exclude` — never a file the build compiles.
 - **No generated agent-instruction file describing the code.** Derivable structure — layouts, type
   inventories, architecture overviews — is what `digest` serves on demand under a freshness contract, so
@@ -86,7 +85,7 @@ WAL mode, at `<repo>/.swift-sure/index.db`, kept out of git by `.git/info/exclud
 
 **A tree that cannot be written gets its index in memory.** A vendored checkout under a package cache, a CI
 read-only mount or another user's checkout has nowhere to put `.swift-sure/`, and refusing every command there would
-refuse the four that never open the index (`search`, `similar`, `dupes`, `strings`) along with the rest. So
+refuse the two that never open the index (`search`, `strings`) along with the rest. So
 where `.swift-sure/` cannot be made, or `.swift-sure/` or its `index.db` is there but not writable, the engine opens the
 index in memory for its own life instead, and writes nothing under the tree. Only a permission refusal (no
 write permission, a read-only volume) is read that way; any other failure to open the store still fails, so a
@@ -94,7 +93,7 @@ corrupt or locked index is never quietly replaced. The in-memory index is built 
 file is, so the header still measures the tree; what changes is the cost — each CLI command parses the whole
 tree, while the MCP server keeps one engine per root and so pays once per session — and the answers say it:
 `digest` and `where` carry a note under the header naming the in-memory index and why, and `status` prints
-`db: in memory` in place of a size. `index` and `reconcile`, whose whole effect is the stored index, refuse in
+`db: in memory` in place of a size. `index`, whose whole effect is the stored index, refuses in
 such a tree with one line saying the tree is not writable and that the query commands index it in memory on
 each call. The hook never pays that parse: it is a process of its own per call, so an in-memory index would
 be a whole-tree parse on every Read or grep of a `.swift` file (1.3–1.9 s at 3,000 files, measured, and a
@@ -163,9 +162,8 @@ Xcode's `c99extidentifier` spells it (`My-App` builds `My_App`), names the modul
 on, keeps the target's name but counts its files as guessed, since `where`'s framework-qualified extension
 rule trusts a tree only while every module is declared. Such a file's guessed-module banner is the second of
 its two kinds, opening `⚠ module guessed — a build file renames the module through a setting this tool cannot
-read:` rather than `— no build file declares:`, because the first kind's remedy is `init`'s `moduleMap` draft
-and that draft would be the target's own name, the one the build replaces; `init` lists these paths apart and
-proposes no module for them, and `--write` leaves them out. **A config path-prefix map** is the fallback.
+read:` rather than `— no build file declares:`, because the remedy for a renamed module is a `moduleMap` entry
+naming the module the build really produces, not the target's own name, which the build replaces. **A config path-prefix map** is the fallback.
 
 All three are *discovered* by one shared walk that closes bundles, follows symlinks logically, never enters
 a hidden or excluded directory (§5 — the walk and the enumerator apply one rule, so a build file cannot name
@@ -452,7 +450,7 @@ That holds for a file digest that stays a digest too: the passthrough reads the 
 the digest, so a large file is hashed and reparsed like a small one. A stale file that cannot be parsed (not
 UTF-8, unreadable, gone since the read) keeps its old rows and the header says so (`could not be
 reparsed: <path>`), never "reparsed". Every other answer — a miss naming a declaration only the new bytes
-hold, `where` — keeps the old rows until `reconcile` (§6.4), which hashes every file. **Whether a candidate
+hold, `where` — keeps the old rows until the reconcile sweep (§6.4), which hashes every file. **Whether a candidate
 changed is settled by content, never by its stat alone**: a size that differs from the row reparses, and an
 equal size is hashed and compared with the row's `content_hash`, whatever the mtime says, because size and
 mtime both survive a real edit (`touch -r`, `cp -p`, `rsync -t`, an archive extraction, a same-length
@@ -491,7 +489,7 @@ other answer's is:
 tree: Orchard  head: a1b2c3d  dirty: 3  parse_errors: 1  semantic: stale since last build (2 cited files changed)
 ```
 
-**`index` and `reconcile` are the exception, and it is deliberate**: each writes an index, so which
+**`index` is the exception, and it is deliberate**: it writes an index, so which
 repository it adopted is said before any work starts, and the header follows the work it measures. The
 reports — `usage`, `audit`, `run`, `servers`, `flakes` and `report` — describe logs, runs and processes
 rather than one tree's index, and open with first lines of their own.
@@ -520,7 +518,7 @@ HEAD move diffs the recorded head against the new one and reparses only the Swif
 changed — a plain commit of edits already indexed costs a `stat` and a hash per file and no parse. It must not refuse
 and must not rebuild the index, because the head comparison is a fast path for "diff nothing", not a
 validity gate; a recorded head that no longer resolves (a rebase, a rewritten history) converges through
-`reconcile` (§6.4). **The index store against the working tree cannot self-heal**, because only a *build*
+the reconcile sweep (§6.4). **The index store against the working tree cannot self-heal**, because only a *build*
 refreshes it: semantic answers about a symbol whose file changed since the store's unit was built refuse
 **per symbol**, and the instruction is "build the project", since rebuilding this tool's own index fixes
 nothing on that axis.
@@ -796,7 +794,7 @@ then `+N`: `not compiled by the last build: <Module> — build it for current ro
 whenever no counted file changed before the store's newest unit, which is every answer after a full build.
 
 **`affected` and `diff` judge by the same rule**, through the same judge: the semantic walk's two
-comparisons with the store anchor, `DiffRenderer`'s stale files and the wrapper-site check
+comparisons with the store anchor, the stale files and the wrapper-site check
 (`WrapperAttributeSites`) go through it, as do two more readers of the anchor: `SameNamedTypes.swift:338`,
 which builds its own `OccurrenceFreshness`, and `AffectedRenderer.afterEditSeeds` (:502-506), which compares
 the head-move and last-commit times with the store-wide anchor, so after a partial build it would not seed a
@@ -906,7 +904,11 @@ callers of Lib.DepotStore.restock() (2, 1 file changed since last build, 1 file 
     :2  refill()
   Sources/Lib/DepotOld.swift (1):  (file deleted since last build)
     :3  open()
-new since last build, not in the store, mention the name: Sources/Lib/DepotBox.swift:3 · Sources/Lib/DepotCatalog.swift:2
+new since last build, not in the store, mention the name:
+  Sources/Lib/DepotBox.swift (1):
+    :3  | box.open()
+  Sources/Lib/DepotCatalog.swift (1):
+    :2  | catalog.open()
 ```
 
 #### Implementation plan
@@ -930,7 +932,7 @@ for a ruling rather than shipping.
 
 1. **The judge.** `SemanticContext` kept the instance `buildAnchor` until step 5 deleted it, so no step
    broke a reader it did not migrate; each step moved its own readers off it (the readers: `AffectedRenderer`,
-   `DiffCallers`, `SameNamedTypes.swift:338`, `WhereChangedFileMentions`, the several-owners answer,
+   `SameNamedTypes.swift:338`, `WhereChangedFileMentions`, the several-owners answer,
    `WrapperAttributeSites`, and `WhereRenderer.swift` at :211, :468, :539, :554 and :561); the static
    `buildAnchor(newestUnit:)` stays for `status`. `SemanticStore` gains the
    newest-unit map; `currentUnitFloor`, `hasUnit` and the context's unit readers go through it. In place
@@ -947,7 +949,7 @@ for a ruling rather than shipping.
 4. **The axis.** `SemanticAxis.stale` carries a count per kind and the one path; `staleDetail` renders the
    forms and the fold; `staleByFileState` shares it. Pins: `StaleKindsHeaderTests`.
 5. **`affected`, `diff` and `status`.** `AffectedRenderer`'s semantic walk, `WrapperAttributeSites` and
-   `DiffRenderer`'s stale files go through the judge, as do `SameNamedTypes.swift:338` and `AffectedRenderer.afterEditSeeds`; the instance
+   the stale files go through the judge, as do `SameNamedTypes.swift:338` and `AffectedRenderer.afterEditSeeds`; the instance
    `buildAnchor` was deleted here (it is gone); the `status` note names the help topic that lists the partial-build case (`swift-sure help answers`). Pins:
    `PartialBuildAffectedStatusTests`.
 6. **The texts.** Every place the old wording is said: `HelpTopics` (`swift-sure help answers`), this section's
@@ -1046,7 +1048,7 @@ Which verbs change, exactly:
   path sets the axis); `search` and `strings` are the live shape. A field that cannot vary measures nothing.
 - **Unchanged:** `where` (including a `where` that resolved no declaration and so never opened the store:
   there the field varies), `affected` and `status` render the header as today.
-- **Unchanged, `syntactic-only` kept:** `index` (IndexCommand), `reconcile` (ReconcileCommand), test
+- **Unchanged, `syntactic-only` kept:** `index` (IndexCommand), test
   analysis (`SiftEngine.swift:412`) and run reconciliation (`SiftEngine.swift:423`) all build their header
   from `Freshness.headerLine` with the default axis; the field is dropped inside `Freshness` only for the
   three verbs above, by a second `Freshness` header method, without the field, that the three call, so these four stay as they are.
@@ -1227,7 +1229,7 @@ each (b) line's presence under its condition):
 - `which is not use`: `WhereNoStoreOwnLinesTests`, `CrossModuleTypeUsageWhereTests`, `WhereExtensionSpellingTests`,
   `WhereHiddenTwinOwnershipTests`, `WhereTypeSyntacticUsageTests`, `TypeUsageWhereTests`;
 - property and case boundaries: `SemanticUnitTests`, `NamedFileGrepScopeTests` (MCP);
-- the live header and the search caveat: `AnswerHeaderTests`, `DigestedFilesTests`, `DiffCommandTests` (MCP),
+- the live header and the search caveat: `AnswerHeaderTests`, `DigestedFilesTests`,
   `WorkingTreeTests`, `CleanHeaderTests`, and the fixture `SiftMCPTests/Fixtures/codex-shell-payloads.json`;
 - `semantic: syntactic-only` on `digest`: among the 31 test files asserting a `semantic:` value, those asserting a
   digest's (`DigestedFilesTests`, `DigestFollowUpTests`, `FileVerdictTests`, `TranscriptAuditTests`,
@@ -1250,7 +1252,7 @@ fold is by line, the unit the section counts in: a line `callers of` listed on a
 else it holds (a call and the function handed on unapplied on one line are one place to edit, and the row's text
 shows both); a line it only counted, a caller's later sites under the fold by caller or a caller past its cap, is
 listed here. Each declaration folds against its own callers, so overloads called on one line fold apart. The files
-and the `offset` cursor are the unlisted lines', so every page lists the same lines above and the rest page in turn. This is the AnswerContract §3
+and the `offset` cursor are the unlisted lines', so every page lists the same lines above and the rest page in turn. A property's or subscript's `reads and writes of` and an enum case's `uses of` fold the same way, headed `K of them the reads and writes above` and `K of them the uses above` (#1041). This is the AnswerContract §3
 amendment below ("Nor is anything said twice") and a separate commit in the build order, because it changes
 section content rather than framing lines.
 
@@ -1286,8 +1288,7 @@ section content rather than framing lines.
 Beyond the query tools the CLI carries the lifecycle commands: `index` (incremental, or `--full`),
 `status` (the doctor: freshness header, row counts, database size, modules, config, the store-discovery
 result, every file with a parse error or a guessed module, and the hook-registration, agent-allowlist and
-server checks of §4), `reconcile`, `reset`, and `init`, which inspects a repository's layout and
-proposes a config, printing unless asked to write and adding only missing keys, because the module map
+server checks of §4) and `reset`. There is no `init`: the config is written by hand, and the module map
 is where a person supplies target names the tool could only guess at. `test` builds a scheme once and
 splits its plan across N simulators it creates and deletes itself, answering with one reconciliation —
 expected, ran, passed, failed, skipped, missing, duplicated — counted against what `xcodebuild` itself
@@ -1295,7 +1296,7 @@ said the plan would run rather than the tallies the runners printed; `swift-sure
 answer line by line. `help [<topic>]` sits apart from all of it: fixed reference text for rare moments
 (reading a red `run` block, `flakes`, the parse-error banners, root resolution, per-tool depth, and the
 hook's accounting rules), compiled into the binary rather than read from the index, so it carries no
-freshness header and no `--root` — the always-loaded agent rule (`SwiftSure.md`) names each topic in one line
+freshness header and no `--root` — the agent rule (`SwiftSure.md`) says `swift-sure help` lists the topics
 and points here rather than repeating the depth. A name that matches a registered subcommand instead of a
 topic falls through to that subcommand's own usage. The commands that serve, wire and measure the MCP
 face — `mcp`, `session-start`, `pre-tool-use`, `install-hook`, `uninstall-hook`, `uninstall`,
@@ -1492,9 +1493,12 @@ is counted as a declaration and never reads as external, and `Net` written as th
 bare in that file, `let net: Net` or `Net()`, is the type); a path whose type the repository neither declares nor writes keeps the wrong-path wording
 (`Missing.objectTypes — objectTypes is declared, but not under Missing`), which stays for a type the
 repository does declare, since there the member really is elsewhere. An extension the repository writes of
-the external type is listed, as `digest` does, and its file is named under `--files`. The repository's own
-declarations of `member`, on other types, are listed too, under `other declarations of member in this
-repository`, a heading that says nothing of `Dep`. The headline is an absence claim, so it carries the
+the external type is listed, as `digest` does, and its file is named under `--files`. How many
+times the repository declares `member` on other types is one line, `member is declared N times on other
+types in this repository — where member lists them`, which says nothing of `Dep` and lists no row. The answer
+ends with the cross-root pointer: a sibling root declaring the path `Dep.member` gets the path line, else one
+declaring or extending `Dep` gets the line for `Dep` (the type-name pointer is printed only on this answer, so
+a dependency's member in a sibling root's extension is found by a re-rooted query). The headline is an absence claim, so it carries the
 repo-wide parse-error banner like every other, and where the banner is present it says `Dep is declared in no
 file the index read in full — outside this repository, or in a file that did not fully parse`, since a
 truncated file can hide the declaration. With a store, the `semantic:` header is the verdict over the files
@@ -1513,9 +1517,8 @@ names no parent. Where one of the repository's own extensions of `Dep`
 declares `member`, its source is served as for any member. Where none does, the answer opens
 `Dep — declared outside this repo (or not indexed), so member is neither confirmed nor ruled out on it`, since
 SwiftSure indexes no dependency sources. It then lists the repository's extensions of `Dep` by their header lines,
-capped, with `digest Dep` named for their members, or says `no extension of Dep in this repository`. Then come
-the repository's own declarations of `member` on other types, under `other declarations of member in this
-repository`. Its last line of its own is `where --refs Dep.member` for the repository's uses of it; any
+capped, with `digest Dep` named for their members, or says `no extension of Dep in this repository`. Then comes
+the count line for the repository's own declarations of `member` on other types, as `where` prints it. Its last line of its own is `where --refs Dep.member` for the repository's uses of it; any
 sibling-root pointer lines follow it. The headline is an absence claim, so it carries the parse-error banner.
 `digest Dep` for a `Dep` the repository writes but extends nowhere says `Dep — declared outside this repo (or
 not indexed); no local extensions` in place of `no symbol named Dep` or the nearest-symbols list. The test is
@@ -1691,7 +1694,7 @@ class overrides; emptiness is one summary line.
 
 `--files` is the files-only form of that sweep (`where X --files`, `files: true` on the MCP tool; it implies `--refs`), for the question "which files contain X", where the per-site rows are most of the answer's size and none of what is asked. **The invariant:** no file the full `--refs` answer names, on any of its pages, is missing from its files: declaration and extension files, every reference row's file, every name-matched row's file (a type's uses by written name, a member's or caller's name-matched sites and the ones written with no call, a property wrapper's `@T` attribute sites, an undeclared initializer's sites), every `not code` row's file, the `file names:` entries, and the files a `not in the build` or `new since last build, not in the store, mention the name:` line names. One render of the sweep's first page carries a `WhereFilesCollector`, and each section records its whole list into it before any cap or page cuts the list; no answer text is read back. Where `--refs` truncates a list without paging it (a type's uses by written name past 40 files, `truncated: N more files — grep for the name to list them`, or past 30 lines in a file, `+N more`; a name-matched block past its call-site cap), `--files` lists more files than `--refs` shows, so `--refs`'s files are a subset of `--files`'s, and the extra ones reconcile against the section totals `--refs` prints. One row per file, sorted by path: `  <path> (<code lines>, declares, not code <N>)`, where the code count is the distinct lines the `--refs` block counts, `declares` marks a file holding a declaration or extension of the symbol, a file listed only under `file names:` reads `(file name)`, and a file changed since the last build keeps its `(file changed since last build)` mark. The heading `files naming <qualified> (<N> files: <a> with code sites, <b> with not-code mentions[, …]):` keeps what the `--refs` heading says of drift and incompleteness (changed since last build, macro-generated lines not listed, `$flag` siblings, `by written name` where a name-matched section listed a file, and `N more files holding the name not scanned` where a mentions scan counted files it did not read), so the view never reads as complete where the sweep would not. Dropped: the declarations section (only where the query resolves to one owner; several owners keep it, it is their narrowing), the `used by` line, the per-site rows and the `not code` rows. Kept: the tree header and every line that says the answer is degraded or incomplete (`UNAVAILABLE`, the mode line, `references:`, the `new since last build` line). Paging: one row per file, `WhereFilesCollector.filesListCap` (100) per page, with the sweep's `truncated: N more files — pass offset K to continue` marker and the same offset. A `--syntactic` sweep takes the same view: its name-matched lists record into the collector as the store's do. Where the `--refs` answer names no file or is no sweep (a bare name answered with its owners' declarations, `--at`, no store and no stand-in, UNAVAILABLE), `--files` returns exactly what `--refs` returns. The hook's in-place answers (`standsInForSearch`) are untouched. (#791)
 
-`--decl` is the declarations-only form of `where` (`where X --decl`, `decl: true` on the MCP tool), for the question "where is X declared", where everything after the declarations block is most of the answer's size and none of what is asked. A protocol's plain answer on the benchmark corpus ran 4,878 characters (its declarations, every use, its extension, 18 conformers and the file accounting) where a grep for `protocol X` answers in about 50 tokens, and the lookup cost 34% more than grep at medium effort, 36% at high. A throwaway build of this view took it from about 2,700 tokens to about 270 (−2,141 and −2,243 per run, paired from one checkout), and agents passed the flag in 12 of 12 runs from the primer's bullet alone (#823). **It never opens or asks the index store**: every line it prints comes from the syntactic index, so its header is the one `digest` prints, with no `semantic:` field (a field that cannot vary measures nothing), and no line about the store follows it (no degraded note, stores note, project hint or store pointer); a store that is warming, failing or missing changes nothing in it, and the CLI pays no store open. An `--at` answer keeps its own header. **The view**, in order: that header; the lines under it that qualify the syntactic index (`index: in memory`, an `--at` answer's parsed-files line, and the parse-error banner and floor note, since a file the parser could not finish can hide a declaration); the declarations block as a plain `where` prints it (the heading, the rows with an extension's member count and marks, the compact form's `signatures:` line); for a `T.init` query, the `declared with no init of their own (K):` block, its heading, rows and provenance lines without its call sites; and one line naming what it left out, `` `where <query>` without --decl covers its uses, extensions, conformers, callers and overrides. `` The renderer stops there; no answer text is read back or cut. **A block cut by its cap** keeps its `truncated: N more declarations` line and points on from it, since `--offset` does not page it: where the plain answer's tail would name rows its extensions block lists, the line ends `— where <query> lists` and that tail's clauses (`truncated: 60 more declarations — where Gizmo lists 40 of them under extensions of Gizmo`). **A bare name several unrelated owners declare** prints the same plain block, not the per-owner form: the per-owner form stands in for the use listings, `--decl` lists none, and each row's module-qualified name resolves as a query of its own. **An initializer the type does not declare** keeps its declarations and its provenance sentence and leaves out its call sites; the sentence drops its clause about them (`which the calls below reach`, `the calls below reach …`), and the pointer line follows. **Answers that never reach the declarations block** (a miss, `could not resolve the path`, the nearest symbols, a `deinit`'s answer) keep their bodies under the view's header, with no store pointer and no pointer line: each already is the declaration answer, or its absence. **Beside other flags:** `--at <rev>` answers the same view of that revision, since "was X declared at base?" is a declaration question. `--refs` and `--files` are refused beside it, on the CLI as `--decl answers where <query> is declared, and --refs and --files every place it is written: pass one.`, and on the MCP tool, only where either is `true`, as `where's decl: answers where <query> is declared, and refs: and files: every place it is written: drop one.` An `--offset` has nothing to page and is named unused after the pointer line, as in any answer with no store and no paged list; `--syntactic` still answers from the source in memory. **Left as they are:** the hook's in-place answers (`standsInForSearch`) never take the view; the hook's suggestion for a declaration-shaped search still names a plain `where X`, and a CLI call carrying a flag still does not count as following one (`IndexSuggestion.callsMade`), a follow-up of its own (#825); `LoggedLookup` and the usage log record no flags, so adoption is read from transcripts, where `audit --verbs` gives `where --decl` its own row (#824). **Where it is named:** the MCP parameter's description is `Only where it is declared.`, and the tool's description is unchanged; the primer's `where` bullet reads `definition (--decl for only that), callers, conformers, overrides`, the wording measured; the agent rule's `where` row adds, beside its `--files` clause, `` `where --decl` when the question is only where it is declared ``, unmeasured.
+`--decl` is the declarations-only form of `where` (`where X --decl`, `decl: true` on the MCP tool), for the question "where is X declared", where everything after the declarations block is most of the answer's size and none of what is asked. A protocol's plain answer on the benchmark corpus ran 4,878 characters (its declarations, every use, its extension, 18 conformers and the file accounting) where a grep for `protocol X` answers in about 50 tokens, and the lookup cost 34% more than grep at medium effort, 36% at high. A throwaway build of this view took it from about 2,700 tokens to about 270 (−2,141 and −2,243 per run, paired from one checkout), and agents passed the flag in 12 of 12 runs from the primer's bullet alone (#823). **It never opens or asks the index store**: every line it prints comes from the syntactic index, so its header is the one `digest` prints, with no `semantic:` field (a field that cannot vary measures nothing), and no line about the store follows it (no degraded note, stores note, project hint or store pointer); a store that is warming, failing or missing changes nothing in it, and the CLI pays no store open. An `--at` answer keeps its own header. **The view**, in order: that header; the lines under it that qualify the syntactic index (`index: in memory`, an `--at` answer's parsed-files line, and the parse-error banner and floor note, since a file the parser could not finish can hide a declaration); the declarations block as a plain `where` prints it (the heading, the rows with an extension's member count and marks, the compact form's `signatures:` line), **each row followed by its source where the declaration is small** (below); for a `T.init` query, the `declared with no init of their own (K):` block, its heading, rows and provenance lines without its call sites; and one line naming what it left out, `` `where <query>` without --decl covers its uses, extensions, conformers, callers and overrides. `` The renderer stops there; no answer text is read back or cut. **A small declaration's source follows its row.** A definition lookup should take one call, and the 022c bench transcripts show it taking two: on a 17-line enum, `--decl` was followed by a ranged Read in 3 of 3 runs while the grep arm's single `-A 40` answered, and on a 4-line function one run Read lines 110-119 for the body and another hedged that it had not opened the file to check which line held the `func` keyword; each Read costs a request, its result and the path-scoped rule's load (about 650 tokens net). So a declaration row whose own extent (its `start-end`) is at most `inlinedDeclarationLineCap` (30) lines is followed by exactly that range of its source, numbered as Read numbers lines (the number right-aligned to 6, a tab, the line; no `>` mark), and the doc comment above the range is not included (the row keeps its doc summary). Rows are taken in printed order while the answer's inlined total stays at most `inlinedAnswerLineCap` (40) lines; a row that would pass it gets no source and neither does any row after it, so the answer never shows a gap. Only that overflow ends inlining: a row over 30 lines, an extension row, and a row whose file cannot be read or ends before the row does (a stale row) are skipped, and the rows after them go on. The compact form (more than 5 declarations) inlines nothing. An `--at <rev>` answer inlines that revision's text. The plain `where` and the hook's in-place answers are unchanged. **A block cut by its cap** keeps its `truncated: N more declarations` line and points on from it, since `--offset` does not page it: where the plain answer's tail would name rows its extensions block lists, the line ends `— where <query> lists` and that tail's clauses (`truncated: 60 more declarations — where Gizmo lists 40 of them under extensions of Gizmo`). **A bare name several unrelated owners declare** prints the same plain block, not the per-owner form: the per-owner form stands in for the use listings, `--decl` lists none, and each row's module-qualified name resolves as a query of its own. **An initializer the type does not declare** keeps its declarations and its provenance sentence and leaves out its call sites; the sentence drops its clause about them (`which the calls below reach`, `the calls below reach …`), and the pointer line follows. **Answers that never reach the declarations block** (a miss, `could not resolve the path`, the nearest symbols, a `deinit`'s answer) keep their bodies under the view's header, with no store pointer and no pointer line: each already is the declaration answer, or its absence. **Beside other flags:** `--at <rev>` answers the same view of that revision, since "was X declared at base?" is a declaration question. `--refs` and `--files` are refused beside it, on the CLI as `--decl answers where <query> is declared, and --refs and --files every place it is written: pass one.`, and on the MCP tool, only where either is `true`, as `where's decl: answers where <query> is declared, and refs: and files: every place it is written: drop one.` An `--offset` has nothing to page and is named unused after the pointer line, as in any answer with no store and no paged list; `--syntactic` still answers from the source in memory. **Left as they are:** the hook's in-place answers (`standsInForSearch`) never take the view; the hook's suggestion for a declaration-shaped search still names a plain `where X`, and a CLI call carrying a flag still does not count as following one (`IndexSuggestion.callsMade`), a follow-up of its own (#825); `LoggedLookup` and the usage log record no flags, so adoption is read from transcripts, where `audit --verbs` gives `where --decl` its own row (#824). **Where it is named:** the MCP parameter's description is `Only where it is declared.`, and the tool's description is unchanged; the primer's `where` bullet reads `definition (--decl for only that), callers, conformers, overrides`, the wording measured; the agent rule's `where` row reads `` `--decl` for only that `` beside its `--files` clause, unmeasured.
 
 **`--refs` lists, after the code sites, the places a rename must change that are not code** (#719). The same
 trial renamed `Gizmo`: `--refs` gave 90 code lines in 29 files and said it skipped comments and
@@ -1886,7 +1889,7 @@ a call query finds nothing for one however much it is used, and a default answer
 empty case reads as "nothing uses this". Putting a type's only relation behind an opt-in flag was the
 design error; `where <Type>` resolves it every time, under the per-query declaration cap of every other
 relation. The section opens with **the verdict the deletion decision is made from** — `used by
-SiftCore.SimilarTarget: 1 reference in 1 file — 1 production · 0 tests, split on the XCTest or Testing
+SiftCore.Depot: 1 reference in 1 file — 1 production · 0 tests, split on the XCTest or Testing
 import, never the path`:
 
 - **The test bucket never states a count the store could not take.** Where an indexed test file has no unit in
@@ -1905,7 +1908,13 @@ import, never the path`:
   hits that knows `//`, nested `/* */`, plain, multi-line and raw strings and their interpolations; no parse:
   a string literal is a place a rename must look too), `not in the build, mention the name:
   <path>:<line>,<line> · …`, ten files at most and then `… N more files, M lines`, and says nothing where none
-  of them does: the lower bound becomes lines a rename can act on (#711). It reads at most 200 of those files,
+  of them does: the lower bound becomes lines a rename can act on (#711). Where the lines it finds number at most 40 (the cap
+  name-matched sites list their text under), the line instead heads one row per line under each file, each closing
+  on the line's text as a call-site row does, `  <path> (<N>):` then `    :34  | gizmo.record(…)`, with
+  `  N outside files not scanned` as the last row where any were; past 40 the compact form stands. The `new since
+  last build, not in the store` line takes the same form; the `changed since last build, written since the build,
+  by name:` line keeps the compact one. Given the line numbers alone, a caller grepped the same files to read them
+  (#1039). It reads at most 200 of those files,
   the first in path order, and counts the rest as `· N outside files not scanned` (`none in the files scanned`
   where the files read hold no mention): bounded by count, never by the clock, so one tree gives one answer.
   Outside `--refs`, where no test build ran it reads nothing, since every test file lacks a unit and the build
@@ -1971,7 +1980,7 @@ import, never the path`:
   lines the store resolved to another declaration that they are `listed above under it` or `counted above under it`
   by what the store's own block did with them, and both, with how many each, where it did each.
 - **A reference inside the type's own declaration or one of its extensions is not usage**: an
-  `extension SimilarTarget` header is itself recorded as a reference, and counting those would make every
+  `extension Depot` header is itself recorded as a reference, and counting those would make every
   type with an extension look used. How many lines were dropped is said in the verdict, never in silence.
 - **Which extensions are the type's own is decided by the extended type's USR, never by the name written
   after `extension`**: a leaf name repeats across modules (`extension Outer.Item` ends in `Item`), and
@@ -2786,97 +2795,11 @@ the same query. It is the CLI's `--count` flag and the MCP `search` tool's `coun
 
 ### `similar <Type.member | Module.Type.member | File.swift:12-40>`
 
-Shows the helper that already exists, before another one is written. The complement of `search calls:…`:
-that query is the question when all you have is the one call a helper cannot do without, and this one is
-the question when you already hold something shaped like it. The evidence is in this repository: the
-temp-file-and-`rename` atomic write was written three times, by three builders none of whom looked. Ranks
-every declaration in the working tree by how close its **syntactic shape** is to the target's, with
-`path:line-endLine`, the qualified name, the signature, the rarity-weighted callee overlap that gated it,
-and the shared callees that earned it — the number beside each hit is the gate's own number, not the
-composite score it is ranked by. CLI only, on `affected`'s and `run`'s reasoning. No source bodies: serving
-them would cost what reading the files costs, which is the thing it replaces.
-
-Four properties decide what an answer means. **Rarity-weighted callee overlap is the gate, and the only
-gate** — inverse document frequency over the tree actually scanned, so a common name like `append` or
-`map` counts for a fraction of what a rare one like `rename` does (on this repository's own scan: `map`
-weighs 1.66, `append` 2.24, `rename` 6.68, a singleton callee 8.76), while the control-flow skeleton and
-the written parameter and return types order what is already through and can put nothing on the list.
-Several common callees can still add up to one rare one, which is why `shares:` lists what earned the hit.
-Floored on the composite score instead, two one-expression bodies collect a quarter of a point for the
-same trivial skeleton, and a one-line `split`-and-`map` outranked the three atomic writes. **It reads the
-working tree, not the index**, like `search`, so it has no staleness axis and never refuses. **It matches
-written names**, so two unrelated types' `save` are one name here and a hit is a lead to confirm with
-`digest Type.member`. And **the list is a lower bound, never a verdict**: a helper built on a different
-call, or behind a macro, is shape this scan cannot see, so an empty answer means nothing close by callee or
-shape, never that there is nothing to reuse.
-
-Three refusals rather than a degraded ranking. A **target whose body makes fewer than three calls is
-answered as too thin to compare**, and named the `search` recipe instead: one shared common name is enough
-to top a list built on one piece of evidence. An **overloaded or otherwise ambiguous target lists its
-labeled candidates**, as a digest of the same name does. A target **nothing with a body answers to says so
-and says what a candidate is** (funcs, inits, subscripts and computed vars with a body; a protocol
-requirement, a stored property and a type itself have none), because an empty ranking would read as "there
-is nothing like this". Candidates exclude the target itself, ties break by path then line, and ten hits are
-listed with the total above them.
-
-**No syntax tree survives its file**, though the whole tree's shapes are held at once to rank them: each
-declaration's fingerprint (callee set, control-flow token sequence, written type names) is extracted inside
-the per-file call and the tree dropped there.
-
-A test's own declarations are in the candidate pool and in the rarity population, deliberately: a test
-helper is reusable too, so excluding `Tests/` would hide the near-duplicate a fixture-builder was about to
-write for the third time.
+Removed on 24 October 2026: no agent called it in fourteen days. The design is in git history before that date.
 
 ### `dupes [path …]`
 
-`similar`'s comparison run as an audit: every group of near-duplicate bodies across the working tree, or
-across the files under the repo-relative paths given, with no target to anchor it. CLI only, on
-`similar`'s reasoning. Same fingerprints, rarity weighting and score as `similar`, and the same population
-rule: declarations whose bodies make fewer than two calls are left out. Three things are its own.
-**Candidate pairs come from an inverted index of callee to declarations**, so the cost follows the pairs
-that share a call rather than the square of the tree, and a callee more than 40 declarations name proposes
-no pair on its own. **A pair is kept on two gates**: 0.50 rarity-weighted callee overlap (above
-`similar`'s 0.35, because an audit has no target to anchor it) and shared callees that weigh at least what
-2.5 names no other declaration calls would. The second gate exists because the overlap is a fraction: two
-one-line bodies that make the same two calls score 1.00 on nothing, and on overlap alone this repository's
-`Sources/` answered 646 pairs, most of them one-liners; 2.5 units took it to 82, most of them real. Both
-numbers were picked from this repository's own tree; `--min <overlap>` moves the first (0 to 1). A body
-nested inside another is never paired with it, and a declaration spanning fewer than 4 lines, signature and
-braces included, is not compared at all and is counted on the census line.
-
-**Test and preview code** is a test function, a SwiftUI `body` or `previews` property, or a file under a
-path component (a directory or the file's own name) ending in `Test(s)`, `Mock(s)`, `Fixture(s)`,
-`Stub(s)`, `Preview(s)` or `Generated`, starting with `Mock`, `Fixture`, `Stub`, `Preview` or `Generated`,
-or ending in `.generated` — read from the path and the parse, never from imports. It is counted twice where
-production code is concerned: a pair of production declarations is proposed by a callee that at most 40
-*production* declarations name and priced against production code's own rarity, and any other pair against
-everything compared (#453: on this repository the tests pushed `contentsOfDirectory` and `fileExists` past
-the bound, and a planted copy of a production helper was never compared with its original, though
-`dupes Sources` paired them at 1.00).
-
-**Groups are built by complete linkage** (#453): every two members of a group cleared both gates. Pairs are
-taken closest first (ties by index), and two groups join only where every pair across them was kept;
-union-find, which read `A~B, B~C` as one group of three, chained 42 declarations whose bodies were barely
-alike (difflib min 0.02) into one group here. Two members sharing one control-flow skeleton of at least two
-tokens and one non-empty set of written types — what a copy keeps through renamed locals — are *copies*, and
-the group's header says whether all or some of its members are. A declaration with a kept pair
-that ends in no group is counted on its own line, pointing at `similar`. Each group shows its closest pair's
-overlap and, at three or more members, its weakest pair's.
-
-**Ranking** (#453): before, all ten listed groups scored 1.00 and the order was a tie-break. Now groups
-holding copies come first; within that and below it, groups rank by the lines folding one into a single body
-would save (every member's span but the longest) times the square of its weakest pair's full score; groups
-made only of test and preview code come after every other unless `--tests` ranks them together, and
-`--no-tests` leaves that code out of the comparison (counted). Judged from two probes of this tree: two
-copies of `ShardLedger` helpers with renamed locals (overlap 1.00 and 0.72) land 8th and 6th of 560 groups;
-a third, 20-line body calling the same six names in another control flow joins the 1.00 pair (every pair
-clears the floor) and that group still holds the first page, 10th. Ten groups are listed per page on the
-`--offset` cursor, `truncated: N more groups — pass --offset M`, with the total on the summary line.
-
-**A lower bound, never a verdict**, and the caveat says why: the same callees do not mean the same
-behaviour, a body that inlines what another calls shares nothing with it here, and a pair that shares only
-callees many declarations name is never compared. Where nothing clears the floors the answer says so in one
-line, with the floors and the numbers it was read against.
+Removed on 24 October 2026: no agent called it in fourteen days. The design is in git history before that date.
 
 ### `strings <text-or-key>`
 
@@ -3799,7 +3722,7 @@ agents are pushing at once.
 tree can be edited with `HEAD` standing still — so the identity is git's own tree object over a *scratch*
 index under `.swift-sure/`, seeded from the repository's (so git's stat cache re-hashes nothing untouched) and
 refreshed with `git add --all`: everything tracked at its working-tree content, plus everything untracked
-the ignore rules do not exclude (the enumeration `reconcile` walks, §6.4). The caller's index is never
+the ignore rules do not exclude (the enumeration the reconcile sweep walks, §6.4). The caller's index is never
 written. A key git will not produce is a refusal, both when recording and when asking.
 
 **One ledger for every worktree of the repository.** Identical content in two worktrees is one tree, so the
@@ -3896,7 +3819,7 @@ forever with advice that cannot help; it runs the command instead.
 `swift-sure test --shards` keeps no record of its own: its greenness is reconciled across shard result bundles,
 a second judgement to keep agreeing with this one, and no gate asks it the question.
 
-### `run --coverage [--from <rev>] -- swift test … | xcodebuild test …`, and `diff --coverage`
+### `run --coverage [--from <rev>] -- swift test … | xcodebuild test …`
 
 Answers the one coverage question an agent has — *is the code I just changed tested?* — rather than
 serving a coverage report, which is large and almost all about code the caller did not touch. Measured on
@@ -5102,503 +5025,11 @@ given, and a name given twice is answered once.
 
 ### `diff [<range>] [--member <Type.member>] [--offset N]`
 
-A structural digest of a change, for review, in place of the raw `git diff`: which declarations a range
-added, removed, changed, or moved, with before → after signatures and the after-side line range on each;
-what changed outside every declaration; who calls the members whose signature changed or that were removed;
-the test names it added, removed, and changed; the tests reaching the changed files; and every other file it
-touched, with its line counts. A reviewer's largest single read is the raw diff, and most of it is body text
-the reviewer has to read anyway — the saving is in not re-deriving *which* declarations changed and *how
-their signatures changed* by eye first, the same locate-then-read loop `digest` already shortens for source.
-
-**The overriding rule: every change in the range is visible in the answer.** A review tool that says
-"unchanged" about a change is worse than no tool, because its reader never looks. So every touched file
-appears — a Swift file broken down, a Swift file the index never holds listed with its line counts and the
-rule that keeps it out, anything else listed with its line counts — and a Swift file whose change falls
-outside every declaration is listed with what changed there. A file deleted in the index but still on disk
-(`git rm --cached`) is one file, listed once, with the counts of its two sides rather than git's deletion.
-
-**The line diff is the safety net under the breakdown.** Each broken-down file's two sides are also diffed
-line by line, as bytes — git's default algorithm, Myers', bounded so a pathological pair costs a hunk rather
-than time — and every hunk must meet a line the answer names: a declaration's range (a type matched on both
-sides answers only for its own lines, its header and its closing brace), or the lines of a named text outside
-the declarations. A hunk nothing meets is named for what its bytes say — whitespace only, line endings, the
-same characters in another Unicode normalization — or, failing that, listed as `other changes at lines a–b
-(not broken down)`. Two cases are named by the breakdown rather than left to the net: a type whose header or
-closing brace moved, so that what it holds changed, and a byte-order mark added or taken away, named once for
-the file. One case is set aside: a declaration present on both sides whose lines are byte for byte the same
-and whose place among its siblings did not change has not changed, whichever of two equally short alignments
-a line diff happened to show it in. Nothing git sees as changed goes without a line in the answer, and "the
-content is unchanged" is decided on the bytes, never on decoded text.
-
-**`<range>` is a single commit, `A..B`, `A...B`, or omitted.** A single commit (or `X^!`, git's own spelling
-of the same thing) is read as *that commit's own change*, against its first parent — "review this commit" is
-what a bare commit argument means to a reviewer, not "diff it against my dirty working tree". For a merge
-that is the change the merge brought to the branch it landed on, which is not the combined diff `git show`
-prints for one, and the answer says so. A root commit has no parent to name, so it compares against git's
-own empty-tree object: every declaration in it reads as added. `A..B` compares the two revisions named, in
-that order. `A...B` means what it means to git: `B` against the merge-base of the two, so a branch is
-reviewed for what *it* did, never for what the other side did since they parted — the `diff:` line names
-the merge-base it used. **Omitted, it reads exactly as `affected`'s own omitted range does — the working
-tree against `HEAD`, untracked files included** — so a bare `swift-sure diff` and a bare `swift-sure affected` agree on
-what "the change" is. Anything else is refused in this tool's own words, naming a spelling that works: a
-range with an empty side (`HEAD~1..`, `..feature` — git would fill in `HEAD`, which is a guess about what
-was meant) and a name that resolves to no commit. Handing either to git would fail with its whole usage text,
-or name an object the caller never typed — and never suggests a spelling that would compare a commit with
-itself, which is what filling in `HEAD` gives when the other side is `HEAD` too. A refusal exits nonzero, so a
-script can tell it from an empty change, and is decided before the index is brought up to date: it reads
-nothing stored, so it does not pay for refreshing it, and its header names the tree and nothing else.
-
-**Parsing never touches the persisted index.** The index holds one snapshot of the current working tree,
-which cannot answer for an arbitrary historical revision; instead each side of each touched file is read
-directly — every blob of a batch of files through one `git cat-file --batch`, or the file on disk when the
-near side is the working tree — and parsed with the same visitor the indexer uses, one file at a time, its
-tree discarded before the next and its sources discarded once the two sides are compared. The
-carved-in-stone rule holds here exactly as it holds for the stored index. Only Swift files the index would
-hold are broken down; a manifest, a vendored or hidden path, and a file this repository's own `.swift-sure.json`
-narrows away are listed, not parsed.
-
-**Declarations are paired by name and kind at each nesting level, strongest evidence first.** An extension's
-key is its whole header — conformances and `where` clause — since two `extension Array` blocks with
-different clauses are different containers that happen to share a name. Within one key, identical text pairs
-first, then an identical signature, then (for a container) the most members in common, then the same `#if`
-branch, and only then source order — with, at every step, the candidate whose first line the line diff kept
-winning a tie, so of two identical `var size = 0` the one that was there before is the one paired: pairing by
-position alone is how an extension inserted above two same-named ones turns an untouched member into a
-removal, and an overload that lost its sibling into a claimed change from one to the other. A type left with
-exactly one unpaired extension on each side had that extension's header edited — `extension W` becoming
-`public extension W` — and the two pair as one header change, its members compared rather than hidden inside
-a removal and an addition; a member whose effective access level moved says so. A container present on both
-sides recurses — its own line is a change only when its signature or its `#if` condition differs, or where it
-opens or closes moved, and its members are diffed independently and grouped under its path (an extension's
-heading always says it is one, with its clause); a container present on only one side is one
-`added`/`removed` entry, not its members enumerated one by one, because "a new type showed up" is the fact
-that matters here and `swift-sure digest` already answers "what does it hold". Two sides sharing a name but not a
-kind read as a removal plus an addition, never as a claimed change between two different things. A pair
-whose place among its siblings changed and whose text did not reads as *moved* — the elements of one
-`case a, b` or `let a = 1, b = 2` ordered by their place in it, since they share a line and a column — and
-"text unchanged" is said of a move only when its whole lines, every descendant of a moved type included, are
-byte for byte what they were. This is a different
-resolution rule from `affected`'s own "a changed file resolves to every declaration in it": that policy
-exists because under-counting a reference walk drops a test that should have run, where here the whole point
-is precision.
-
-**A declaration is compared by its own text** — first token to last, as the parser read it, with no doc
-comment above it and no comment trailing its closing brace; for one binding of several (`let a = 1, b = 2`)
-or one case of several, only its own part. Text is compared as bytes, the way git compares it — Swift's own
-string equality calls a composed and a decomposed `é` the same — with one fold: `\r\n` and `\n` compare
-equal, so a line-ending conversion is named once, as that, rather than as every multi-line body changing.
-Signatures are compared whole and cut only for display — an edit past the cut shows both sides from shortly
-before the first difference — and a protocol requirement's accessors (`{ get }` becoming `{ get set }`) are
-part of its signature. An edit anywhere in that text reports the declaration as changed, with the note that
-its signature did not move rather than an arrow to itself. **Everything else is sorted by what a reviewer
-would call it**, in an `outside declarations` block under the file: imports (named by module, so an
-attribute gained reads as one edit), `#if`/`#elseif`/`#else`/`#endif` lines, comments and doc comments — the
-ones in front of a type or an extension included: its doc comment, a licence header, a `// MARK:` — top-level
-code, a `deinit` (by its type), a freestanding macro such as `#Preview` (by its name), and any text nothing
-else claims. Which of them changed is read off the line diff, with every line they span, so a comment edit
-is named at the lines git shows it at and a moved one as removed there and added here. Whitespace, line
-endings and the rest the net names sit under `line changes`. Every line is listed, adjacent ones merged into
-ranges, and never cut to a count — a line the answer does not print is a change the reader cannot find.
-Same-named declarations under different `#if` branches each carry their condition, and a condition that
-changed around an untouched declaration is that declaration's change (Docs/AnswerContract.md §6).
-
-**One member's before and after body is `--member <Type.member>`**, addressed the same way `digest`
-addresses one, rather than a second positional next to the range — a bare `swift-sure diff <member>` with no
-range would otherwise be unable to tell "the member" from "the range" when both are just strings. It
-answers only from what the range actually changed; naming something the range left untouched refuses rather
-than guessing which of its unchanged sides to show. A label several changed declarations share is refused
-with each one's exact address — `<path>#<Type.member>:<line>`, or `…:before:<line>` for a removed one — and
-the heading it sits under where that is an extension, since two extensions of one type share a dotted path;
-every address listed is accepted back as written, so the refusal is retryable (§5 of the contract). While the
-range is compared, only the bodies of the declarations the argument names are kept — never every body in it.
-
-**Test names are shape-only, and say so.** A file importing `Testing` or `XCTest` is a test file; a
-function carrying `@Test`, or named `test…` in an XCTest file, is a test — the same shape `where`/
-`affected` use, minus their cross-file walk to a base class declared elsewhere, since this parses only the
-two revisions of the files the range itself touches. A wholly added or removed test file or suite still
-names its individual tests here, even though the declarations section reports it as one line.
-
-**Two sections answer "what might this break", each named for exactly what it holds.** *Callers* are listed
-for each member whose signature or effective access changed or that was removed, through the machinery
-`where` uses: resolved by the index store where the store can answer for the declaration today — among
-overloads sharing a labeled name, the one at the declaration's own line, never simply the first —
-name-matched over the working tree otherwise, and every member says which, and why. A removed member is
-always name-matched: it has no declaration left to resolve, and what still spells its name is what the
-removal may have broken. Both read
-the working tree as it stands, and the heading says whether that is the range's after side. *Tests reaching
-the changed files* come from `affected` over the same change set — the declarations the diff touched in each changed file,
-every declaration of a file it names as seeded whole — listed briefly, with a pointer to the `swift-sure affected` invocation whose answer
-carries its limits and the runner arguments, rather than embedding that answer whole: its fixed block would
-otherwise outweigh most small changes several times over.
-
-**An `access:` section follows the callers and precedes the tests, because agents widen access cheaply and
-it is costly to take back.** Measured over thirty days of one machine's commits, coding agents added hundreds
-of `open`, `public` and `package` declarations that nothing outside their declaring module uses; writing the
-wider level costs nothing, and once something depends on it, narrowing breaks that something. So the answer
-says, for the declarations this range put at one of those levels, which have no use outside their module. It
-is a finding about this change, not a lint rule (§1: no linting, no writes to source): it reports, never
-edits, has no `--apply`, never changes the exit code, and is CLI only with the rest of `diff`.
-
-**The subject is closed.** The declarations the range put at `open`, `public` or `package`: added there, or
-widened there (their effective access level raised to one of those levels, the move the pairing already
-notices). Nothing else in the tree is judged, and a declaration the range only edited is not a subject. **A
-subject's level is its own capped by every enclosing type's**: `symbols.access` holds the level as written or
-the extension's, and `SymbolVisitor.effectiveAccess` copies a protocol's level onto its requirements and an
-enum's onto its cases without capping a member by its enclosing type. Protocol requirements, enum cases and
-associated types are not subjects of their own: one the range adds to an existing type is outside every count,
-and one added with its container is decided by the container's uses.
-
-**The verdict leads, per level, in one line** (§2), counting subjects and, of them, those with no use outside
-the declaring module and, for `public`, those used only inside its package. The module is named at every
-level, and the line says `outside their module` when the subjects of a level span several:
-
-```
-access: this range put 4 declarations at public, 2 with no use outside module GizmoKit, 1 used only inside its package; 8 at package, 4 with no use outside module GizmoKit
-```
-
-A level the range put none at is not mentioned. A declaration the range *widened* is counted in its level and
-named as widened on a line of its own (`  2 of the public declarations were widened, not added`). When every
-subject has a use that needs its level the section is one line saying so (`access: this range put 3
-declarations at public; each has a use that needs its level`), then the line saying how the uses were found,
-and any `not judged`/`not checked` lines, and when the range puts none at those levels the
-section is not there at all (§3: the residue is nothing, so the section is nothing). Declarations that are
-*not judged* or *not checked* (below) are outside every count.
-
-**The per-declaration lines are exactly the counted ones**: each declaration with no use outside its module,
-and each `public` declaration used only inside its package (a `public → package` line is the "used only inside
-its package" count). They are bounded at ten, then `  +N more: <label>, <label>, …` naming the rest on that
-one line, so no flag is added for them, and the line stays true whichever page those declarations fall on. Each line gives
-the declaration's label and after-side line, its level, the suggested level and why:
-
-```
-  + GizmoKit.Gizmo.restock()  Sources/GizmoKit/Gizmo.swift:41  public → package: used only from GizmoTools, in this package
-  + GizmoKit.Gizmo.shelf  Sources/GizmoKit/Gizmo.swift:58  package → internal: no use outside module GizmoKit
-```
-
-**The suggestion is the narrowest level the repository's own uses allow, with `internal` as the floor**; it
-never suggests `fileprivate` or `private`, which would move code the author placed. No use outside the
-declaring module suggests `internal`; a `package` declaration used only inside its module suggests
-`internal`. Uses only from other modules of the same package suggest `package`, **only where the declaring
-module and every module using it belong to one `Package.swift` whose tools-version is at least 5.9**, since
-SwiftPM passes `-package-name` from 5.9 on. In an Xcode project's targets (`SWIFT_PACKAGE_NAME`, which
-nothing reads) there is no `package` suggestion and the declaration keeps its level, and a use from an app
-project of a local package's declaration needs `public`. A declaration whose outside use needs its level gets
-no line, and is counted in the verdict only as having one.
-
-**A declaration that a wider one exposes is never suggested narrower**, because narrowing it is a compile
-error. A declaration named in the signature, inheritance clause, generic constraint or default argument of a
-declaration whose level is above the one it would be suggested, or in an `@inlinable` body, is never suggested
-below that level: it counts as having a use. Outside code also reaches such a declaration without writing its
-name (`let g = kit.make()`), so the exposure, not the spelling, decides: a `public func make() -> Gizmo2` keeps
-a public `Gizmo2` public. An `@inlinable` or `@usableFromInline` declaration exposes what it names at `public`
-whatever its own level, since the compiler requires that to be public or `@usableFromInline`. So does a
-`@frozen` type's stored instance property, `private` included, through its type annotation and its initial
-value, and, where the index store answers, through any reference the store records within its lines, however it
-is spelled; a static or computed property of that type exposes nothing this way. The `@frozen` type itself is
-never suggested below `package`, the narrowest level the attribute allows. An extension's generic `where`
-clause, a constrained conformance's included, exposes what it names at the level of the extension's widest
-member, capped by its enclosing types, or at the extension's own written level where it has one, since its
-members are visible no wider than its requirements; its extended type's generic arguments (`extension
-Array<Coin>`) and the conformances it adds expose nothing, which the compiler accepts. An initializer is
-exposed through its type's name in a default argument or an `@inlinable` body, and through `Self` or `.init` in
-its own type's members; in a head only a parameter's type and default value count, an enum case's associated
-value with a default included, so a `==` taking the type or
-a `static let empty = Self()` exposes nothing. Where the index store resolves the uses, its reference to a
-declaration inside an `@inlinable` declaration exposes it at `public`, and one inside a parameter's default value
-at the level of the declaration it heads, however the reference is spelled. Where they are name-matched, an
-`@inlinable` body, a `@frozen` type's stored instance property or a default value in an initializer's module that
-calls `.init(` by implicit member keeps every initializer of that module at that level, since which type it builds cannot be told without types; where the store resolves them, the same holds for such code in the files the store does not cover, those the last build left out or that changed since. For the same reason a file of another module that calls `.init(` by implicit member anywhere counts as a use of every initializer of the initializer's module, unless the build files show it cannot reach that module, so they go no lower than `package` where that module is in the same package and keep their level where it is not: every such file where the uses are name-matched, and those the store does not cover where it resolves them. Importing the module always counts, and the build files rule a module out only when both are targets of one readable `Package.swift` with no `Package@swift-*.swift` beside it and no `.dependencies` changed outside a target declaration, and the initializer's module is outside the caller's transitive target dependencies (string, `.target`, `.byName` and `.product` entries, a product of the same manifest standing for its `.library` targets); whatever the build files cannot rule out counts, such as a computed name, a product of another package, an XcodeGen or `.xcodeproj` module, or targets of different manifests. A type's own
-members, nested types and extensions do not expose it, since narrowing the type caps them too: a `public struct Box3` named only by its own `+` is judged by its outside uses.
-
-**Tests are counted apart.** A use from a test file, recognised from the file's imports exactly as
-`where --refs` does (`TestFileRecognition.isTestFile(imports:)`), is not a production use. Where every outside
-use is in test files that import the module with `@testable`, the suggestion is `internal`, the declaration is
-counted with those that have no use outside the module, and the line says why (`used only from tests, which
-import it @testable`). A test file that imports the module plainly is a use from its own module's package,
-judged like any other use: from the same package it allows `package`, from another it needs the level.
-
-**Some declarations are never judged, and are counted on one line**, `  not judged: 2 protocol witnesses, 1
-override, 1 @objc`, with the kinds in the order below and a kind absent when none. The rule throughout is that
-the tool never calls a declaration unused when it could not see its uses: it excludes and counts instead
-(Docs/AnswerContract.md §6, §8).
-
-- *Protocol witnesses*: a member that may satisfy a requirement of a protocol its type conforms to. Resolved
-  from the store's override/requirement relation when the store is fresh. Without one, a type's conformances
-  include those written in its extensions elsewhere and the protocols they inherit, and: a marker protocol
-  (`Sendable`, `BitwiseCopyable`, `Copyable`, `Escapable`) excludes nothing; a protocol declared in this
-  repository excludes the members whose name matches one of its requirements; a standard-library protocol in
-  a closed table that lists each protocol with its requirements (`Equatable`: `==`; `Hashable`: `hash(into:)`;
-  `Encodable`: `encode(to:)`; `Decodable`: `init(from:)`; `CustomStringConvertible`: `description`; …), kept
-  in one source file the tests read, excludes only the members matching that protocol's entries; any other
-  protocol declared outside the repository excludes every member of the conforming type, since its
-  requirements cannot be seen. The marker protocols are the ones the name-lookup rules' inert list also holds
-  as supplying nothing; this table is its own, since it names requirements, not supplied names. Each table
-  entry lists every requirement a conforming type may write, customization points (`Hashable`'s
-  `_rawHashValue(seed:)`) and its inherited protocols' included, and names the protocols it inherits, which are
-  followed too. The sequence and collection protocols (`Sequence`, `Collection`, `BidirectionalCollection`,
-  `RandomAccessCollection`, …) have too many customization points to list exactly, so like an unseen protocol
-  they exclude every member of the conforming type, each counted as a protocol witness. A nested type or
-  typealias is a witness when it is named like an associated type of a protocol its type conforms to, from the
-  table or the repository's own `associatedtype` declarations, and, like any member, when that protocol's
-  requirements cannot be seen.
-- *`open` declarations and overrides*: `open` exists to be subclassed outside the module, and an override is
-  reached through its base. A `required init` of a class that can be subclassed is excluded likewise.
-- *`@objc`, `@objcMembers` and members reached by selector*, which are reached by a string the parser does not
-  read; `@IBAction`, `@IBOutlet`, `@IBInspectable` and `@NSManaged` are implicitly `@objc`.
-- *`@inlinable` and `@usableFromInline`*, whose bodies are compiled into other modules; `@_spi`; `dynamic`;
-  `@main`, `@_cdecl` and `@_silgen_name`, which the system or a symbol name reaches.
-- *Reached by the compiler, not by name* (the label is exactly `1 reached by the compiler, not by name`): operators, `callAsFunction`, result-builder `build…` methods,
-  `subscript(dynamicMember:)` and a property wrapper's `wrappedValue` and `projectedValue`, whose uses spell no
-  name a scan finds (the type's `@resultBuilder` or `@propertyWrapper`, like `@objcMembers`, is read from the
-  index wherever the type is declared, so a member in an extension in another file is excluded too); and subscripts, which have no name at all (the callers section skips them). Where the
-  store answers for a subscript or an operator it is judged by the store's uses instead. An initializer is
-  matched on its type's name, as the callers section does.
-- *Macro-generated members*, which are invisible to the parser; the line says so
-  (`1 macro-generated, invisible to the parser`), since a use inside an expansion cannot be seen either.
-
-**Each subject's uses are resolved, and the section says how**, in the callers section's words, **in the
-targets the last build compiled**: the store covers only those (§2, the header line), so a file in an uncompiled target,
-or changed since that build, falls back to name matching. Where the index store can answer for the
-declaration, the uses are *resolved by the index store*, and the module of each use is
-`occurrence.location.moduleName`; the declaration's name is also matched in every file the store does not cover
-as it stands (a target the last build left out, a file changed or added since it), each match counted as a use
-beside the store's, and the line saying how the uses were found names those files (`; name-matched in the files
-the last build left out or that changed since: Tests/GizmoTests/GizmoTests.swift`, at most ten of them and
-`+N more`; where none of those files held a match, a count instead: `; name-matched in 3 files the last build left
-out or that changed since`, `1 file` for one; no clause where the store covers every file), so a use there can only
-widen the suggestion, and a "no use outside module" never rests on name matching the line does not admit. Otherwise they are *name-matched on "restock"* over the working tree, and
-the module of a match is its `resolvedModule`; a `nil` there counts as an outside use, never the first
-component of the path. A name-matched finding is worded as no use *by that name* (`public → internal: no use
-by that name outside module GizmoKit`), never as unused: a name match can miss a use through a typealias, a
-closure or a macro, and the wording says what was checked (Docs/AnswerContract.md §8). Where the two modes
-mix, the heading says which declarations were name-matched.
-
-**Scope is this repository.** Uses in other repositories are unseen. When the declaring module is a library
-product the repository publishes (a `.library` product in `Package.swift`), the section says once that its
-public API may serve consumers this repository does not contain, and the `public` to narrower suggestions for
-that module are worded as questions to the author (`public → package?`), not findings. Executable and test
-targets publish nothing, so no such note attaches to them.
-
-**The build adds** what the answer cannot read today. `@testable` is not stored (`ImportLineReader` skips
-import attributes), so the answer re-reads the import lines of the using test files at answer time, within the
-lookup budget, with no schema change. `SwiftPMManifest`, which reads only targets, test targets, the package
-name and host-built targets, gains the `.library` products a manifest declares and its tools-version line.
-Witnesses come from `SemanticStore.implementedRequirements` (`SemanticStore.swift:307`), and without a store the
-conformance rules under *Protocol witnesses* apply.
-
-**Bounded in cost.** At most 50 declarations are looked up per answer, in the order the declarations section
-lists them, a declaration counting once any question about it is put to the index (whether an enclosing type
-caps it, its symbol, whether it is a witness), so a witness spends its place as a judged declaration does; past that, `  not checked: N more (over the first 50)`, and they are in no count above.
-
-**The build pins**, each by a test that fails without it: a witness is never listed as unused (with a store,
-and without one by name); a marker protocol excludes nothing, a standard-library requirement name excludes only
-its match, and any other outside protocol excludes the whole type; a declaration used only from tests importing
-the module `@testable` suggests `internal`; a test importing it plainly counts as a use from its package, so a
-same-package plain import allows `package` and another package's needs the level; a `package` suggestion is
-absent where the repository is not a SwiftPM package, where a using module is in another package and where
-the tools-version is below 5.9, and a local package's declaration used from an app project needs `public`; a
-declaration named in a wider declaration's signature, inheritance clause, generic constraint or default
-argument, or in an `@inlinable` body or a `@frozen` type's stored property (by name, or by the store's reference
-in one), or in an extension's `where` clause below that extension's widest member or written level, is never
-suggested narrower; a protocol requirement or enum case is
-judged with its container; a subscript, an operator, `callAsFunction`, a `build…` method and a property
-wrapper's `wrappedValue` are `reached by the compiler, not by name` and never read as no use; a widened
-declaration is counted and named as widened; a range putting nothing at those levels prints no section;
-a name-matched result never says `unused`; a heading that mixes the two resolution modes names the
-name-matched declarations; a published library module carries the once-only note and phrases its suggestion as
-a question; the eleventh line is `+N more`, and the fifty-first lookup is `not checked`, a witness check counting as one; every kind in the
-`not judged` line is counted and none is listed, and none is in a verdict count; the verdict arithmetic holds
-(subjects = no-use + package-only + needs-level, and the per-declaration lines are exactly the counted ones);
-a level whose subjects span several modules says `outside their module`; a `public` member of an internal
-type is not a subject; a file in an uncompiled target falls back to name matching; with a store, a use in a target the last build left
-out or in a file changed since it is name-matched and counted, and the resolution line names its file; a `nil` `resolvedModule`
-counts as an outside use; `@IBAction`, `@NSManaged` and `required init` are not judged; a declaration used
-only from `@testable` tests is in the no-use count.
-
-**Bounded, and nothing cut silently.** The declarations section pages on the codebase's own cursor —
-`truncated: N more declaration entries across M files — pass --offset K` — and the lists after it (test
-names, files, callers, access, tests) are capped with the count of what they left out. A page past the first
-carries only declarations, says it is a continuation — which page of how many — and where the rest is; the
-`access:` section appears on the first page only.
-
-**CLI only**, on `affected`'s and `run`'s reasoning — a range review is invoked from a shell, and an MCP
-tool's description is paid for in every session's context whether or not that session calls it.
-
-**The answer prices itself against the raw `git diff` for the same range**, as every other surface prices a
-saving: `~N tokens saved` at four bytes a token (`TokenEstimate`, a fixed estimate), with the bytes both ways and the
-ratio beside it (Docs/AnswerContract.md §4). The whole answer is counted, once, on the first page — header,
-notes, the size line itself, and every later page as `--offset` will serve it — and no later page states a
-saving: sixteen pages each claiming the whole saving against the whole raw diff would count it sixteen times.
-In working-tree mode the baseline includes the untracked files the answer covers, counted as exactly the
-added-file diff git prints for them, down to its marker for a last line with no newline. An answer larger
-than the raw diff says so plainly rather than as a negative percentage: a small change's fixed cost can
-outweigh its raw diff, and this command earns its keep on real changes, not trivial ones.
+Removed on 24 October 2026: no agent called it in fourteen days. The design is in history before that date.
 
 ### `checkup [<range>] [--offset N]`
 
-What a change left unproved and what still leans on it, in one answer: `checkup` runs every diagnostic that
-answers for a change over one change, and lists what they found in one fixed order. Each of those diagnostics is
-already its own command, and agents run the ones a task names and almost no others: of 15,242 answers over
-fourteen days of one machine's sessions, `diff` was 10, `build --analyse` 6, and `dupes` and `similar` 0. A
-diagnostic that has to be remembered by name is, measured, one that does not run; `checkup` is the one name to
-remember. **Every finding is computed from the data a named command keeps**, and each line ends with that command,
-spelled for this change, which shows the finding's detail.
-
-**The change is `diff`'s.** `<range>` is a single commit, `A..B`, `A...B` or omitted, read exactly as `diff`
-reads it — omitted, the working tree against `HEAD` with untracked files — so `checkup`, `diff` and `affected`
-agree on what "the change" is, and a branch is checked as `swift-sure checkup main...HEAD`. A range `diff` refuses,
-`checkup` refuses for the same reason and with the same exit code, naming `checkup` spellings. There is no
-whole-tree mode: a list about code nobody touched is what this command exists to avoid, and the tree-wide audits
-stay their own commands (`dupes`, `flakes`, `status`).
-
-**It builds nothing and runs nothing.** Whether the change was tested is read from what `run` recorded, never
-found out by running it: the step an agent skips is the cheap one, and a checkup that started a suite would be the
-expensive one. That is said once, in `--help` and `swift-sure help answers`, not on every answer: it is true of every
-answer of the verb, so it is a standing caveat (contract amendment, in force).
-
-**Seven classes of finding, in a fixed order**, then by path and line within a class:
-
-1. `failed` — a red run of tests recorded on this content, no older than `RunLedger.trustWindow`: the wrapped
-   command failed or did not build, with no green after it on the same content, from the same working directory
-   and under the same toolchain, of the same command or of an unnarrowed one (below). One line, naming the
-   command, when, and its log. A red whose `exitCode` is 0 (an exit 0 refused as a proof), 4 (no test matched)
-   or 6 (an unclean inventory under `--require-inventory`), or one SwiftSure stopped, is not a failure of the code:
-   it is named on the `test runs` basis with its reason. A red an older sift wrote, with no `exitCode`, is
-   `failed`, worded `exit not recorded`.
-2. `callers` — a member the change removed, whose signature it changed, or whose effective access it narrowed,
-   still spelt on a line this change did not touch: `diff`'s callers section with the lines the change edited
-   left out. One line per member, with its count and first site, worded `N callers on lines this change did not
-   edit` and store-resolved or name-matched as `diff` says. Widening is not a subject, and the line never says
-   the callers break: a defaulted parameter added keeps every caller compiling. Where the after side is not the
-   working tree, a working-tree line counts as edited only where the line diff of the after side against the
-   working tree carries it unchanged from a line the range edited. The line ends `— swift-sure diff`, with the range as the
-   checkup was given it appended (`swift-sure diff a41f585`) so the pointer shows the same change; the `exposed` line's pointer is spelled the same way.
-3. `unproved` — no unnarrowed test command is proved green on this content. A green counts only where
-   `--proved`'s own trust (`RunLedger.trust`: the window, the toolchain, the writer format, the working
-   directory) accepts it for its own command, from the package root the change is in — one line per package root
-   the change touches; any other green on this content is named as not counting, with the reason `--proved`
-   gives. A run is narrowed unless every argument it carries is on this closed list: for `swift test`,
-   `--parallel`, `--num-workers N`, `-c`/`--configuration debug` and the location options `ProofKey` drops; for
-   `xcodebuild test`, `-scheme`, `-project`, `-workspace`, `-destination`, `-derivedDataPath`,
-   `-resultBundlePath`, `-quiet` and `-parallel-testing-enabled`, each with its value. Anything else narrows,
-   `--filter`, `--skip`, `--test-product`, `--package-path`, `-only-testing:`, `-skip-testing:`, `-testPlan` and
-   `-only-test-configuration` included. `swift test --enable-code-coverage` and the two options `swift-sure run` adds to
-   an `xcodebuild` itself, `-collect-test-diagnostics never` and `-enableCodeCoverage YES`, are on the list: they
-   change what is measured or collected, never which tests run. Narrowness is read from the recorded argv, never from the space-joined
-   key. The line carries the number of tests `affected` finds reaching the change and a command to run: the
-   newest unnarrowed test command recorded from that package root's own directory (a nested package never gets
-   the root's command), its argv shell-quoted; else `swift test` in a
-   SwiftPM package; else the runner `affected` names for the reached tests. For a package root other than the
-   repository's the command is `swift-sure run --root <dir> -- …`, so pasted at the repository root it runs in that
-   directory; a rerun offered by `failed` takes the same form from the red's own directory. The `not counting:`
-   list names a narrowed command by the words before its first narrowing flag, then each narrowing flag once,
-   with `×N` where it appears N > 1 times: `swift test --filter ×15, narrowed, 3m ago`, never the whole argv.
-4. `uncovered` — changed executable lines the recorded coverage did not run, computed by `diff --coverage`'s rule
-   over this range's changed lines, from the record's per-line counts. A record is used only where its tree key
-   is the one `--proved` uses, it is no older than `RunLedger.trustWindow`, and every changed Swift file of the
-   range is in its measured or unmeasured set; the unmeasured files are counted beside the check. Any other
-   record answers for another change set or another time, and the check says so (below). The line quotes the
-   `changed lines:` line whole, and ends with a pointer to `swift-sure diff --coverage` only when that line ends `+N more` and the checkup was given no range: `diff --coverage` takes no range and pairs the working tree against `HEAD`, so with a range there is no pointer. Where the record cannot be used, the `not checked` reason ends with the `swift-sure run --coverage --from <base> -- <command>` that would record one; for a change inside one nested package root it is `swift-sure run --root <dir> --coverage --from <base> -- <command>` with that root's own recorded command (as the `test runs` line does), and for a change across several package roots no command is appended, since one coverage run records one package.
-5. `exposed` — declarations the change put at `open`, `public` or `package` that nothing outside their module
-   uses: the `access:` section's verdict line, quoted as `diff` prints it, its package-only count and its
-   question wording for a published library included, never a relisting of its declarations.
-6. `flaky` — a reached test the run log records both failing and passing on identical bytes: `flakes`' same-tree
-   tier, per command line. The reached set is `affected`'s whole set as `--reached` reads it, not its capped
-   list, with suites and targets it collapsed expanded through the declared inventory; names match whole, as
-   `flakes <query>` reads them with `.` and `/` as one separator. It is named as `affected` names tests, unredacted: the
-   name goes to the caller's own context, not to a page.
-7. `duplicate` — a declaration the change added, or whose body it changed, that clears both of `dupes`' gates
-   against another declaration; the closest pair is shown. Test and preview code (`dupes`' own definition) is
-   not a seed. Candidate pairs are proposed only where one side is a seed, so proposing follows the change; the
-   fingerprints and rarity weights still cover the tree (measured on 2,142 files: `similar` 0.36 s, `dupes`
-   0.88 s).
-
-**The order is a deliberate exception to §7 of the contract.** It is a fixed sort, the same in every answer, so it
-says nothing about whether this change is acceptable; but it is still the tool choosing what is read first, and it
-is made because the command exists to put the few findings an agent acts on above the rest. A score would let a
-duplicate outrank a recorded red on weighting noise; a class order cannot.
-
-**The answer opens with `diff`'s header for the range** (contract §1 and its in-force amendment: tree, head, the
-working tree's state, the index's semantic freshness), **then the verdict, opening with `diff`'s own range
-description, and the state of every check**, because "nothing found" from a check that could not run reads as safe:
-
-```
-tree: app  head: 3f2a9c1  clean  semantic: fresh
-checkup: main...HEAD — HEAD against its merge-base with main, 81c0d2e · 3 findings over 4 changed files — 1 callers, 1 unproved, 1 duplicate
-checked: callers (store open; 1 name-matched), test runs (recorded), exposure, flaky tests (over 9 runs), duplicates · not checked: changed-line coverage (none recorded on this content in this checkout — swift-sure run --coverage --from 81c0d2e -- swift test)
-callers    Sources/App/Gizmo.swift:41  Gizmo.spin(speed:) removed; 3 callers on lines this change did not edit, first Sources/App/Rig.swift:88 (name-matched) — swift-sure diff
-unproved   no unnarrowed test run is proved green on this content (last green: swift test --filter GizmoTests, narrowed, 4m ago); 12 tests reach the change — swift-sure run -- swift test
-duplicate  Sources/App/Gizmo.swift:60-88  Gizmo.wobble() and Widget.wobble() at Sources/App/Widget.swift:12-40 clear both gates (0.72) — swift-sure similar Gizmo.wobble
-```
-
-and, where nothing is found:
-
-```
-tree: app  head: 3f2a9c1  clean  semantic: fresh
-checkup: main...HEAD — HEAD against its merge-base with main, 81c0d2e · nothing found over 4 changed files
-checked: callers (store-resolved), test runs (swift test proved green on this content 2m ago), changed-line coverage, exposure, flaky tests (over 9 runs), duplicates
-```
-
-**Every check is named on exactly one of the `checked:` and `not checked:` lines in every answer**, six names for
-the seven classes (`test runs` holds `failed` and `unproved`). `checked:` holds a check that ran, with the basis it
-stood on said beside it once (the callers' resolution, the green that proved the tree, the number of runs `flaky`
-read), and a check its bound stopped part way, with what it left out counted (`callers (20 of 25 members; 5 not
-looked up)`). `not checked:` holds a check with no evidence to read, each with its reason: no run recorded on this
-content; a tree git will not key (`--proved`'s own refusals); the run ledger switched off; no recorded run with a
-tree and a command line (only `flakes`' unknown tier), or no reached test at all; coverage recorded for another change set or none in this checkout
-(`coverage.json` belongs to one checkout, the ledgers to the repository); and, for a range whose after side is
-not the working tree, the three checks that read recorded runs (`failed`, `unproved`, `uncovered` — a run records
-the working tree's content, and a range ending at another revision is other content), unless the range's after
-side resolves to the commit `HEAD` names and the working tree is clean, untracked files included. The reason for
-a range ending at another revision is `a run records the working tree's content, and this range ends at <rev>`;
-for a range ending at the commit `HEAD` names on a dirty tree it names the cause, counted as `git status -uall`
-does: `3 uncommitted changes; a run records the working tree's content`. **For such a range, the checks that read the working
-tree say so beside their name** — callers, exposure, duplicates and the reached tests, `read against the working
-tree, not <rev>` — as `diff`'s callers heading already does.
-
-**Bounded, and nothing cut silently.** At most 20 finding lines, in order, then `truncated: N more findings — pass
---offset 20`; a later page carries only findings and says which page of how many. Each check keeps its own
-command's bounds (`diff`'s lookup budget, `affected`'s depth, `dupes`' gates), and what a bound left out is counted
-beside that check on the `checked:` line.
-
-**Exit 0 whenever it answered**, findings or none; a refused range exits as `diff` does. A finding is information
-for the caller, not a gate's verdict: a gate that must fail on an unproved tree already has `run --proved`'s exit
-code, and `checkup`'s classes would make a second, coarser one.
-
-**No saving is priced.** Every other answer prices itself against the raw output it replaces; `checkup` replaces
-commands that were, measured, mostly never run, so there is no baseline, and inventing one would claim tokens
-nobody spent.
-
-**CLI only**, on `diff`'s reasoning: it is run from a shell before a hand-back, and an MCP tool's description is
-paid in every session whether or not the session calls it.
-
-**How agents hear of it is measured, not assumed.** The usage table that motivates the command also says a
-command nobody names is not run, so `SwiftSure.md` gains one line naming `checkup` as the step before reporting a Swift
-change done. That line is measured on the bench as `SwiftSure.md` changes are (#608: paired sessions with and without
-it, the fixed start counted) and merged only if the arm carrying it costs no more per session. The Claude Code
-plugin carries the line through its `swift-sure` skill, whose body is `SwiftSure.md`, exactly when `SwiftSure.md` does: a skill of
-its own would put an unmeasured description in every plugin session. The command itself merges whether or not the
-line does.
-
-**The build adds** `exitCode` and `stoppedBySift` fields to the red record in `failed-runs.json`, so `failed` can
-tell a failure of the code from SwiftSure's own exits and stops (additive: an older sift dropping them loses only the
-reason, and never turns a red into a proof); an `arguments` array, the run's argv as the caller asked for it, before anything `swift-sure run` adds (`--coverage`'s
-options, `-collect-test-diagnostics never`), to both ledgers' records
-(additive; a record without one is read as narrowed); a seed set for `dupes`' candidate proposal; and the command name as a parameter of `diff`'s range
-refusals, which spell `swift-sure diff` today.
-
-**The build pins**, each by a test that fails without it: every check is named on exactly one of the two lines in
-every answer; a bound that stopped a check part way puts it on `checked:` with the count; a range whose after side
-is not the working tree puts the three recorded-run checks on `not checked:` and marks the working-tree checks,
-and a clean tree at `HEAD` does neither; a red with `exitCode` 0 or 4, or one SwiftSure stopped, is not `failed`, and
-one with no `exitCode` is, worded `exit not recorded`; a green from another working directory does not clear a
-red; a red older than the trust window is not read; a caller moved by uncommitted lines above it is still matched
-to the line the range edited; a narrowed green does not clear an older
-unnarrowed red, nor `unproved`, and is named; a green `--proved` would not trust (another working directory, an
-expired window) does not clear `unproved`, and its reason is given; a coverage record for another change set is
-not used; a caller on a line the change edited is not counted, and a widened member is not a subject; a test
-declaration is not a `duplicate` seed; the class order holds across checks; a 21st finding is on the next page and
-counted; the exit code is 0 with findings; and a name-matched caller says so on its line.
+Removed on 24 October 2026: no agent called it in fourteen days. The design is in git history before that date.
 
 ### `report`
 
@@ -6157,6 +5588,49 @@ them in and take them out. **Three invariants hold across all of them, because a
 session on the machine**: on the hook path — no flags, whatever the environment — each exits 0, each
 prints nothing when it has nothing to say, and nothing any of them does can make a tool call unavailable.
 
+#### Install modes: the full set by default, `--run-only` for build and test alone
+
+The index's fixed start — the MCP tool schemas (about 1.2k tokens), the `SessionStart` primer, the rule (about
+650 at the first Swift touch) — is paid in every session, and what it buys depends on the work. In the paired live
+bench (`Benchmarks/RESULTS-live.md`: nine tasks on a large private app, 216 runs) it paid on longer work —
+a pooled -9.5%, tracing UI text -41%, understanding a large type -26%, callers across modules -16%, a long open-ended
+chain -14% — and cost more on a rename sweep (+11%) and chained questions (+6%), with three tasks showing no
+detectable difference. On short lookups of about three turns, in the public benches over two pinned open-source iOS
+apps, it showed no detectable difference: one call does not earn back the fixed start. `swift-sure run`'s
+compression of builds and tests is the saving that measured independently of the model
+(`Benchmarks/RESULTS-run-compression.md`). So the default install is the full set, and `--run-only` exists for a
+user who wants the build and test side alone.
+
+- **Full set, the default.** Exactly the set described below — every event and matcher, the server, the rule, the
+  primer, the lookup allow rules — with `PreToolUse` running plain `pre-tool-use`.
+- **Run-only mode, `--run-only`** (`install.sh --run-only`, `install --run-only`, `install-hook --run-only`):
+  `PreToolUse` on `Bash` only, running `pre-tool-use --run-only`; `PostToolUse` and `PostToolUseFailure` on `Bash`
+  only; `Stop` and `SubagentStop` as in the full set. No `SessionStart` or `SubagentStart`, no MCP server, no rule
+  file, no lookup allow rules added and no question about them (lookup allow rules an earlier full install added
+  stay: the CLI lookups still exist); the run allow rules are asked about as before.
+  `--allow-lookups` and `--command` are refused with it.
+- **`pre-tool-use --run-only`** acts only on a build or test run: the rewrite into `swift-sure run --` and
+  the run advice. Every lookup path — a shell grep or read, `Grep`, `Glob`, `Read`, a write, an index call
+  — exits 0 and prints nothing, as the hook does for any call it does not handle. Without the flag the hook
+  is unchanged.
+- **The mode is a re-run.** The install takes out whatever the other mode registered that this one does not:
+  `--run-only` over a full install removes `SessionStart`/`SubagentStart`, narrows `PreToolUse` and
+  `PostToolUse`, runs `claude mcp remove swift-sure --scope user`, and deletes the rule unless it is a
+  symlink (a checkout's own file); the default over a `--run-only` install restores all of it. Both directions
+  are idempotent. The run-only `PreToolUse` is recognised as its own registration (its subcommand is
+  `pre-tool-use --run-only`), so the two modes never mistake each other's hook for their own, and
+  `uninstall-hook` removes both.
+- **Doctor and status** treat a `--run-only` install as healthy and say the index is off
+  (`index: off (installed with --run-only)`), never as a fault.
+- **Cursor and Codex** get the same mode from the same flag (`install --run-only`, `install-hook --agent cursor|codex
+  --run-only`): no MCP server (an earlier full install's is taken out of Cursor's `mcp.json`, or by
+  `codex mcp remove`), no session-start hook, the pre-tool-use hook running `pre-tool-use --run-only`, and the
+  post-tool-use hooks running `post-tool-use --run-only`. Neither harness's registration can match on the tool the way
+  Claude Code's run-mode `Bash` matcher does, so `post-tool-use --run-only` does that itself: it answers a shell call's
+  result alone (Cursor's `Shell`, else `Bash`) and lets a write, an edit or a lookup through in silence. The mode is a
+  re-run, uninstall removes both, and doctor reads a run-mode install as healthy, as for Claude Code.
+- The benchmark's index arm installs with the default, so what it measures is unchanged.
+
 **Registration is a merge done in the binary, not a shell script.** `install-hook` writes the
 `SessionStart`, `SubagentStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop` and `SubagentStop` entries, and the
 allow rules it was told or asked to add, into `~/.claude/settings.json`, and `uninstall-hook` removes
@@ -6492,8 +5966,7 @@ call the CLI rather than load them; otherwise it keeps the sentence that only sa
 **`post-tool-use` is the nudge on the other side of the same edit — delivery after the fact, not at a
 miss.** It is matched to the three tools that can put new Swift text on disk, and fires once a write or an
 edit has already landed, when there is nothing left to intercept. It reads the declarations the edit added
-against the index's view of the file from before the edit, runs the same comparison `similar` does on each
-one, and where the best hit clears that command's own threshold, says so once — one line of
+against the index's view of the file from before the edit, compares each one's shape against the rest of its module (the comparison the removed `similar` command ran), and where the best hit clears its threshold, says so once — one line of
 `additionalContext`, never a denial, since a tool call that already ran cannot be refused. Once per session,
 per file, per declaration: a body edited twice in one session is not nudged twice about the same resemblance,
 and a session that already knows is not reminded. A test function — one carrying `@Test`, or a `test…` instance method of a type inheriting `XCTestCase` — is never nudged toward another test function, since sibling tests share their callees by construction and there is nothing to act on; the best hit that is not a test still can be, and a helper in a test file is compared as any helper is. The nudge never blocks and it is silent on anything short of that
@@ -8450,8 +7923,8 @@ index size is a function of the current checkout, not of how many branches have 
 future optimisation caching per-branch state trades a bounded cache for an unbounded one to save seconds.
 
 **6.4 The reconciliation sweep — the backstop.** Even with query-time git state as the source of truth,
-convergence is worth one cheap command: clock skew, files outside git's view and plain bugs all land
-somewhere. `reconcile` lists the Swift files git can see — `git ls-files --cached --others
+convergence is worth one cheap step: clock skew, files outside git's view and plain bugs all land
+somewhere. The sweep (`SiftEngine`'s reconcile, run inside freshness; `swift-sure index --full` forces a full one) lists the Swift files git can see — `git ls-files --cached --others
 --exclude-standard`, the same enumeration the index is built from, with a directory walk only when git
 itself fails — applies the exclusions, diffs against the files table, deletes rows for paths no longer
 present, and reparses paths absent from the table, whose size no longer matches the row, or whose content
@@ -8459,7 +7932,7 @@ hash no longer does: every equal-sized file is hashed, mtime regardless, since a
 stat would miss exactly the edit that kept it (§2). A gitignored file is outside it by design, as it is
 outside the index (§2). One listing plus one query, a `stat` per file and a hash of each equal-sized one
 (on this repository's 1,250 files, 12 MB, about 45 ms more than a stat-only sweep, ~210 ms for the whole
-`swift-sure reconcile` command, measured on a debug build) —
+sweep, measured on a debug build) —
 cheap enough to run on every twentieth incremental update that changed
 something, whenever the resolution fingerprint moves and whenever the recorded head no longer resolves
 (a full index purges unlisted rows the same way), and the only mechanism that guarantees convergence
@@ -8610,7 +8083,7 @@ it (§2): `AnswerHeaderTests` pins the header leading and an adopted root's note
 all four query tools on both faces, the live header's exact line for `search` and `strings`, and the same
 placement for `status` and `affected` on the command line. Semantic queries refuse per symbol when the
 symbol's file postdates the store's build. Index size is demonstrably non-monotonic across repeated alternating branch switches, and
-`reconcile` on an untouched tree reports zero changes. A plain commit with a clean tree triggers neither a
+the sweep on an untouched tree reports zero changes. A plain commit with a clean tree triggers neither a
 refusal nor a reindex on the next query — the test holds the first half; the second follows from the
 empty range diff of §2 and is not asserted. A file with syntax errors indexes with its parse-error count
 set, appears in the freshness header, and any answer touching it says so inline. The MCP server's stdout

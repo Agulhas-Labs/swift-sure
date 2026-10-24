@@ -39,30 +39,8 @@ struct PartialBuildAffectedStatusTests {
         let freshness = try await engine.ensureFresh()
 
         let lookup = try await engine.lookup(symbol: "Wrap.init(wrappedValue:)", freshness: freshness)
-        let range = try DiffRange.resolve(nil, git: GitContext(repoRoot: root))
-        let diff = try await engine.diff(options: DiffOptions(range: range), freshness: freshness)
 
         #expect(lookup.contains(":5  in Box.w  (file changed since last build)"), "\(lookup)")
-        #expect(diff.contains("Beta.swift:5") && diff.contains("(file changed since last build)"), "\(diff)")
-    }
-
-    /// A wrapper site in a file written after the build that no store holds a unit for, a file the diff does not list, is counted by `diff`'s header as new, beside the file the diff lists that it counts as changed.
-    @Test
-    func diffCountsAWrapperSiteInANewFileAsNew() async throws {
-        let root = try await Self.partiallyRebuiltPackage()
-        try TestSources.write("import Alpha\n\npublic struct Gamma {\n    @Wrap public var z = 1\n}\n", to: "Sources/Beta/Gamma.swift", in: root)
-        // Committed, so the diff does not list it: only the wrapper sites it holds make it a file the answer relied on.
-        try TestSources.runGit(["add", "Sources/Beta/Gamma.swift"], in: root)
-        try TestSources.runGit(["commit", "-m", "add gamma"], in: root)
-        let engine = try SiftEngine(directory: root)
-        TestSources.raiseOpenBudgetForAColdStore(engine)
-        try await engine.awaitSemanticStore()
-        let freshness = try await engine.ensureFresh()
-
-        let range = try DiffRange.resolve(nil, git: GitContext(repoRoot: root))
-        let diff = try await engine.diff(options: DiffOptions(range: range), freshness: freshness)
-
-        #expect(diff.contains("2 cited files: 1 changed, 1 new"), "\(diff)")
     }
 
     /// `status` never opens the store, so after the same build it reads fresh and names the help topic that lists the case among those only a query shows.

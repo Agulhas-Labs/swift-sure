@@ -77,24 +77,9 @@ struct AffectedNoStoreTouchedTests {
         #expect(!output.contains("the after-edit walk"))
     }
 
-    /// The limits topic and `diff`'s clause say what the walk starts from.
+    /// The limits topic says what the walk starts from.
     @Test
-    func theLimitsTopicAndDiffsClauseNameTheTouchedDeclarations() {
+    func theLimitsTopicNamesTheTouchedDeclarations() {
         #expect(AffectedHelpTopic.body.contains("- a changed file counts the declarations the diff touched in it, read by comparing both sides' parses; a file the comparison cannot account for counts whole, and the answer names it"))
-        let tests = AffectedRenderer.Output(body: "", axis: .syntacticOnly, reached: [], limitCount: 0, depth: 2, walkedOn: 0, walkedTo: 0, newerFiles: [])
-        let range = DiffRange(from: "HEAD", to: .workingTree, described: "working tree vs HEAD")
-        let lines = DiffRenderer.render(DiffRenderer.Input(
-            range: range,
-            files: [],
-            notBrokenDown: [],
-            nonSwift: [],
-            callers: [],
-            workingTreeIsAfterSide: true,
-            tests: tests,
-            options: DiffOptions(range: range),
-            rawDiffBytes: 0,
-            axis: .syntacticOnly
-        )).body
-        #expect(lines.contains("from `swift-sure affected`: the declarations the diff touched in each changed file (every declaration of a file the answer names as seeded whole), followed 2 hops"))
     }
 }

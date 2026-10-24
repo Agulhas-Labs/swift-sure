@@ -14,7 +14,7 @@ extension WhereRenderer {
     ///
     /// **The cursor pages the alphabetical list, never the display order.** Liveness changes *as the sweep runs*: page one's files get edited, drop out of the live group, and a cursor keyed to that order then skips as many files as moved — silently, in the multi-page sweep this section exists for. A page's contents must depend only on the offset and the file names, so live-first ordering is applied to the page after it is cut.
     ///
-    /// **A function's references are folded against its callers** (Docs/Design.md §2, *The callers/references fold*): the store records a call and a function handed on unapplied alike as references, so `callers of` above has already listed most of these lines. `callSitesAbove` holds each line it listed on a row of its own, `path:line`; those are counted in the heading, `K of them the call sites above`, and not listed again, and the files and the cursor are the rest's. A line `callers of` only counted — a caller's later sites, a caller past its cap — is listed here, so every line is listed once, above or here, on every page.
+    /// **A function's references are folded against its callers** (Docs/Design.md §2, *The callers/references fold*): the store records a call and a function handed on unapplied alike as references, so `callers of` above has already listed most of these lines. `sitesAbove` holds each line it listed on a row of its own, `path:line`; those are counted in the heading, `K of them the call sites above`, and not listed again, and the files and the cursor are the rest's. A line `callers of` only counted — a caller's later sites, a caller past its cap — is listed here, so every line is listed once, above or here, on every page.
     func referenceSection(
         for qualified: String,
         hits: [SemanticStore.Hit],
@@ -22,13 +22,14 @@ extension WhereRenderer {
         context: SemanticContext,
         occurrences: OccurrenceFreshness,
         paging: SyntacticSweepPaging? = nil,
-        callSitesAbove: Set<String> = [],
+        aboveNoun: String = "call sites",
+        sitesAbove: Set<String> = [],
         conformanceLines: Set<String> = [],
         generatedMentions: Int = 0,
         shown: (SemanticStore.Hit) -> Void = { _ in }
     ) -> [String] {
         let all = ReferencedFiles(hits: hits, context: context, occurrences: occurrences)
-        let afterCalls = hits.filter { !callSitesAbove.contains("\(context.relativePath($0.path)):\($0.line)") }
+        let afterCalls = hits.filter { !sitesAbove.contains("\(context.relativePath($0.path)):\($0.line)") }
         let afterCallsGrouped = afterCalls.count == hits.count ? all : ReferencedFiles(hits: afterCalls, context: context, occurrences: occurrences)
         // A protocol's conformance lines are listed once, in its conformers block, and counted here rather than listed twice; `--files` still names their files, recorded from `all` below.
         let rest = conformanceLines.isEmpty ? afterCalls : afterCalls.filter { !conformanceLines.contains("\(context.relativePath($0.path)):\($0.line)") }
@@ -36,7 +37,7 @@ extension WhereRenderer {
         let files = grouped.paths
         var details = ["\(all.sites) in \(all.paths.count) file\(all.paths.count == 1 ? "" : "s")"]
         if all.sites > afterCallsGrouped.sites {
-            details.append("\(all.sites - afterCallsGrouped.sites) of them the call sites above")
+            details.append("\(all.sites - afterCallsGrouped.sites) of them the \(aboveNoun) above")
         }
         let conformances = afterCallsGrouped.sites - grouped.sites
         if conformances > 0 {
@@ -375,7 +376,7 @@ extension WhereRenderer {
 
     /// The line spans a type's own name is written in as part of declaring itself — its declaration, and every extension **of this type in its own module** — and how many extensions of it other modules write.
     ///
-    /// An `extension SimilarTarget` header is recorded as a reference to the type, so counting it would make every type with an extension look used by something. Anywhere else in the declaring file is a different matter and stays counted: a sibling type reaching for it is a real dependency, and sharing a file says nothing about that.
+    /// An `extension Depot` header is recorded as a reference to the type, so counting it would make every type with an extension look used by something. Anywhere else in the declaring file is a different matter and stays counted: a sibling type reaching for it is a real dependency, and sharing a file says nothing about that.
     ///
     /// **Which extensions are its own is decided by the extended type's USR, never by the name written after `extension`.** ``ExtensionPaths/extensions(ofTypeNamed:in:)`` matches a leaf name over the whole repo, generic arguments set aside — no module, no nesting — so another module's `extension Widget` over its *own* `Widget`, and an `extension Outer.Item` against a top-level `Item`, would both have their bodies' real uses dropped from the count and then positively denied: "every reference falls inside its own declaration or extensions", said of lines that are a second module breaking when this type is deleted. Silence read as "nothing uses this" was the defect this section exists to end, and a false claim is strictly worse than silence. So the name match only proposes the candidates, each carrying the end line the store does not record, and `sites` — the store's `extendedBy` occurrences of *this* type's USR (``SemanticStore/extensionSites(ofUSR:)``) — decides which of them are real, by the header line falling inside the candidate's span.
     ///

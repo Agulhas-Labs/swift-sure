@@ -23,13 +23,44 @@ public struct CodexHooksFile {
         ]
     }
 
+    /// The events run mode registers: the shell hooks alone, with no session start, each running its subcommand with `--run-only`.
+    public static var runHooks: [Hook] {
+        [
+            Hook(event: "PreToolUse", subcommand: SiftClaudeSetup.runOnlyPreToolUseSubcommand, matcher: "*"),
+            Hook(event: "PostToolUse", subcommand: SiftCodexSetup.runPostToolUseSubcommand, matcher: "*"),
+        ]
+    }
+
+    /// The events `mode` registers.
+    public static func hooks(for mode: SiftClaudeSetup.InstallMode) -> [Hook] {
+        mode == .index ? hooks : runHooks
+    }
+
+    /// The mode `data`, a `hooks.json`, holds: run where it registers this tool's run-mode `PreToolUse` handler, index otherwise.
+    public static func mode(of data: Data?) -> SiftClaudeSetup.InstallMode {
+        guard let hook = runHooks.first(where: { $0.event == "PreToolUse" }) else { return .index }
+        return commands(in: data, for: hook).isEmpty ? .index : .run
+    }
+
+    /// Every command this tool's `hook` is registered with in `data`, in file order; none for a file that is not there or does not parse.
+    public static func commands(in data: Data?, for hook: Hook) -> [String] {
+        let file = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+        let groups = (file?["hooks"] as? [String: Any])?[hook.event] as? [Any] ?? []
+        return groups.flatMap { ($0 as? [String: Any])?["hooks"] as? [Any] ?? [] }.compactMap { handler in
+            (handler as? [String: Any])?["command"] as? String
+        }
+        .filter { SiftClaudeSetup.hooks.isOurs($0, subcommand: hook.subcommand) }
+    }
+
     /// The command registered for `hook`: the binary, already shell-quoted where it needs to be, then the subcommand.
     public static func command(for hook: Hook, binaryWord: String) -> String {
         "\(binaryWord) \(hook.subcommand)"
     }
 
-    /// Merges this tool's hooks into `data` (nil or empty meaning no file yet), repointing a handler of ours that names another binary and dropping any second one, and leaving everything else as it is.
-    public static func apply(to data: Data?, binaryWord: String) throws -> CursorHooksFile.Change {
+    /// Merges this tool's `hooks` (the index set unless run mode's is given) into `data` (nil or empty meaning no file yet), repointing a handler of ours that names another binary and dropping any second one, and leaving everything else as it is.
+    ///
+    /// A handler of `others`' hooks for the same event counts as ours too and is rewritten where it sits, so a switch of mode moves no group or handler.
+    public static func apply(to data: Data?, binaryWord: String, hooks: [Hook] = CodexHooksFile.hooks, replacing others: [Hook] = []) throws -> CursorHooksFile.Change {
         var file = try CursorConfigJSON.parse(data, file: fileName, harness: harness)
         var events = try CursorConfigJSON.object(file["hooks"], key: "hooks", file: fileName, harness: harness)
         var changed = false
@@ -40,14 +71,15 @@ public struct CodexHooksFile {
             var groups: [Any] = []
             for group in try CursorConfigJSON.array(events[hook.event], key: hook.event, file: fileName, harness: harness) {
                 let pass = try handlers(of: group, event: hook.event) { handler in
-                    guard let previous = handler["command"] as? String, SiftClaudeSetup.hooks.isOurs(previous, subcommand: hook.subcommand) else {
-                        return .keep
-                    }
+                    guard let previous = handler["command"] as? String else { return .keep }
+                    let direct = SiftClaudeSetup.hooks.isOurs(previous, subcommand: hook.subcommand)
+                    let switched = !direct && others.contains { $0.event == hook.event && SiftClaudeSetup.hooks.isOurs(previous, subcommand: $0.subcommand) }
+                    guard direct || switched else { return .keep }
                     // A second handler of ours runs the hook twice per event, so only the first survives.
                     guard !found else { return .drop }
                     found = true
                     guard previous != wanted else { return .keep }
-                    if !replaced.contains(previous) {
+                    if !switched, !replaced.contains(previous) {
                         replaced.append(previous)
                     }
                     var repointed = handler
@@ -74,10 +106,45 @@ public struct CodexHooksFile {
         return try CursorHooksFile.Change(data: CursorConfigJSON.encode(file), changed: true, replaced: replaced, removed: [])
     }
 
+    /// Puts `mode`'s hooks in `data` and takes the other mode's handlers of ours out, so the file never holds two `PreToolUse` handlers of ours; an event both modes register has our handler rewritten where it sits, so no group or handler changes position, a new group goes after the foreign ones, and a file already in `mode` is unchanged.
+    public static func install(into data: Data?, binaryWord: String, mode: SiftClaudeSetup.InstallMode) throws -> CursorHooksFile.Change {
+        let applied = try apply(to: data, binaryWord: binaryWord, hooks: hooks(for: mode), replacing: hooks(for: mode.other))
+        let kept = Set(hooks(for: mode).map(\.event))
+        let dropped = try remove(from: applied.changed ? applied.data : data, hooks: hooks(for: mode.other).filter { !kept.contains($0.event) })
+        return CursorHooksFile.Change(data: dropped.changed ? dropped.data : applied.data, changed: dropped.changed || applied.changed, replaced: applied.replaced, removed: dropped.removed)
+    }
+
+    /// The events whose groups sit at other positions in `after` than in `before`, which is a group dropped with another following it.
+    ///
+    /// Codex keys a hook's trust by position, so it asks about those hooks again.
+    public static func movedEvents(from before: Data?, to after: Data) -> [String] {
+        func events(_ data: Data?) -> [String: [Any]] {
+            let file = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+            return (file?["hooks"] as? [String: Any])?.compactMapValues { $0 as? [Any] } ?? [:]
+        }
+        let now = events(after)
+        return events(before).compactMap { (event: String, groups: [Any]) -> String? in
+            let remaining = now[event] ?? []
+            guard remaining.count < groups.count else { return nil }
+            let first = remaining.indices.first { !NSArray(array: [groups[$0]]).isEqual(to: [remaining[$0]]) } ?? remaining.count
+            return first < remaining.count ? event : nil
+        }
+        .sorted()
+    }
+
+    /// Takes this tool's handlers of both modes out of `data`, as the uninstall does.
+    public static func removeEitherMode(from data: Data?) throws -> CursorHooksFile.Change {
+        let index = try remove(from: data)
+        let run = try remove(from: index.changed ? index.data : data, hooks: runHooks)
+        return CursorHooksFile.Change(data: run.changed ? run.data : index.data, changed: index.changed || run.changed, replaced: [], removed: index.removed + run.removed)
+    }
+
     /// Takes this tool's handlers out of `data`, dropping a group they leave empty, an event with no group left and the `hooks` object when nothing is left in it; every foreign handler, group and key stays.
     ///
     /// A handler is this tool's by `registration`: the current name's by default, an earlier release's when the install or uninstall takes out what that release left.
-    public static func remove(from data: Data?, registration: HookRegistration = SiftClaudeSetup.hooks) throws -> CursorHooksFile.Change {
+    ///
+    /// Only the handlers of `hooks` go (the index set unless run mode's is given), since ownership is judged on the subcommand each hook runs.
+    public static func remove(from data: Data?, registration: HookRegistration = SiftClaudeSetup.hooks, hooks: [Hook] = CodexHooksFile.hooks) throws -> CursorHooksFile.Change {
         var file = try CursorConfigJSON.parse(data, file: fileName, harness: harness)
         var events = try CursorConfigJSON.object(file["hooks"], key: "hooks", file: fileName, harness: harness)
         var removed: [String] = []

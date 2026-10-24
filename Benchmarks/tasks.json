@@ -21,7 +21,7 @@
       "prompt": "List every file under Sources/ that refers to the type TokenEstimate, other than the file that declares it. Give file names only, comma-separated.",
       "check": {
         "type": "answer_set",
-        "expected": ["AnswerThenRead.swift", "DiffRenderer.swift", "InPlaceAnswer.swift", "ReportPage.swift", "TranscriptAudit.swift", "UsageReport.swift", "UsageScan.swift"],
+        "expected": ["AuditCommand.swift", "ReportCommand.swift", "ReportPage.swift", "TranscriptAudit.swift", "UsageScan.swift", "WholeReadWorth.swift"],
         "ignore": ["TokenEstimate.swift"]
       }
     },

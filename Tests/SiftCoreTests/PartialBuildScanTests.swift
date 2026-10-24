@@ -55,7 +55,7 @@ struct PartialBuildScanTests {
 
         let output = try await engine.lookup(symbol: "Alpha.ping", freshness: freshness)
 
-        #expect(output.contains("new since last build, not in the store, mention the name: Sources/Alpha/Later.swift:2"), "\(output)")
+        #expect(MentionRows.compacted(output).contains("new since last build, not in the store, mention the name: Sources/Alpha/Later.swift:2"), "\(output)")
         #expect(!output.contains("changed since last build, not in the store"), "\(output)")
     }
 

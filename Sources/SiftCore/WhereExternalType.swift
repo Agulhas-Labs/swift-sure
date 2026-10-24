@@ -4,7 +4,7 @@
 
 /// `where Dep.member` for a `Dep` the repository writes and declares nowhere: a path or package dependency's type, whose sources the index never holds.
 ///
-/// The index can neither confirm nor deny the member, so the answer says the type is declared outside the repository, in the words `digest` uses, and then lists what the repository can answer: its extensions of the type, its own declarations of the member's name on other types, and its own uses of the member. With a fresh store those uses are resolved references to the dependency's symbol; without one, or with one the tree has moved past, they are name matches, marked `by written name`, among which a same-named member of another type may appear.
+/// The index can neither confirm nor deny the member, so the answer says the type is declared outside the repository, in the words `digest` uses, and then lists what the repository can answer: its extensions of the type, how many times the repository declares the member's name on other types, and its own uses of the member. With a fresh store those uses are resolved references to the dependency's symbol; without one, or with one the tree has moved past, they are name matches, marked `by written name`, among which a same-named member of another type may appear.
 struct WhereExternalType {
     /// The renderer whose index, scan by written name and store sections the answer is made from.
     let renderer: WhereRenderer
@@ -38,13 +38,7 @@ struct WhereExternalType {
             }
         }
         if !elsewhere.isEmpty {
-            lines += ["", "other declarations of \(base) in this repository (\(elsewhere.count)):"]
-            for row in elsewhere.prefix(WhereRenderer.listCap) {
-                try lines.append("  \(renderer.qualifiedName(of: row)) — \(row.kind.rawValue) — \(row.path)\(row.rangeDescription)")
-            }
-            if elsewhere.count > WhereRenderer.listCap {
-                lines.append("  truncated: \(elsewhere.count - WhereRenderer.listCap) more declarations")
-            }
+            lines += ["", "\(base) is declared \(elsewhere.count) time\(elsewhere.count == 1 ? "" : "s") on other types in this repository — where \(base) lists them"]
         }
         if options.declarationsOnly {
             return Answer(lines: lines, axis: nil)
@@ -78,7 +72,7 @@ struct WhereExternalType {
             let classified = try context.testFilesWithoutUnit(in: renderer.store, projectDirectories: renderer.projectDirectories)
             unbuilt = classified.unbuilt + classified.outsideTargets
         }
-        let mentions = try WhereChangedFileMentions(names: names, unbuilt: unbuilt, refused: [], in: renderer.store, context: context, judge: occurrences, listsEveryLine: options.includeReferences, readsStoredFiles: false, offset: options.offset)
+        let mentions = try WhereChangedFileMentions(names: names, unbuilt: unbuilt, refused: [], in: renderer.store, context: context, judge: occurrences, listsEveryLine: options.includeReferences, readsStoredFiles: false, offset: options.offset, listsText: renderer.filesCollector == nil)
         if let collector = renderer.filesCollector {
             mentions.record(into: collector)
         }

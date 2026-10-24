@@ -25,7 +25,7 @@ struct WhereExternalTypeUnbuiltTests {
         #expect(output.contains("Tests/GizmoTests/CountTests.swift"), "\(output)")
         #expect(!output.contains("semantic: fresh"), "\(output)")
         #expect(output.contains("semantic: partial"), "\(output)")
-        #expect(output.contains("not in the build, mention the name: Tests/GizmoTests/CountTests.swift:7"), "\(output)")
+        #expect(MentionRows.compacted(output).contains("not in the build, mention the name: Tests/GizmoTests/CountTests.swift:7"), "\(output)")
         #expect(!output.contains("no reference to Tally.count in this repository"), "\(output)")
     }
 

@@ -86,21 +86,14 @@ struct NestedStoreScopeTests {
     }
 
     @Test
-    func diffAndAffectedMatchTheRootFunctionByNameRatherThanResolvingItToThePackagesFunction() async throws {
+    func affectedMatchesTheRootFunctionByNameRatherThanResolvingItToThePackagesFunction() async throws {
         let root = try await Self.builtFixture()
         let engine = try SiftEngine(directory: root)
         TestSources.raiseOpenBudgetForAColdStore(engine)
         try await engine.awaitSemanticStore()
 
-        let diff = try await engine.diff(
-            options: DiffOptions(range: DiffRange.resolve("HEAD~1..HEAD", git: GitContext(repoRoot: root))),
-            freshness: engine.ensureFresh()
-        )
         let affected = try await engine.affected(options: AffectedOptions(range: AffectedOptions.CommitRange(from: "HEAD~1", to: "HEAD")), freshness: engine.ensureFresh())
 
-        #expect(!diff.contains("resolved by the index store"), "\(diff)")
-        #expect(diff.contains("its file lies outside the store's package, Tools/Lint"), "\(diff)")
-        #expect(diff.contains("Sources/Lint/RootUse.swift:3"), "\(diff)")
         #expect(affected.contains("outside the store's package (Tools/Lint)"), "\(affected)")
         #expect(!affected.split(separator: "\n").contains { $0.contains("helperWorks() — 1 hop") && !$0.contains("name match") }, "\(affected)")
     }

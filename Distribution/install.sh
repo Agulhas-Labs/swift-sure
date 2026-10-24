@@ -10,14 +10,28 @@ LEGACY_NAMES="sift"
 # Further command names for the same binary (space-separated), linked like the legacy ones; not earlier products.
 ALIAS_NAMES=""
 
-# The only flags: the two that answer the allow-rule questions without a terminal, handed to `install-hook` as given.
-# Anything else is refused before a byte is written.
+# The only flags: --run-only (the build and test hooks alone; without it, the full set: server, rule, primer and lookup
+# hooks) and the two that answer the allow-rule questions without a terminal, all handed to `install-hook` as given.
+# Anything else is refused before a byte is written, and so is --allow-lookups with --run-only (run mode has no lookups).
+index=1
+lookups=0
 for flag in "$@"; do
     case "$flag" in
-        --allow-run | --allow-lookups) ;;
-        *) echo "error: unknown option $flag (usage: sh install.sh [--allow-run] [--allow-lookups])"; exit 2 ;;
+        --run-only) index=0 ;;
+        --allow-lookups) lookups=1 ;;
+        --allow-run) ;;
+        *) echo "error: unknown option $flag (usage: sh install.sh [--run-only] [--allow-run] [--allow-lookups])"; exit 2 ;;
     esac
 done
+if [ "$lookups" = 1 ] && [ "$index" = 0 ]; then
+    echo "error: --allow-lookups adds the lookup rules and --run-only registers no lookups; drop one (usage: sh install.sh [--run-only] [--allow-run] [--allow-lookups])"
+    exit 2
+fi
+# The install command the closing lines name for Cursor and Codex, in the mode this run installed.
+install_command="swift-sure install"
+if [ "$index" = 0 ]; then
+    install_command="swift-sure install --run-only"
+fi
 
 # SIFT_DEST is the name an earlier release read; it applies where SWIFT_SURE_DEST is unset.
 DEST="${SWIFT_SURE_DEST:-${SIFT_DEST:-$HOME/.local/bin}}"
@@ -107,6 +121,29 @@ fi
 
 if [ "$claude_found" = 1 ]; then
 
+if [ "$index" = 0 ]; then
+    # --run-only: no rule and no server. One an earlier (index) install left comes out; a symlink is the checkout's own file and stays.
+    if [ -L "$RULES/$NAME.md" ]; then
+        echo "rule: $RULES/$NAME.md is a symlink to $(readlink "$RULES/$NAME.md") — left as is"
+    elif [ -f "$RULES/$NAME.md" ]; then
+        rm -f "$RULES/$NAME.md"
+        echo "rule: removed $RULES/$NAME.md (--run-only)"
+    fi
+    if command -v claude >/dev/null 2>&1; then
+        removed=0
+        claude mcp remove $NAME --scope user >/dev/null 2>&1 && removed=1
+        claude mcp remove $NAME >/dev/null 2>&1 && removed=1
+        if [ "$removed" = 1 ]; then
+            echo "mcp: not registered (--run-only; the previous registration was removed)"
+        else
+            echo "mcp: not registered (--run-only; 'claude mcp remove' removed nothing, so a previous registration could not be confirmed gone: check 'claude mcp list')"
+        fi
+    else
+        echo "note: 'claude' not on PATH — if the server was registered by an earlier install, remove it manually with:"
+        echo "  claude mcp remove $NAME --scope user"
+    fi
+else
+
 # Agent guidance as a path-scoped user rule: one install for every repo on this machine, no repo
 # commits anything, and the `paths:` frontmatter keeps it out of context unless Swift is in play.
 mkdir -p "$RULES"
@@ -141,7 +178,9 @@ else
     echo "  claude mcp add --transport stdio --scope user $NAME -- '$DEST/$NAME' mcp"
 fi
 
-# The SessionStart primer. The rule above cannot arrive in time on its own: `paths: ["**/*.swift"]`
+fi
+
+# The SessionStart primer (index mode). The rule above cannot arrive in time on its own: `paths: ["**/*.swift"]`
 # fires when a Swift file is *touched*, so "reach for a digest instead of reading the file" lands one
 # step after the read it was meant to replace. A hook is the only delivery guaranteed to precede the
 # model's first turn.
@@ -158,8 +197,10 @@ fi
 "$DEST/$NAME" install-hook "$@"
 
 else
-    echo "Claude Code not found (no 'claude' on PATH, no Claude directory): its rule, hooks and server were skipped. Run 'swift-sure install' to set swift-sure up in Cursor or Codex, or install Claude Code and re-run install.sh to set it up there."
+    echo "Claude Code not found (no 'claude' on PATH, no Claude directory): its rule, hooks and server were skipped. Run '$install_command' to set swift-sure up in Cursor or Codex, or install Claude Code and re-run install.sh to set it up there."
+    # --run-only is carried into the command named above; the allow flags are Claude Code's alone.
     for flag in "$@"; do
+        [ "$flag" = "--run-only" ] && continue
         echo "note: $flag applies only to Claude Code and was ignored"
     done
 fi
@@ -183,11 +224,21 @@ fi
 
 echo
 if [ "$claude_found" = 1 ]; then
-    echo "Next: cd into a Swift repo and run 'swift-sure status'. The first query indexes it."
+    if [ "$index" = 1 ]; then
+        echo "Mode: index (the build and test hooks plus the index: server, rule, primer, lookups). Re-run with --run-only for build and test only."
+        echo "Next: cd into a Swift repo and run 'swift-sure status'. The first query indexes it."
+    else
+        echo "Mode: run-only (the build and test hooks only: no server, no rule, no primer). Re-run without --run-only to add the index."
+        echo "Next: build and test through 'swift-sure run -- <command>' in a Swift repo."
+    fi
     echo "On an upgrade a running Claude Code session's server re-execs into the new binary and the hooks apply at once."
-    echo "After a first install, and for the session primer, the tool list and the rule file, start a NEW session."
-    echo "Cursor and Codex: run 'swift-sure install' to set swift-sure up in them as well (it finds each and asks once)."
+    if [ "$index" = 1 ]; then
+        echo "After a first install, and for the session primer, the tool list and the rule file, start a NEW session."
+    else
+        echo "After a first install, start a NEW session for the hooks to apply."
+    fi
+    echo "Cursor and Codex: run '$install_command' to set swift-sure up in them as well (it finds each and asks once)."
 else
-    echo "Next: run 'swift-sure install' to set swift-sure up in the agents found on this machine, then cd into a Swift repo and run 'swift-sure status'."
+    echo "Next: run '$install_command' to set swift-sure up in the agents found on this machine, then cd into a Swift repo and run 'swift-sure status'."
 fi
 echo "Read INSTALL.md for configuration and troubleshooting."

@@ -115,7 +115,7 @@ public struct ChangedTests {
         } else {
             .modified
         }
-        let diff = FileDiff.compare(path: path, status: status, lineStat: nil, bytes: bytes)
+        let diff = FileDiff.compare(path: path, status: status, bytes: bytes)
         var found: Set<String> = []
         for change in diff.changes {
             if change.symbolKind == .function, change.kind == .added || change.kind == .changed {

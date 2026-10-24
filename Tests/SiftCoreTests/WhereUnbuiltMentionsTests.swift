@@ -48,7 +48,7 @@ struct WhereUnbuiltMentionsTests {
 
         for answer in [type, sweep] {
             #expect(answer.contains("a lower bound (1 test file outside any built target)"), "\(answer)")
-            #expect(answer.split(separator: "\n").contains("not in the build, mention the name: Fixtures/BetaTests.swift:6"), "\(answer)")
+            #expect(MentionRows.compacted(answer).split(separator: "\n").contains("not in the build, mention the name: Fixtures/BetaTests.swift:6"), "\(answer)")
         }
 
         #expect(property.contains("not counting 1 test file outside any built target"), "\(property)")

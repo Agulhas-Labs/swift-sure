@@ -32,9 +32,9 @@ public enum EngineError: Error, CustomStringConvertible, Sendable {
     case offsetAcrossSeveralDeclarations(target: String, count: Int)
     /// A `--at` revision that cannot be answered from, or a target that cannot be answered at one — the payload is the whole refusal, in git's own words where git refused.
     case revisionRefused(String)
-    /// `index` or `reconcile` asked of a tree whose index is held in memory because the tree cannot be written: either would build an index and throw it away, and report it as done.
+    /// `index` asked of a tree whose index is held in memory because the tree cannot be written: either would build an index and throw it away, and report it as done.
     case treeNotWritable(String)
-    /// `init --write` or `run --without` asked of a tree where the file each would write cannot be made: the tree, and what that leaves the command without (``TreeWritability``).
+    /// `run --without` asked of a tree where the file each would write cannot be made: the tree, and what that leaves the command without (``TreeWritability``).
     case cannotWrite(path: String, doing: String)
 
     public var description: String {

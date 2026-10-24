@@ -64,7 +64,7 @@ struct WhereMovedCallerTests {
         let headings = Self.fileHeadings(under: "callers of Lib.DepotStore.release(_:) (", in: answer)
         #expect(headings.first == "  Sources/Lib/Live.swift (1):", "\(answer)")
         #expect(Set(headings.dropFirst()) == Self.deletedHeadings, "\(answer)")
-        #expect(answer.contains("new since last build, not in the store, mention the name: Sources/Lib/GizmoTools.swift:2"), "\(answer)")
+        #expect(MentionRows.compacted(answer).contains("new since last build, not in the store, mention the name: Sources/Lib/GizmoTools.swift:2"), "\(answer)")
     }
 
     /// After a rebuild the store still holds the deleted files' units: their rows stay labelled, and the moved call is a caller row of its own.

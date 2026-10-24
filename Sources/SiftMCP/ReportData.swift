@@ -218,7 +218,8 @@ public struct ReportData: Sendable, Equatable {
                 headline: "Module names are mostly guesswork — \(share)% of files (\(entry.health.guessed) of \(entry.health.files))",
                 fact: "Those files answer on time about a module that does not exist: \(GuessedModuleNotice.consequence). It is invisible in every count below.",
                 action: GuessedModuleNotice.humanRemedy,
-                command: "\(ProductName.current.binary) init \(entry.root)"
+                file: "\(entry.root)/\(ProductName.current.configFileName)",
+                snippet: "{ \"moduleMap\": { \"<path prefix>\": \"<Module>\" } }"
             )
         }
     }
@@ -290,8 +291,11 @@ public extension ReportData {
         public let fact: String
         public let action: String
 
-        /// The command to run, kept separate from the prose so it can be copied rather than read.
-        public let command: String
+        /// The file the snippet belongs in, named apart from the prose so the page labels it.
+        public let file: String
+
+        /// The file content to add, kept separate from the prose so it can be copied rather than read; it is not a command.
+        public let snippet: String
     }
 
     /// The index's share of the lookups that had a choice, and how it moved.

@@ -45,6 +45,10 @@ kills a binary rewritten in place, with exit 137 and no message. If `swift-sure 
 not found, add `~/.local/bin` to the `PATH` in your shell profile.
 
 Then set it up in the agents you use. See <doc:Installing>, which also says what a source build leaves out.
+The default `swift-sure install` registers the full set: the build and test hooks, the MCP server, the rule, the session
+primer and the lookup hooks. The index adds about 1.2k tokens of tool definitions to every session; it paid for itself
+on longer work in a large codebase and showed no detectable difference on short lookups. `swift-sure install --run-only`
+registers the build and test hooks alone. The commands below work from the command line either way.
 
 ### Ask a first question
 
@@ -119,9 +123,8 @@ declarations (1):
 "Loan" (5 uses by written name in 1 file) — 5 production · 0 tests (for Stacks.Loan) — where --refs Loan lists them
 ```
 
-On a large repository, `swift-sure init` first reports which files got their module from a directory-name guess
-rather than from a build file, and proposes the `.swift-sure.json` settings that fix it. It writes nothing unless
-you pass `--write`.
+On a large repository, a file no build file declares gets its module from a directory-name guess; the answers say
+so, and a `moduleMap` entry in `.swift-sure.json` fixes it.
 
 ### Read the header
 

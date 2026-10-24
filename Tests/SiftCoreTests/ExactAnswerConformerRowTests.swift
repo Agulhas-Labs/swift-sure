@@ -79,4 +79,49 @@ struct ExactAnswerConformerRowTests {
             #expect(paths.isSuperset(of: ["Sources/Lib/Soldier.swift", "Sources/Lib/Medic.swift"]), "\(output)")
         }
     }
+
+    /// An answer whose lines are located by number, with a block of rows under each `mention the name:` heading between them.
+    private static var mentionAnswer: String {
+        """
+          Gizmo — struct — Sources/Lib/Gizmo.swift:1-9
+
+          Sources/Lib/Use.swift (1): 4
+
+        not in the build, mention the name:
+          Tests/GizmoTests.swift (2):
+            :34  | gizmo.record(…)
+            :44  | …
+          3 outside files not scanned
+
+        new since last build, not in the store, mention the name:
+          Sources/Lib/Fresh.swift (1):
+            :7  | let a = Gizmo()
+
+        uses: 1
+          Sources/Lib/Later.swift (1): 12
+        """
+    }
+
+    /// A site found by the name alone, in an unbuilt or a new file, is never located, under either heading, and the sections around the block still are.
+    @Test
+    func mentionRowsAreNeverLocated() {
+        let located = ExactAnswer.locations(inWhereAnswer: Self.mentionAnswer)
+
+        #expect(located == [
+            ExactAnswer.Location(path: "Sources/Lib/Gizmo.swift", line: 1),
+            ExactAnswer.Location(path: "Sources/Lib/Use.swift", line: 4),
+            ExactAnswer.Location(path: "Sources/Lib/Later.swift", line: 12),
+        ], "\(located)")
+    }
+
+    /// The lines an answer shows are the same set whether the mentions are rows or the compact line.
+    @Test
+    func shownLocationsAreTheSameForRowsAndTheCompactLine() {
+        let rows = Self.mentionAnswer
+        let compact = MentionRows.compacted(rows)
+
+        #expect(compact != rows)
+        #expect(ExactAnswer.shownLocations(inWhereAnswer: rows) == ExactAnswer.shownLocations(inWhereAnswer: compact), "\(compact)")
+        #expect(ExactAnswer.locations(inWhereAnswer: rows) == ExactAnswer.locations(inWhereAnswer: compact), "\(compact)")
+    }
 }

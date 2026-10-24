@@ -171,7 +171,8 @@ extension WhereRenderer {
             context: primary,
             judge: counter.declaringFiles,
             listsEveryLine: false,
-            readsStoredFiles: false
+            readsStoredFiles: false,
+            listsText: filesCollector == nil
         )
         lines = mentions.placed(in: lines)
         var setAside = counter.setAside

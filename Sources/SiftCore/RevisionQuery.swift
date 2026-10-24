@@ -128,6 +128,7 @@ struct RevisionQuery {
         let scanner = CallSiteScanner(repoRoot: snapshot.root, enumerator: listing, readsProtocolBuiltBodies: true)
         var renderer = WhereRenderer(store: snapshot.store, callSites: { await scanner.callSites(named: $0) })
         renderer.revision = revision
+        renderer.fileSource = { [snapshot] path in try? String(contentsOf: snapshot.root.appendingPathComponent(path), encoding: .utf8) }
         renderer.revisionPaths = files.paths
         renderer.usesFileCount = { [snapshot] name in await WhereUsesPointer.fileCount(of: name, repoRoot: snapshot.root, enumerator: listing) }
         renderer.isUnreadablyRenamed = { [resolver] in resolver.isUnreadablyRenamed($0) }

@@ -75,8 +75,8 @@ struct AffectedSuiteHelperRouteTests {
         return try await engine.affected(options: AffectedOptions(), freshness: freshness)
     }
 
-    /// A changed `Widget` whose only test is four hops out, through three library functions, built over the change: the `affected` answer, and the `diff` one that embeds it.
-    private static func answersFourHopsOut() async throws -> (affected: String, diff: String) {
+    /// A changed `Widget` whose only test is four hops out, through three library functions, built over the change: the `affected` answer.
+    private static func answersFourHopsOut() async throws -> String {
         let root = try TestSources.makeTempRepo()
         try TestSources.write(manifest(), to: "Package.swift", in: root)
         try TestSources.write("public struct Widget {\n    public init() {}\n}\n", to: "Sources/Lib/Core.swift", in: root)
@@ -119,25 +119,19 @@ struct AffectedSuiteHelperRouteTests {
         TestSources.raiseOpenBudgetForAColdStore(engine)
         try await engine.awaitSemanticStore()
         let freshness = try await engine.ensureFresh()
-        let affected = try await engine.affected(options: AffectedOptions(), freshness: freshness)
-        let range = try DiffRange.resolve(nil, git: GitContext(repoRoot: root))
-        let diff = try await engine.diff(options: DiffOptions(range: range), freshness: freshness)
-        return (affected, diff)
+        return try await engine.affected(options: AffectedOptions(), freshness: freshness)
     }
 
     /// A changed file that reaches no test within the default two hops is walked on to the first hop that does, and the answer names the file and the hop.
     @Test
     func aChangedFileReachingNoTestWithinTheBoundIsWalkedOnToItsFirst() async throws {
-        let (output, diff) = try await Self.answersFourHopsOut()
+        let output = try await Self.answersFourHopsOut()
 
         #expect(output.contains("depth: 2 reference hops from the changed declarations"))
         #expect(output.contains("LibTests.LampTests/lights() — 4 hops — "))
         #expect(output.contains("note: 1 changed file reached no test within 2 hops, so the resolved walk went on from it to the first hop that reaches one: Sources/Lib/Core.swift at 4 hops"))
         // The limits block names the exception, so the 4-hop entry does not sit under a line saying the walk stopped at two.
         #expect(output.contains("the reference walk stops at 2 hops, except from the changed file the note above names, walked on past it toward its first test, as far as that note says it went — "))
-        // `diff` states the bound above the same 4-hop entry, and the exception with it.
-        #expect(diff.contains("followed 2 hops, and on from 1 changed file that reached no test within them, toward its first test as far as `swift-sure affected` says it went — "))
-        #expect(diff.contains("LibTests.LampTests/lights() — 4 hops — "))
     }
 
     /// With no store, the helper's written name is carried into the next hop, so the suite calling it is listed beside the suite declaring it.

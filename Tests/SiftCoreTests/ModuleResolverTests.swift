@@ -92,7 +92,6 @@ struct ModuleResolverTests {
         #expect(resolver.resolvedModule(for: "VendorTools/VendorToolsKit/Sources/VendorToolsKit/A.swift") == "VendorToolsKit")
         #expect(resolver.resolvedModule(for: "VendorTools/VendorToolsKit/Tests/VendorToolsKitTests/B.swift") == "VendorToolsKitTests")
         #expect(resolver.resolvedModule(for: "VendorTools/Linter/Sources/Linter/C.swift") == "Linter")
-        #expect(resolver.unmappedManifests.isEmpty)
     }
 
     /// The fingerprint is stable across identical rebuilds and moves with every resolution input — manifest bytes and the config `moduleMap` — because it is what decides whether an existing index gets re-attributed.
@@ -115,25 +114,5 @@ struct ModuleResolverTests {
         config.moduleMap = ["Sources/Lib": "Renamed"]
         let editedMap = ModuleResolver(repoRoot: root, config: config).fingerprint
         #expect(editedMap != editedManifest)
-    }
-
-    /// A manifest that contributes nothing must be named, never silent — otherwise "repo has no build files" and "the manifest could not be read" look identical, and a broken read goes undiagnosed.
-    @Test
-    func aManifestContributingNoMappingIsReported() throws {
-        let root = try TemporaryDirectory.make("manifest-unmapped")
-            .appendingPathComponent("manifest-unmapped")
-        try TestSources.write(
-            """
-            let paths = ["Computed/Path"]
-            let package = Package(name: "Opaque", targets: [.target(name: "Opaque", path: paths[0])])
-            """,
-            to: "Opaque/Package.swift",
-            in: root
-        )
-        try TestSources.write("struct A {}\n", to: "Opaque/Computed/Path/A.swift", in: root)
-
-        let resolver = ModuleResolver(repoRoot: root, config: SiftConfig())
-
-        #expect(resolver.unmappedManifests == ["Opaque/Package.swift"])
     }
 }

@@ -3,7 +3,8 @@
 Status: runner and analysis built. Results: `RESULTS.md` (SwiftSure's own repository, 60 runs),
 `RESULTS-ios-app.md` and `RESULTS-ios-app-10.md` (a private 148k-line iOS app, 3 and 10 repeats), and
 `RESULTS-run-compression.md` (`swift-sure run` output against the raw log, no model), `RESULTS-live.md` (the hook
-live, with a compiler index) and `RESULTS-single-call.md` (single-call answers).
+live, with a compiler index), `RESULTS-single-call.md` (single-call answers) and `RESULTS-public-corpora.md`
+(the three public corpora of fieldwork-bench, 0.3.0 against 0.2.2).
 
 ## What it measures
 

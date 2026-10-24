@@ -166,8 +166,8 @@ struct SemanticGeneratedCodeTests {
             #expect(count.contains("reads and writes of GizmoApp.Panel.count (2):"))
             #expect(count.contains("    :11  init(lamp:) — write via _count  | _count = State(initialValue: 3)"))
             #expect(count.contains("    :17  getter:body — read  | Text(\"\\(count)\")"))
-            #expect(sweep.contains("references to GizmoApp.Panel.flag (1 in 1 file, including $flag):"))
-            #expect(sweep.contains("  Sources/GizmoApp/Panel.swift (1):\n    :16  getter:body  | Toggle(\"f\", isOn: $flag)"))
+            #expect(sweep.contains("references to GizmoApp.Panel.flag (1 in 1 file, 1 of them the reads and writes above, including $flag):"))
+            #expect(sweep.contains("  Sources/GizmoApp/Panel.swift (1):\n    :16  getter:body — read via $flag  | Toggle(\"f\", isOn: $flag)"))
             #expect(unused.contains("no reads or writes of GizmoApp.Idle.on recorded in the store"))
             #expect(!unused.contains("getter:$on"))
             #expect(unusedSweep.contains("no references to GizmoApp.Idle.on recorded in the store"))
@@ -230,28 +230,8 @@ struct SemanticGeneratedCodeTests {
             #expect(amount.contains("    :10  reset() — used via _amount  | _amount = Clamp(wrappedValue: 0)\n"))
             #expect(amount.contains("    :12  show() — read  | func show() -> Int { amount }"))
             #expect(!amount.contains("    :10  reset() — read"))
-            #expect(sweep.contains("references to GizmoCore.Meter.amount (2 in 1 file, including _amount):"))
+            #expect(sweep.contains("references to GizmoCore.Meter.amount (2 in 1 file, 2 of them the reads and writes above, including _amount):"))
         }
-    }
-
-    /// `swift-sure diff` lists a changed property's uses from the same store query `where` does, and marks a use through a wrapper's sibling the same way — `$flag` handed to a `Toggle` is never listed as `flag` itself.
-    @Test
-    func aDiffMarksAUseThroughAWrappersSiblingAsWhereDoes() async throws {
-        let root = try TestSources.makeTempRepo()
-        try Self.writePackage(in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try TestSources.write(Self.idle(flag: "@State var flag: Bool = false"), to: "Sources/GizmoApp/Idle.swift", in: root)
-        try TestSources.commitAll(in: root, message: "annotate")
-        try await TestSources.swiftBuild(packageAt: root)
-
-        let engine = try SiftEngine(directory: root)
-        TestSources.raiseOpenBudgetForAColdStore(engine)
-        try await engine.awaitSemanticStore()
-        let freshness = try await engine.ensureFresh()
-        let range = try DiffRange.resolve("HEAD", git: GitContext(repoRoot: root))
-        let output = try await engine.diff(options: DiffOptions(range: range, member: nil, offset: 0), freshness: freshness)
-
-        #expect(output.contains("~ Outer.flag — resolved by the index store: 1 use\n      getter:body — Sources/GizmoApp/Idle.swift:11 — via $flag\n"))
     }
 
     /// The sibling-spelling cache `where` reads a wrapped property's uses through lives for one query only — never on the store across queries.

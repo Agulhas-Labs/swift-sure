@@ -8,14 +8,16 @@ import Foundation
 import SiftCore
 import SiftMCP
 
-/// `swift-sure install-hook` — registers `session-start` for `SessionStart` and `SubagentStart`, `pre-tool-use` for `PreToolUse`, `post-tool-use` for `PostToolUse` and `stop` for `Stop` and `SubagentStop`, in `~/.claude/settings.json`, and takes out the status line and band an older install left.
+/// `swift-sure install-hook` — registers the hooks in `~/.claude/settings.json` and takes out the status line and band an older install left.
+///
+/// By default the full set: `session-start` for `SessionStart` and `SubagentStart`, `pre-tool-use` for `PreToolUse`, `post-tool-use` for `PostToolUse` and `PostToolUseFailure`, and `stop` for `Stop` and `SubagentStop`; `--run-only` registers run mode instead: `pre-tool-use --run-only` for `PreToolUse` and the same `post-tool-use` and `stop`, with no `SessionStart`.
 ///
 /// Called by the distribution installer, and safe to run by hand: re-running is the upgrade path, and a registration already pointing at a moved binary is repointed rather than duplicated.
 struct InstallHookCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "install-hook",
-            abstract: "Register the SessionStart/SubagentStart primer, the PreToolUse advice hook, the PostToolUse reuse nudge, and the Stop/SubagentStop build check with Claude Code, removing an older install's status line and band (idempotent; re-run to upgrade)."
+            abstract: "Register the \(ProductName.current.displayName) hooks with Claude Code: the session primer, the lookup hooks and the build and test hooks, or with --run-only the build and test hooks alone. Removes an older install's status line and band (idempotent; re-run to upgrade; switches the mode)."
         )
     }
 
@@ -27,12 +29,21 @@ struct InstallHookCommand: ParsableCommand {
 
     @Flag(
         inversion: .prefixedNo,
-        help: "Add (or don't add) both blocks of allow rules, the lookups and the builds the hook wraps in `\(ProductName.current.binary) run`, without asking."
+        help: "Add (or don't add) the allow rules without asking: both blocks, the lookups and the builds the hook wraps in `\(ProductName.current.binary) run`; with --run-only, the builds alone."
     )
     var allowRun: Bool?
 
     @Flag(name: .customLong("allow-lookups"), help: "Add only the allow rules for `\(ProductName.current.binary) digest`, `where`, `search` and `strings`, without asking about either block.")
     var allowLookups = false
+
+    @Flag(name: .customLong("run-only"), help: "Register only the build and test hooks (run mode): no session primer, no lookup hooks, no lookup allow rules. Without it the full set is registered.")
+    var runOnly = false
+
+    /// Whether the full set is registered, which is every install without `--run-only`.
+    var index: Bool {
+        get { !runOnly }
+        set { runOnly = !newValue }
+    }
 
     @Option(name: .customLong("agent"), help: "The agent to register with: claude (default), cursor or codex. Cursor and Codex support is experimental.")
     var agent: Agent = .claude
@@ -89,6 +100,14 @@ struct InstallHookCommand: ParsableCommand {
             allowRun.map { $0 ? "--allow-run" : "--no-allow-run" },
             allowLookups ? "--allow-lookups" : nil,
         ])
+        if agent == .claude, runOnly {
+            if command != nil {
+                throw ValidationError("--command sets the session primer's command and --run-only registers no primer; drop one")
+            }
+            if allowLookups {
+                throw ValidationError("--allow-lookups adds the lookup rules and --run-only registers no lookups; drop one")
+            }
+        }
         if allowRun == false, allowLookups {
             throw ValidationError("--allow-lookups adds the lookup rules and --no-allow-run adds none; give one of them")
         }
@@ -122,21 +141,22 @@ struct InstallHookCommand: ParsableCommand {
         }
         if agent == .cursor {
             let directory = cursorDirectory.map { URL(fileURLWithPath: $0) } ?? AgentPaths.cursorDirectory(environment: environment)
-            let result = try SiftCursorSetup.installer.install(directory: directory, binary: binary)
-            let legacy = try LegacyCursorCleanup.settle(directory: directory, installing: true, installFailed: !result.outcome.failures.isEmpty, written: result.outcome.written)
+            let result = try SiftCursorSetup.install(directory: directory, binary: binary, mode: index ? .index : .run)
+            let legacy = try LegacyCursorCleanup.settle(directory: directory, installing: true, installFailed: !result.outcome.failures.isEmpty, mode: index ? .index : .run, written: result.outcome.written)
             let restart = !result.outcome.changed && legacy.changed ? [CursorHookInstaller.restart] : []
             (result.printed + legacy.lines + legacy.written.map { "      \($0)" } + legacy.notes + restart).forEach(output.emit)
             return result.outcome.changed || legacy.changed
         }
         if agent == .codex {
             let home = CodexInstall.home(flag: codexDirectory, environment: environment)
-            return try CodexHookInstaller.install(home: home, binary: binary, runner: codex ?? CodexCLI(environment: environment), output: output).changed
+            return try CodexHookInstaller.install(home: home, binary: binary, runner: codex ?? CodexCLI(environment: environment), output: output, mode: index ? .index : .run).changed
         }
         let settingsURL = settings.map { URL(fileURLWithPath: $0) } ?? AgentPaths.claudeSettings(environment: environment)
         // `--command` overrides the primer's command only. The `PreToolUse` hook runs a different
         // subcommand, so it is always built from the binary's own path — an override that pointed both at
         // one command would register a primer where a permission decision is expected.
-        let hookCommand = command ?? "\(executableWord()) \(SiftClaudeSetup.sessionStartSubcommand)"
+        let mode: SiftClaudeSetup.InstallMode = index ? .index : .run
+        let hookCommand = command ?? "\(executableWord()) \(mode == .index ? SiftClaudeSetup.sessionStartSubcommand : SiftClaudeSetup.runOnlyPreToolUseSubcommand)"
 
         // Before the read, never between it and the rewrite: `claude plugin` edits this same file, and the rewrite
         // below would put back what it took out. Skipped for a named file, as the uninstall skips it: `claude`
@@ -154,8 +174,9 @@ struct InstallHookCommand: ParsableCommand {
         var merged = original
         var hookChanged = false
         var replaced: [String] = []
+        var removedForMode: [String] = []
         // A hook an earlier release registered under its own binary name comes out first, so the one registered below does not sit beside it.
-        for registration in SiftClaudeSetup.hooks(recognising: Array(names.dropFirst())) {
+        for registration in SiftClaudeSetup.hooksOfEitherMode(recognising: Array(names.dropFirst())) {
             for event in registration.eventsToRemove() {
                 let removal = try registration.remove(from: merged, event: event)
                 guard !removal.removed.isEmpty else { continue }
@@ -166,9 +187,29 @@ struct InstallHookCommand: ParsableCommand {
                 }
             }
         }
-        for event in SiftClaudeSetup.events {
+        // The other mode's events come out, but only those this mode does not register itself: `apply` repoints a shared event's matchers, and removing it first would report a change on every re-run.
+        let kept = Set(mode.events.map { "\($0.name) \($0.subcommand)" })
+        for name in names {
+            let registration = SiftClaudeSetup.hooks(named: name, mode: mode.other)
+            for event in registration.eventsToRemove() where !kept.contains("\(event.name) \(event.subcommand)") {
+                let removal = try registration.remove(from: merged, event: event)
+                guard !removal.removed.isEmpty else { continue }
+                merged = removal.data
+                hookChanged = true
+                // An event the new mode registers under another command is a replacement; one it does not register at all is a removal.
+                let registeredByMode = mode.events.contains { $0.name == event.name }
+                for previous in removal.removed where !removedForMode.contains(previous) && !replaced.contains(previous) {
+                    if registeredByMode {
+                        replaced.append(previous)
+                    } else {
+                        removedForMode.append(previous)
+                    }
+                }
+            }
+        }
+        for event in mode.events {
             let eventCommand = event.subcommand == SiftClaudeSetup.sessionStartSubcommand ? hookCommand : "\(executableWord()) \(event.subcommand)"
-            let result = try SiftClaudeSetup.hooks(named: names[0]).apply(to: merged, command: eventCommand, event: event)
+            let result = try SiftClaudeSetup.hooks(named: names[0], mode: mode).apply(to: merged, command: eventCommand, event: event)
             guard result.changed else { continue }
             merged = result.data
             hookChanged = true
@@ -191,7 +232,7 @@ struct InstallHookCommand: ParsableCommand {
         }
 
         guard hookChanged || rulesAdded || statuslineNote != nil else {
-            output.emit("hook: already registered (\(hookCommand))")
+            output.emit("hook: already registered (\(hookCommand)) — \(Self.modeNote(mode))")
             if let permissionNote {
                 output.emit(permissionNote)
             }
@@ -210,16 +251,24 @@ struct InstallHookCommand: ParsableCommand {
         for previous in replaced {
             output.emit("hook: replaced stale registration (\(previous))")
         }
+        for previous in removedForMode {
+            output.emit("hook: removed (\(previous)) — not registered in \(Self.modeName(mode))")
+        }
         if hookChanged {
-            output.emit("hook: registered for SessionStart (\(SiftClaudeSetup.sessionStartMatchers.joined(separator: ", "))) and SubagentStart — \(hookCommand)")
-            let preToolUse = SiftClaudeSetup.events.first { $0.subcommand == SiftClaudeSetup.preToolUseSubcommand }
-            output.emit("      registered for PreToolUse (\(preToolUse?.matchers.joined(separator: ", ") ?? "")) — \(executableWord()) \(SiftClaudeSetup.preToolUseSubcommand)")
-            let postToolUse = SiftClaudeSetup.events.first { $0.subcommand == "post-tool-use" }
+            let preToolUseSubcommand = mode == .index ? SiftClaudeSetup.preToolUseSubcommand : SiftClaudeSetup.runOnlyPreToolUseSubcommand
+            let preToolUse = mode.events.first { $0.subcommand == preToolUseSubcommand }
+            if mode == .index {
+                output.emit("hook: registered for SessionStart (\(SiftClaudeSetup.sessionStartMatchers.joined(separator: ", "))) and SubagentStart — \(hookCommand)")
+                output.emit("      registered for PreToolUse (\(preToolUse?.matchers.joined(separator: ", ") ?? "")) — \(executableWord()) \(preToolUseSubcommand)")
+            } else {
+                output.emit("hook: registered for PreToolUse (\(preToolUse?.matchers.joined(separator: ", ") ?? "")) — \(executableWord()) \(preToolUseSubcommand) — \(Self.modeNote(mode))")
+            }
+            let postToolUse = mode.events.first { $0.subcommand == "post-tool-use" }
             output.emit("      registered for PostToolUse (\(postToolUse?.matchers.joined(separator: ", ") ?? "")) — \(executableWord()) post-tool-use")
             output.emit("      registered for PostToolUseFailure (Bash) — \(executableWord()) post-tool-use")
             output.emit("      registered for Stop and SubagentStop — \(executableWord()) stop")
         } else {
-            output.emit("hook: already registered (\(hookCommand))")
+            output.emit("hook: already registered (\(hookCommand)) — \(Self.modeNote(mode))")
         }
         if let statuslineNote {
             output.emit(statuslineNote)
@@ -238,6 +287,15 @@ struct InstallHookCommand: ParsableCommand {
         return true
     }
 
+    /// What the registered-set lines say about the mode: run mode names the flag that adds the index.
+    private static func modeNote(_ mode: SiftClaudeSetup.InstallMode) -> String {
+        mode == .index ? "index mode; re-run with --run-only for build and test only" : "run mode — index off; re-run without --run-only for the lookup tools"
+    }
+
+    private static func modeName(_ mode: SiftClaudeSetup.InstallMode) -> String {
+        mode == .index ? "index mode" : "run mode"
+    }
+
     /// Adds the lookup and `swift-sure run` allow rules to `settings` where they are missing and the answer is yes, returning whether any were added and the line saying what happened.
     ///
     /// The answers are `--allow-run` (both blocks), `--no-allow-run` (neither), `--allow-lookups` (the lookups alone), or on a terminal one question per missing block, the lookups first and defaulting to yes (to no once it was declined, which `~/.swift-sure` remembers until a yes or `--allow-lookups`), then the runs, defaulting to no. Never asked without a terminal, and not said when the file already holds what would be asked: where nobody can answer, nothing is added, and the line names the flags that add them.
@@ -248,20 +306,20 @@ struct InstallHookCommand: ParsableCommand {
             return (false, "permissions: nothing added")
         }
         // A flag that gives the lookups answer ends an earlier decline, whether or not the block is already in the file.
-        if allowLookups || allowRun == true {
+        if index, allowLookups || allowRun == true {
             LookupsDeclineRecord(directory: stateDirectory, environment: environment).clear()
         }
         let asks = allowRun == nil && !allowLookups
-        let lookupsMissing = try !LookupAllowRules.missing(from: settings).isEmpty
+        let lookupsMissing = try index && !LookupAllowRules.missing(from: settings).isEmpty
         let runsMissing = try !RunAllowRules.missing(from: settings).isEmpty
         // `--allow-run` adds the run rules even beside `--allow-lookups`, so a file already holding the lookups is not the end of it.
         let wantsRuns = runsMissing && (allowRun == true || !allowLookups)
         guard lookupsMissing || wantsRuns else {
-            return (false, allowLookups ? "permissions: lookups already allowed" : "permissions: wrapped builds and lookups already allowed")
+            return (false, allowLookups ? "permissions: lookups already allowed" : index ? "permissions: wrapped builds and lookups already allowed" : "permissions: wrapped builds already allowed")
         }
         if asks, !prompt.isInteractive {
             let binary = Self.binaryPath(invokedAs: arguments.first ?? SiftPaths.binaryName, environment: environment, executable: executable, names: names)
-            return (false, Self.noTerminalNote(binary: binary, environment: environment, currentDirectory: currentDirectory))
+            return (false, Self.noTerminalNote(binary: binary, environment: environment, currentDirectory: currentDirectory, index: index))
         }
         // A block already in the file is not asked about again.
         let addLookups = lookupsMissing && wantsLookups(asking: asks)
@@ -282,8 +340,11 @@ struct InstallHookCommand: ParsableCommand {
     /// The permissions line where nobody can answer: the command that adds the rules, the form to type it in from a Claude Code session, and the flag for the lookups alone.
     ///
     /// The command is spelled as the user must type it: bare `swift-sure` where the first `swift-sure` on the PATH in `environment` is this binary, otherwise the binary's own path.
-    static func noTerminalNote(binary: String, environment: [String: String], currentDirectory: String) -> String {
+    static func noTerminalNote(binary: String, environment: [String: String], currentDirectory: String, index: Bool = true) -> String {
         let typed = typedCommand(binary: binary, environment: environment, currentDirectory: currentDirectory)
+        guard index else {
+            return "permissions: nothing added (no terminal to ask in) — to allow \(ProductName.current.binary)'s wrapped builds without a prompt, run: \(typed) install-hook --allow-run (from Claude Code: ! \(typed) install-hook --allow-run)"
+        }
         return "permissions: nothing added (no terminal to ask in) — to allow \(ProductName.current.binary)'s lookups and wrapped builds without a prompt, run: \(typed) install-hook --allow-run (from Claude Code: ! \(typed) install-hook --allow-run); `\(typed) install-hook --allow-lookups` for the lookups alone"
     }
 
@@ -372,6 +433,7 @@ extension InstallHookCommand {
         case command
         case allowRun
         case allowLookups
+        case runOnly
         case agent
         case cursorDirectory
         case codexDirectory

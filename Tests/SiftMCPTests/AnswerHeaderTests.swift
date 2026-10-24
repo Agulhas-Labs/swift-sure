@@ -35,26 +35,20 @@ struct AnswerHeaderTests {
         text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
     }
 
-    // MARK: - search, strings and similar carry a header
+    // MARK: - search and strings carry a header
 
     @Test
-    func searchStringsAndSimilarOpenWithTheLiveHeaderOnTheCommandLine() async throws {
+    func searchAndStringsOpenWithTheLiveHeaderOnTheCommandLine() async throws {
         let repository = try MCPTestRepo.make()
         let worktree = try MCPTestRepo.worktree(of: repository, named: "agent-1a2b3c4d")
         let registry = try Self.temporaryRegistry()
 
         let search = try await SearchCommand.parse(["name:Alpha", "--root", worktree.path]).answer(registry: registry)
         let strings = try StringsCommand.parse(["anything", "--root", worktree.path]).answer(registry: registry)
-        // Alpha.go() has no calls in its body, which the similar search always ranks below the callee
-        // floor — so its answer is the "too thin to compare" outcome, not the target merely echoed back
-        // (every outcome — ranked, thin, ambiguous, unresolved — echoes the target in its heading).
-        let similar = try await SimilarCommand.parse(["Alpha.go()", "--root", worktree.path]).answer(registry: registry)
 
         #expect(Self.lines(search).first == Self.liveHeader(repository: repository, worktree: worktree.lastPathComponent))
         #expect(search.contains("Alpha"))
         #expect(Self.lines(strings).first == Self.liveHeader(repository: repository, worktree: worktree.lastPathComponent))
-        #expect(Self.lines(similar).first == Self.liveHeader(repository: repository, worktree: worktree.lastPathComponent))
-        #expect(similar.contains("too thin to compare"))
     }
 
     @Test
@@ -85,8 +79,6 @@ struct AnswerHeaderTests {
             WhereCommand.parse(["Alpha", "--syntactic"] + root).answer(registry: registry),
             SearchCommand.parse(["name:Alpha"] + root).answer(registry: registry),
             StringsCommand.parse(["anything"] + root).answer(registry: registry),
-            SimilarCommand.parse(["Alpha.go()"] + root).answer(registry: registry),
-            DupesCommand.parse(root).answer(registry: registry),
         ]
 
         for answer in answers {

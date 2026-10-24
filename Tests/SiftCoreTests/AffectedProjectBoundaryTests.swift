@@ -68,16 +68,12 @@ struct AffectedProjectBoundaryTests {
         engine.callerDirectory = root.path
         try await engine.awaitSemanticStore()
         let affected = try await engine.affected(options: AffectedOptions(), freshness: engine.ensureFresh())
-        let diff = try await DiffEngineTests.diff(root)
 
         #expect(affected.contains("semantic: stale"), "\(affected)")
         #expect(affected.contains("1 test file outside any built target: no build of the store's project compiles it, so no test in it was matched"), "\(affected)")
         #expect(affected.split(separator: "\n").contains { $0.contains("reads()") && $0.contains("name match") }, "\(affected)")
         #expect(affected.split(separator: "\n").contains { $0.contains("--filter") && $0.contains("reads") }, "\(affected)")
         #expect(!affected.contains("SampleUITests"), "\(affected)")
-        // Diff's callers block still names the nested file's use of `walk`, which is a use in the tree; only its reaching tests leave it out.
-        #expect(diff.contains("tests reaching the changed files (1 test in 1 target)"), "\(diff)")
-        #expect(!diff.split(separator: "\n").contains { $0.contains("SampleUITests") && $0.contains("hop") }, "\(diff)")
     }
 
     /// A manifest that writes some targets literally and others by a computed name could declare any module, so a test target added to it since the build is not read as outside: it stays unbuilt, advised and matched by name.

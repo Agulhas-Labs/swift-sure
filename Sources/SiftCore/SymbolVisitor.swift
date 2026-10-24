@@ -235,7 +235,7 @@ extension SymbolVisitor {
     enum Signatures {
         /// The whole head, as the index stores it; each answer that prints one shapes it for its own line.
         case display
-        /// The whole head, uncapped, with a protocol requirement's accessors (`{ get set }`) as part of it — what `diff` compares, since an edit past a display cap or to a requirement's accessors is a change to what callers can do, and a comparison of cut text would call it unchanged.
+        /// The whole head, uncapped, with a protocol requirement's accessors (`{ get set }`) as part of it — what the declaration comparison compares, since an edit past a display cap or to a requirement's accessors is a change to what callers can do, and a comparison of cut text would call it unchanged.
         case compared
     }
 

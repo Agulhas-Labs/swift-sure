@@ -70,11 +70,11 @@ struct WhereUntrackedFileTests {
         for answer in [callers, sweep] {
             #expect(answer.contains("semantic: stale since last build (1 new cited file: Sources/Lib/Depot.swift)"), "\(answer)")
             #expect(answer.contains("callers of Lib.compute() (2):"), "\(answer)")
-            #expect(answer.split(separator: "\n").contains("\(Self.heading)Sources/Lib/Depot.swift:3"), "\(answer)")
+            #expect(MentionRows.compacted(answer).split(separator: "\n").contains("\(Self.heading)Sources/Lib/Depot.swift:3"), "\(answer)")
         }
         #expect(type.contains("semantic: stale since last build (1 new cited file: Sources/Lib/Depot.swift)"), "\(type)")
         #expect(type.contains("no references to Lib.Gadget recorded in the store"), "\(type)")
-        #expect(type.split(separator: "\n").contains("\(Self.heading)Sources/Lib/Depot.swift:2"), "\(type)")
+        #expect(MentionRows.compacted(type).split(separator: "\n").contains("\(Self.heading)Sources/Lib/Depot.swift:2"), "\(type)")
         #expect(property.contains("semantic: fresh"), "\(property)")
         #expect(!property.contains(Self.heading), "\(property)")
     }
@@ -92,7 +92,7 @@ struct WhereUntrackedFileTests {
         try TestSources.write("public func other() -> Int {\n    compute() + 2\n}\n", to: "Sources/Lib/Other.swift", in: root)
 
         let callers = try await engine.lookup(symbol: "compute", freshness: engine.ensureFresh())
-        let rows = callers.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let rows = MentionRows.compacted(callers).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
         #expect(callers.contains("semantic: stale since last build (3 cited files: 2 changed, 1 new)"), "\(callers)")
         let mark = try #require(rows.firstIndex(of: "  Sources/Lib/First.swift (1):  (file changed since last build)"), "\(callers)")
@@ -212,6 +212,6 @@ struct WhereUntrackedFileTests {
 
         #expect(answer.contains("under 2 owners"), "\(answer)")
         #expect(answer.contains("semantic: stale since last build (1 new cited file: Sources/Lib/GizmoTools.swift)"), "\(answer)")
-        #expect(answer.split(separator: "\n").contains("\(Self.heading)Sources/Lib/GizmoTools.swift:2"), "\(answer)")
+        #expect(MentionRows.compacted(answer).split(separator: "\n").contains("\(Self.heading)Sources/Lib/GizmoTools.swift:2"), "\(answer)")
     }
 }

@@ -41,6 +41,12 @@ struct PreToolUseCommand: ParsableCommand {
     @Option(name: .customLong("agent"), help: "The harness whose hook protocol to read and answer in: claude or cursor (default claude). Set by the registration, never guessed from the payload.")
     var agent: HookAgent = .claude
 
+    @Flag(name: .customLong("run-only"), help: "Act only on a build or test run (the rewrite into `\(ProductName.current.binary) run --` and its advice); every lookup is let through in silence. What `install --run-only` registers; the default install registers the hook without it.")
+    var runOnly = false
+
+    /// Whether this hook acts on the build and test side alone, so the shell classification skips every lookup reading.
+    @TaskLocal static var isRunOnly = false
+
     func run() {
         // An off switch rather than a mode: one environment variable turns the hook inert without touching
         // settings.json, which matters on a machine where the registration is shared with hooks this
@@ -67,6 +73,16 @@ struct PreToolUseCommand: ParsableCommand {
             transcriptPath: payload["transcript_path"] as? String,
             agentID: payload["agent_id"] as? String
         )
+
+        // Run mode: a call other than a shell line is a lookup, a write or an index call, none of them the run side's, so it is let through before anything is noted.
+        if runOnly {
+            if command != nil || payload["tool_name"] as? String == "Bash" {
+                decide(payload: payload, directory: directory, context: context, ledger: AdviceLedger.standard(), runOnly: true)
+            } else if verdict {
+                StandardStreams.emit(Verdict(token: "allowed", rule: "runOnly").line)
+            }
+            return
+        }
 
         // Resolved before the classification, because this is the one call shape the hook is registered
         // for that it has nothing to say about and something to *learn* from. An index call is the advice
@@ -99,25 +115,7 @@ struct PreToolUseCommand: ParsableCommand {
             }
             return
         }
-        let outcome = ShellGrep.Program.$current.withValue(agent.shellGrep(payload: payload)) {
-            Self.decided(
-                command: command,
-                payload: payload,
-                cwd: directory,
-                session: session ?? payload["session_id"] as? String,
-                context: context,
-                answerer: { InPlaceAnswerer.answer($0, serverGone: $1, timeBudget: $2, backoff: .standard()) },
-                ledger: ledger,
-                usage: UsageLog.forHookAnswer(transcriptPath: payload["transcript_path"] as? String),
-                runPermission: runPermission,
-                agent: agent
-            )
-        }
-        if verdict {
-            StandardStreams.emit(outcome.verdict.line)
-        } else if let json = PrintedAnswer.recorded(outcome, payload: payload) {
-            answer(json, payload: payload)
-        }
+        decide(payload: payload, directory: directory, context: context, ledger: ledger, runOnly: false)
     }
 
     /// What the hook prints for a lookup worth interrupting, or `nil` where the call is let through: the answer where the lookup is one of the answered shapes and the budgets hold, a build's wrapping, and nothing at all otherwise.
@@ -419,7 +417,7 @@ struct PreToolUseCommand: ParsableCommand {
             if let shell = shellText(command: command, payload: payload) {
                 if let rule = RunAdvice.silencedAsAGateLeg(shell) ? "gateLeg" : RunAdvice.silencedAsAQuietLinter(shell) ? "quietLinter" : nil {
                     suppressions.note(symbol: nil, directory: directory, rule: rule, call: payload["tool_use_id"] as? String)
-                } else if ShellInspection.searchesAnotherRevision(shell, in: directory) {
+                } else if !isRunOnly, ShellInspection.searchesAnotherRevision(shell, in: directory) {
                     suppressions.note(symbol: nil, directory: directory, rule: "anotherRevision", call: payload["tool_use_id"] as? String)
                 }
             }
@@ -606,6 +604,31 @@ struct PreToolUseCommand: ParsableCommand {
 }
 
 extension PreToolUseCommand {
+    /// Decides a call that is neither an index call nor a write and prints the answer; `runOnly` reads a shell line for a build or test alone.
+    private func decide(payload: [String: Any], directory: String?, context: AdviceContext, ledger: AdviceLedger, runOnly: Bool) {
+        let outcome = ShellGrep.Program.$current.withValue(agent.shellGrep(payload: payload)) {
+            Self.$isRunOnly.withValue(runOnly) {
+                Self.decided(
+                    command: command,
+                    payload: payload,
+                    cwd: directory,
+                    session: session ?? payload["session_id"] as? String,
+                    context: context,
+                    answerer: { InPlaceAnswerer.answer($0, serverGone: $1, timeBudget: $2, backoff: .standard()) },
+                    ledger: ledger,
+                    usage: UsageLog.forHookAnswer(transcriptPath: payload["transcript_path"] as? String),
+                    runPermission: runPermission,
+                    agent: agent
+                )
+            }
+        }
+        if verdict {
+            StandardStreams.emit(outcome.verdict.line)
+        } else if let json = PrintedAnswer.recorded(outcome, payload: payload) {
+            answer(json, payload: payload)
+        }
+    }
+
     /// Whether this call *is* the advice being taken — an index call, or the tool's own CLI.
     ///
     /// The two ways there are to take it, which is exactly the pair two log files record: `usage.jsonl` for an index call and `run.jsonl` for a wrapped build. Read here instead of off those logs, they are attributable to the context that made them, because the payload names the session and the agent and a log line names neither.
@@ -657,7 +680,7 @@ extension PreToolUseCommand {
                 couldAnswer: couldAnswer,
                 allowed: { ledger.rerunsAllowed(session: context.key, among: $0) }
             ) else {
-                if noted.last == nil {
+                if noted.last == nil, !isRunOnly {
                     UnloggedPassRows.noteUnlocatedWindow(of: nil, command: command, payload: payload, in: directory, holds: { ledger.holds($0, session: context.key) }, noting: SuppressionLog(fileURL: suppressions))
                 }
                 return (nil, letThrough())
@@ -677,12 +700,13 @@ extension PreToolUseCommand {
                 agent: agent,
                 couldAnswer: couldAnswer
             )
-            if decided.verdict.rule == "noLookup", decided.json == nil, noted.last == nil {
+            if decided.verdict.rule == "noLookup", decided.json == nil, noted.last == nil, !isRunOnly {
                 UnloggedPassRows.noteUnlocatedWindow(of: lookup, command: command, payload: payload, in: directory, holds: { ledger.holds($0, session: context.key) }, noting: SuppressionLog(fileURL: suppressions))
             }
             return decided.verdict.rule == "noLookup" ? (decided.json, letThrough()) : decided
         }()
-        if decision.verdict.token == "allowed" {
+        // Run mode keeps no lookup-side record: an unlocated window, a search of another revision and a read after an answer are lookups' notes.
+        if decision.verdict.token == "allowed", !isRunOnly {
             HookUsage(payload: payload, command: command, session: session, context: context, directory: directory, ledger: ledger, usage: usage).noteReadAnyway()
         }
         return decision
@@ -721,29 +745,11 @@ extension PreToolUseCommand {
 
     /// Prints the hook's `output` in the protocol of the harness it is registered for: as written for Claude Code, and read into Cursor's schema for Cursor, where what that schema cannot carry prints nothing.
     private func answer(_ output: String, payload: [String: Any]) {
-        Self.deliver(
+        CursorPreToolUseHook.deliver(
             output, payload: payload, agent: agent,
             emit: { StandardStreams.emit($0) },
             file: { CursorPreToolUseHook.fileNotice(output: $0, response: $1, payload: payload) }
         )
-    }
-
-    /// Prints `output` through `emit` in the harness's protocol, filing a Cursor rewrite's notice through `file` first, so the call's `postToolUse` finds it even where Cursor acts on the printed response before this hook exits.
-    static func deliver(
-        _ output: String,
-        payload: [String: Any],
-        agent: HookAgent,
-        emit: (String) -> Void,
-        file: (_ output: String, _ response: String) -> Void
-    ) {
-        guard agent == .cursor else {
-            emit(output)
-            return
-        }
-        if let response = CursorPreToolUseHook.response(to: output, toolName: payload["tool_name"] as? String) {
-            file(output, response)
-            emit(response)
-        }
     }
 
     /// Whether `payload` is Cursor's, which shows a refusal to the user rather than the model (`CursorHookPayload`), so the hook prints nothing; a probe is told why.
@@ -929,6 +935,14 @@ extension PreToolUseCommand {
         return beside
     }
 
+    /// The toolchain run a shell line `written` is, as the run advice reads it, or `nil` where it is none.
+    private static func runLookup(_ written: String) -> Lookup? {
+        guard let suggestion = RunAdvice.suggestion(for: written) else { return nil }
+        var run = Lookup(key: AdviceLedger.key(forShell: written), suggestion: suggestion, textSearch: nil, rule: "RunAdvice")
+        run.alsoReaching = RunAdvice.reachedPaths(of: written)
+        return run
+    }
+
     private static func classified(
         command: String?,
         payload: [String: Any],
@@ -949,6 +963,10 @@ extension PreToolUseCommand {
             // Built once and handed to both readings, so the tree is walked once per call rather than
             // once per question asked about it.
             let holdsSource = SwiftTree.probe(relativeTo: directory)
+            // Run mode reads the line for a build or test alone.
+            if isRunOnly {
+                return runLookup(written)
+            }
             // A lookup first, and a toolchain run only if it was not one. They cannot both match — a
             // `swift build` is a write to `ShellInspection` long before it could be a lookup — and asking
             // in this order keeps that an invariant rather than a coincidence of two advisors' rules.
@@ -986,10 +1004,7 @@ extension PreToolUseCommand {
                     statementKeys: ServedReading.statementKeys(of: inPlace) { ShellAdvice.lookupKey(for: $0, holdsSource: holdsSource) }
                 )
             }
-            guard let suggestion = RunAdvice.suggestion(for: written) else { return nil }
-            var run = Lookup(key: AdviceLedger.key(forShell: written), suggestion: suggestion, textSearch: nil, rule: "RunAdvice")
-            run.alsoReaching = RunAdvice.reachedPaths(of: written)
-            return run
+            return runLookup(written)
         case "Grep", "Glob":
             guard let suggestion = SearchToolAdvice.suggestion(tool: tool, input: input, in: directory) else {
                 return nil

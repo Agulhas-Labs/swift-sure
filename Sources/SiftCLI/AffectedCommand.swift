@@ -16,7 +16,7 @@ struct AffectedCommand: AsyncParsableCommand {
         )
     }
 
-    @Option(name: .customLong("from"), help: "Read the change set from this commit up to --to (default HEAD), instead of from the working tree. Unlike `\(ProductName.current.binary) diff X`, a lone --from X is X..HEAD, not X's own change; for that, pass --from X~1 --to X.")
+    @Option(name: .customLong("from"), help: "Read the change set from this commit up to --to (default HEAD), instead of from the working tree. A lone --from X is X..HEAD, not X's own change; for that, pass --from X~1 --to X.")
     var from: String?
 
     @Option(name: .customLong("to"), help: "The far end of --from's range (default HEAD).")

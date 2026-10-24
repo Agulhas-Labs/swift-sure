@@ -172,9 +172,9 @@ extension CursorPostToolUseTests {
             try run(stdin: JSONSerialization.data(withJSONObject: payload), agent: agent)
         }
 
-        /// Runs this build's `swift-sure post-tool-use`, with `--agent` where one is given, on `stdin`: its exit status and what it printed.
-        func run(stdin: Data, agent: String? = "cursor", disabled: Bool = false, sourceLocation: SourceLocation = #_sourceLocation) throws -> (status: Int32, printed: String) {
-            try Self.run(stdin: stdin, agent: agent, disabled: disabled, in: repo, home: home, sourceLocation: sourceLocation)
+        /// Runs this build's `swift-sure post-tool-use`, with `--agent` where one is given and then `flags`, on `stdin`: its exit status and what it printed.
+        func run(stdin: Data, agent: String? = "cursor", disabled: Bool = false, flags: [String] = [], sourceLocation: SourceLocation = #_sourceLocation) throws -> (status: Int32, printed: String) {
+            try Self.run(stdin: stdin, agent: agent, disabled: disabled, flags: flags, in: repo, home: home, sourceLocation: sourceLocation)
         }
 
         /// The same run, from `directory`, with `home` as its home and advice directory.
@@ -182,6 +182,7 @@ extension CursorPostToolUseTests {
             stdin: Data,
             agent: String?,
             disabled: Bool = false,
+            flags: [String] = [],
             in directory: URL,
             home: URL,
             sourceLocation: SourceLocation = #_sourceLocation
@@ -189,7 +190,7 @@ extension CursorPostToolUseTests {
             let binary = try #require(BuiltExecutable.sift, "no `swift-sure` built beside the test bundle, at \(BuiltExecutable.expected.path)", sourceLocation: sourceLocation)
             let process = Process()
             process.executableURL = binary
-            process.arguments = ["post-tool-use"] + (agent.map { ["--agent", $0] } ?? [])
+            process.arguments = ["post-tool-use"] + (agent.map { ["--agent", $0] } ?? []) + flags
             process.currentDirectoryURL = directory
             var environment = ProcessInfo.processInfo.environment
             environment["CFFIXED_USER_HOME"] = home.path

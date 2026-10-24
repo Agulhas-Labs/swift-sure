@@ -12,10 +12,23 @@ public struct SiftCodexSetup {
     /// The server registered through `codex mcp`: the same server Claude Code gets.
     public static let server = CodexMcpServer(server: SiftClaudeSetup.server)
 
+    /// The subcommand run mode's `PostToolUse` handler runs: it answers a shell call's result alone, since Codex's registration cannot narrow on the tool.
+    public static var runPostToolUseSubcommand: String {
+        "post-tool-use --run-only"
+    }
+
     /// The hooks SwiftSure registers in Codex, one event each, as the doctor reads them.
     public static let hooks = HookRegistration(
         tool: .sift,
         events: CodexHooksFile.hooks.map { hook in
+            HookRegistration.Event(name: hook.event, subcommand: hook.subcommand, matchers: hook.matcher.map { [$0] } ?? [], timeout: 5)
+        }
+    )
+
+    /// The hooks run mode registers in Codex: the shell hooks alone, as the doctor reads them.
+    public static let runHooks = HookRegistration(
+        tool: .sift,
+        events: CodexHooksFile.runHooks.map { hook in
             HookRegistration.Event(name: hook.event, subcommand: hook.subcommand, matchers: hook.matcher.map { [$0] } ?? [], timeout: 5)
         }
     )

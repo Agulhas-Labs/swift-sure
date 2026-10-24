@@ -31,8 +31,8 @@ public struct HookUninstall {
         var current = original ?? Data()
 
         var removed: [String] = []
-        // Every name this build answers to: a hook an earlier release registered under its own binary name comes out with the current one's.
-        for registration in SiftClaudeSetup.hooks(recognising: names) {
+        // Every name this build answers to, in either mode: a hook an earlier release registered under its own binary name comes out with the current one's.
+        for registration in SiftClaudeSetup.hooksOfEitherMode(recognising: names) {
             for event in registration.eventsToRemove(only: onlyAdvice ? SiftClaudeSetup.adviceSubcommands : nil) {
                 let removal = try registration.remove(from: current, event: event)
                 guard !removal.removed.isEmpty else { continue }

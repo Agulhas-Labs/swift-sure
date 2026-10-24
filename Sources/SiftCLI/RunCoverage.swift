@@ -74,7 +74,7 @@ extension RunCoverage {
         return RunCoverage(workingDirectory: workingDirectory, root: root, arguments: arguments, from: from, treeBefore: treeBefore, started: started).lines()
     }
 
-    /// The section's lines: refused with its reason, or each changed declaration measured, which is then recorded for `diff --coverage`.
+    /// The section's lines: refused with its reason, or each changed declaration measured, which is then recorded in the repository's coverage record.
     func lines() -> [String] {
         let git = GitContext(repoRoot: root)
         let revision = from ?? "HEAD"

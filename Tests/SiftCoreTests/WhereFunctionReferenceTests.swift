@@ -142,19 +142,6 @@ struct WhereFunctionReferenceTests {
         #expect(WhereAnswerRepetitionTests.sitesOnePerLine(output).contains("  Sources/App/Hand.swift:4  in greeting"), "\(output)")
     }
 
-    /// `swift-sure diff` names a changed function's callers by the same scan, so a reference to it is one of them.
-    @Test
-    func aDiffListsAChangedFunctionsReferenceAmongItsCallers() async throws {
-        let root = try DiffEngineTests.makeRepo()
-        try TestSources.write("let polishers = [Widget(count: 1)].map(Widget.polish)\n", to: "Sources/Lib/Polishers.swift", in: root)
-        try TestSources.commitAll(in: root, message: "a reference")
-        try TestSources.write(DiffEngineTests.polishReturningString(), to: "Sources/Lib/Widget.swift", in: root)
-
-        let output = try await DiffEngineTests.diff(root)
-
-        #expect(output.contains("Sources/Lib/Polishers.swift:1"), "\(output)")
-    }
-
     /// With a fresh store, a reference is recorded with no call role, and it is listed among the callers marked as what it is.
     @Test
     func theStoresCallersIncludeAReferenceMarkedAsNotCalled() async throws {

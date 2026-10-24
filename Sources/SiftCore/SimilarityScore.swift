@@ -2,7 +2,7 @@
 // Copyright © Agulhas Labs
 //
 
-/// How alike two declarations' shapes are — and the one place every constant that decides a `similar` answer lives.
+/// How alike two declarations' shapes are — and the one place every constant that decides a reuse-nudge match lives.
 ///
 /// Three terms, deliberately unequal. **Rarity-weighted callee overlap decides the answer**, because a helper is recognisable by the call it cannot do without: the three atomic file writes this tool was built to find share `rename`, `getpid` and `strerror`, and share almost nothing else with each other that they do not also share with half the repository. **The control-flow skeleton and the written type names are small corrections**, not votes of their own: an empty body and another empty body have identical skeletons, and a repository full of `func f(url: URL) throws` would rank on the word `URL` if types counted for much. Keeping the two small is what stops a hit that shares no interesting call from clearing the floor on shape alone.
 ///
@@ -20,22 +20,7 @@ struct SimilarityScore {
     /// Gating on the callee term alone, rather than on the composite score, is the whole of what keeps the list short. Two one-expression bodies have identical control-flow skeletons and often the same one written type, so the two small terms hand every pair of one-liners in the repository a quarter of a point for nothing: floored on the total, this repo answered a one-line `split`-and-`map` with 69 hits and put them above the three atomic file writes the tool was built to find. Floored on the overlap, the small terms order what is already through and can put nothing on the list.
     static let calleeFloor = 0.35
 
-    /// The shared-callee overlap a pair reaches to be listed by `dupes`, well above `calleeFloor` because an audit of a whole tree has no target to anchor it.
-    ///
-    /// Picked from this repository's own tree: the one surviving pair of hand-rolled atomic JSON writes (`SetAsideStore.writeDurably(_:to:)` and `TestDurationStore.write()`, sharing `rename`, `replace`, `encode` and the encoder they build) sits at 0.51, so 0.50 is the highest floor that still lists it. Overlap alone cannot keep the list short at any floor that does — 646 pairs of `Sources/` cleared 0.50, most of them one-line helpers whose two or three calls happen to coincide — which is what `dupesEvidenceFloor` is for.
-    static let dupesFloor = 0.5
-
-    /// How much shared evidence a `dupes` pair needs besides its overlap, counted in callees only one declaration names: two such names shared, or several commoner ones adding up to as much.
-    ///
-    /// The overlap is a fraction, so two one-line bodies that make the same two calls reach 1.00 on nothing; this gate is on the summed rarity weight of what they share, the absolute amount the fraction hides. Counted in units of `CalleeRarity.singleWeight` rather than as a raw sum, because a weight is a logarithm of the scan's size and a raw threshold would mean something different under every path. Picked from the same tree as the floor: at 0.50 overlap, 2.5 units cut `Sources/` from 646 pairs to 82 — near-duplicate `day(of:timeZone:)`, `withCStrings(_:_:)`, `tail(of:bytes:)` and task-group scans in several types — and keep the atomic write pair, at 3.1.
-    static let dupesEvidenceFloor = 2.5
-
-    /// The most declarations one callee can be named by and still propose a `dupes` pair on its own.
-    ///
-    /// Candidate pairs come from an inverted index of callee to declarations, so this is what keeps the audit near-linear: a name forty bodies call (`append`, `map`, `joined`) would propose hundreds of pairs each and, weighted as common, could admit none of them. A pair that shares such a name is still scored on it once a rarer shared callee has proposed the pair; a pair that shares nothing rarer is never compared, which is one of the ways the audit is a lower bound.
-    static let dupesFanOutBound = 40
-
-    /// How much shared evidence the `PostToolUse` reuse nudge needs besides `similar`'s overlap floor, in the units of `dupesEvidenceFloor`: one callee only one declaration names, or several commoner ones adding up to as much.
+    /// How much shared evidence the `PostToolUse` reuse nudge needs besides the overlap floor, in units of a callee only one declaration names: one callee only one declaration names, or several commoner ones adding up to as much.
     ///
     /// Picked from this repository's `Sources/SiftCore` scanned as the hook scans it (1431 nudges): the line that fired on `ImplementedRequirement.hedge(_:relation:)` toward `StructuralQuery.echo` (0.56 overlap, sharing only collection calls such as `joined` and `map`) weighs 0.92, below it, while near-twins such as `IfConfigLabel.label(for:source:)` and `label(line:in:)` weigh 1.35 and the two hand-rolled `withCStrings(_:_:)` 2.85.
     static let nudgeEvidenceFloor = 1.0
@@ -50,18 +35,12 @@ struct SimilarityScore {
     /// Ten, because this answer is read to decide whether to write a helper, and the eleventh-closest shape has never decided that.
     static let resultCap = 10
 
-    /// Shared callees named on a hit's evidence line, rarest first.
-    static let sharedCalleeCap = 6
-
     /// The fewest calls a target's body can make and still be worth ranking.
     ///
     /// A body with one call has one piece of evidence, and one shared common name is enough to put anything on top of a list of two. Answering "too thin to compare" and naming the `search` recipe instead is the honest reading, and it is the same refuse-over-guess rule the freshness contract runs on (Docs/Design.md §2).
     static let minimumCallees = 3
 
-    /// Control-flow tokens kept from one body, before the longest-common-subsequence comparison below turns quadratic on them.
-    static let skeletonCap = 64
-
-    /// `candidate` scored against `subject`, with the shared callees that earned it.
+    /// `candidate` scored against `subject`.
     static func hit(for candidate: DeclarationFingerprint, against subject: DeclarationFingerprint, rarity: CalleeRarity) -> SimilarHit {
         let shared = subject.callees.intersection(candidate.callees)
         var sharedWeight = 0.0
@@ -86,18 +65,8 @@ struct SimilarityScore {
             fingerprint: candidate,
             score: score,
             calleeOverlap: overlap,
-            sharedCallees: rarestFirst(shared, rarity: rarity),
             sharedEvidence: rarity.singleWeight > 0 ? sharedWeight / rarity.singleWeight : 0
         )
-    }
-
-    /// The shared callees worth naming: rarest first, then alphabetically so the line is the same on every run, capped.
-    static func rarestFirst(_ callees: Set<String>, rarity: CalleeRarity) -> [String] {
-        let ordered = callees.sorted { left, right in
-            let (leftWeight, rightWeight) = (rarity.weight(of: left), rarity.weight(of: right))
-            return leftWeight == rightWeight ? left < right : leftWeight > rightWeight
-        }
-        return Array(ordered.prefix(sharedCalleeCap))
     }
 
     /// How alike two control-flow sequences are: twice the longest common subsequence over their combined length, which is 1 for identical sequences and 0 for two that share no token.

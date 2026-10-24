@@ -4,7 +4,7 @@
 
 /// The syntactic shape of one declaration that has a body, small enough to outlive the tree it was read from.
 ///
-/// A value type on purpose, and the reason `similar` is allowed to exist at all. Ranking every declaration in a repository against one target means holding the whole tree's shapes at once, and the rule that no syntax tree survives the file it came from (Docs/Design.md §4) is the one this would otherwise break — so the fingerprint is extracted inside the per-file call and the tree is dropped there. Nothing here holds a node, a token or a position.
+/// A value type on purpose, and the reason the reuse nudge is allowed to exist at all. Ranking every declaration in a repository against one target means holding the whole tree's shapes at once, and the rule that no syntax tree survives the file it came from (Docs/Design.md §4) is the one this would otherwise break — so the fingerprint is extracted inside the per-file call and the tree is dropped there. Nothing here holds a node, a token or a position.
 public struct DeclarationFingerprint: Sendable, Equatable {
     /// Where the declaration is and what it is called — the same locator a `search` hit carries, so a hit here is as directly actionable as one there.
     public let declaration: StructuralMatch

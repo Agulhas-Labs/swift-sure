@@ -76,7 +76,7 @@ struct WhereRefsTestTargetScanTests {
     func aTestHelperWritingTheNameIsListedByLine() async throws {
         let output = try await Self.refs(of: "loadBeta", in: Self.neverBuiltFixture())
 
-        #expect(output.contains("not in the build, mention the name: Tests/LibTests/GizmoTools.swift:4"), "\(output)")
+        #expect(MentionRows.compacted(output).contains("not in the build, mention the name: Tests/LibTests/GizmoTools.swift:4"), "\(output)")
         #expect(!output.contains("none of the 2 Swift files in test targets"), "\(output)")
     }
 

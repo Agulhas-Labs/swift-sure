@@ -156,7 +156,7 @@ public final class SiftEngine: @unchecked Sendable {
         }
     }
 
-    /// Picks up config edits mid-session (the MCP server is long-lived; a config is edited by hand, or by `init --write` through the CLI).
+    /// Picks up config edits mid-session (the MCP server is long-lived; a config is edited by hand).
     ///
     /// The file watched here has to be the file ``SiftConfig/load(repoRoot:)`` reads, and both go through ``ConfigFile/url(repoRoot:)`` to be sure of it. Two spellings of the same path drift the moment one of them changes, and the failure is silent: a stamp taken against one file and compared against another pins at its first value, after which no edit to the config actually in use is ever noticed again.
     private func reloadConfigIfChanged() {
@@ -253,7 +253,9 @@ public final class SiftEngine: @unchecked Sendable {
     }
 
     /// Runs the reconcile sweep; returns what it had to fix (zero/zero on a converged index).
-    public func reconcile() async throws -> (removed: Int, reindexed: Int) {
+    ///
+    /// Tests drive it directly; no command does.
+    func reconcile() async throws -> (removed: Int, reindexed: Int) {
         try indexer.seedDeletionLedgerIfAbsent(storeBuiltAt: storeBuiltAt)
         return try await indexer.reconcile()
     }
@@ -407,15 +409,6 @@ public final class SiftEngine: @unchecked Sendable {
     /// The same join over outcomes a wrapped run has already parsed, for `swift-sure run` to note under its answer; `logURL` only names the run, `packageDirectory` is the repository-relative directory of the package it tested (empty for the root), and `executedNothing` says its closing counts showed a run of no test, which reconciles as zero reported.
     public func reconcileRun(_ outcomes: RunTestOutcomes, loggedAt logURL: URL?, packageDirectory: String = "", executedNothing: Bool = false) throws -> RunReconciliation {
         try RunReconciliationReader(store: store, repositoryRoot: repoRoot, packageDirectory: packageDirectory).reconcile(outcomes, loggedAt: logURL, executedNothing: executedNothing)
-    }
-
-    /// A structural digest of a change for review: which declarations a range added, removed, or changed, who calls the changed ones, and everything else it touched.
-    ///
-    /// The gathering itself is `DiffGatherer`'s (its own type, for the same reason `AffectedRenderer`/`WhereRenderer` are their own types rather than more of this file). `notes` go under the header here rather than in the front end, because the size line prices the whole answer and they are part of it.
-    public func diff(options: DiffOptions, freshness: Freshness, notes: [String?] = []) async throws -> String {
-        let gatherer = DiffGatherer(git: git, enumerator: enumerator, store: store, repoRoot: repoRoot, projectDirectories: resolver.projectDirectories, resolver: resolver)
-        let output = try await gatherer.diff(options: options, semantic: semanticInput())
-        return DiffRenderer.answer(output, freshness: freshness, notes: notes)
     }
 
     // MARK: Semantic store (lazy — never opened for syntactic queries, Docs/Design.md §2)
@@ -744,7 +737,7 @@ private extension SiftEngine {
 extension SiftEngine {
     /// What `where` reads: the primary store's input with the in-tree stores joined behind it, or, where there is no primary store, the in-tree stores alone.
     ///
-    /// The walk runs before the primary's budget starts, and nothing here changes what the primary path remembers, so `affected`, `diff`, `status` and the deletion ledger see exactly the primary store. A primary still warming or failed answers as it would without the in-tree stores.
+    /// The walk runs before the primary's budget starts, and nothing here changes what the primary path remembers, so `affected`, `status` and the deletion ledger see exactly the primary store. A primary still warming or failed answers as it would without the in-tree stores.
     func whereSemanticInput() async -> SemanticInput {
         let discovery = storeDiscovery()
         let candidates = inTree.discover(discovery)
@@ -830,22 +823,6 @@ public extension SiftEngine {
         return query.typeBodyMissLine(extensionQuery: extensionQuery, found: found)
     }
 
-    /// Ranks the working tree's declarations by how close their syntactic shape is to `target`'s — the helper that already exists, shown before another one is written.
-    ///
-    /// Working-tree read, like `search` — no staleness axis, no stored rows (Docs/Design.md §3), and the same live header.
-    func similar(target: String) async -> String {
-        let answer = await SimilarSearch(repoRoot: repoRoot, enumerator: enumerator).run(target: target)
-        return Freshness.liveHeaderLine(tree: tree) + "\n" + SimilarRenderer.render(answer: answer)
-    }
-
-    /// Groups the working tree's near-duplicate bodies, over the files under `scope` or the whole tree when it is empty.
-    ///
-    /// Working-tree read, like `similar` — no staleness axis, no stored rows (Docs/Design.md §3), and the same live header.
-    func dupes(scope: [String], options: DupesOptions = DupesOptions()) async -> String {
-        let answer = await DupesSearch(repoRoot: repoRoot, enumerator: enumerator).run(scope: scope, options: options)
-        return Freshness.liveHeaderLine(tree: tree) + "\n" + DupesRenderer.render(answer: answer)
-    }
-
     /// Traces display text ↔ localization key across the repo's string catalogs, plus the Swift lines spelling a matched key as a literal.
     ///
     /// Working-tree read, like `search` — no staleness axis, no stored rows (Docs/Design.md §3), and the same live header.
@@ -859,64 +836,10 @@ public extension SiftEngine {
         )
         return try Freshness.liveHeaderLine(tree: tree) + "\n" + StringsRenderer.render(answer: search.run(query: query), query: query)
     }
-
-    /// Proposes (and optionally writes) `.swift-sure.json` for this repository.
-    ///
-    /// Reports rather than assumes: the plan is printed whether or not it is written, because the finding that matters — which files have no declaring build file — is useful even when the user wants no config file at all.
-    func initializeConfig(write: Bool, force: Bool) throws -> String {
-        let plan = ConfigPlan.make(repoRoot: repoRoot, config: config, paths: enumerator.swiftFiles(includingManifests: true))
-        guard write else {
-            return ConfigPlanRenderer.render(plan: plan, wrote: nil)
-        }
-        if ConfigFile.exists(repoRoot: repoRoot), !force {
-            return ConfigPlanRenderer.render(plan: plan, wrote: nil)
-                + "\n\(ProductName.current.configFileName) already exists — pass --force to merge these entries into it (existing values are never overwritten)."
-        }
-        try TreeWritability.requireConfigFile(repoRoot: repoRoot)
-        let merged = plan.merged(onto: config)
-        var json = ConfigFile.rawJSON(repoRoot: repoRoot)
-        if !merged.roots.isEmpty {
-            json["roots"] = merged.roots
-        }
-        if !merged.moduleMap.isEmpty {
-            json["moduleMap"] = merged.moduleMap
-        }
-        try ConfigFile.write(json, repoRoot: repoRoot)
-        reloadConfigIfChanged()
-        return ConfigPlanRenderer.render(plan: plan, wrote: ProductName.current.configFileName)
-    }
-}
-
-public extension SiftEngine {
-    /// What `checkup`'s change-reading checks found over `range` (`spelledRange` as the caller wrote it, for the `diff` pointers), given the run log's same-tree reading; `walk` is the `affected` walk the answer shares with its test-runs line.
-    func checkup(range: DiffRange, flakes: CheckupFlakeEvidence?, walk: CheckupAffectedWalk? = nil, spelledRange: String? = nil) async throws -> [CheckupOutcome] {
-        let walk = walk ?? CheckupAffectedWalk(engine: self, range: range)
-        let reached = try await walk.output().wholeReached
-        let gatherer = DiffGatherer(git: git, enumerator: enumerator, store: store, repoRoot: repoRoot, projectDirectories: resolver.projectDirectories, resolver: resolver)
-        let files = try await gatherer.fileDiffs(range: range)
-        let semantic = await semanticInput()
-        let diffCommand = "\(ProductName.current.binary) diff" + (spelledRange.flatMap { $0.isEmpty ? nil : " " + TestRunRequest.shellQuoted($0) } ?? "")
-        return try await [
-            CheckupCallersCheck(gatherer: gatherer, range: range, diffCommand: diffCommand).outcome(files: files, semantic: semantic),
-            CheckupExposureCheck(gatherer: gatherer, diffCommand: diffCommand).outcome(files: files, semantic: semantic),
-            CheckupFlakyCheck.outcome(evidence: flakes, reached: reached),
-            duplicateOutcome(files: files),
-        ]
-    }
-
-    /// The `duplicate` check over the range's file diffs: `dupes`' comparison, proposing pairs only where one side is a declaration the range added or whose body it changed.
-    private func duplicateOutcome(files: [FileDiff]) async -> CheckupOutcome {
-        guard CheckupDuplicateCheck.hasSeeds(in: files) else { return CheckupDuplicateCheck.unseeded }
-        let paths = enumerator.swiftFiles()
-        let fingerprints = await SimilarSearch.scan(paths: paths, repoRoot: repoRoot)
-        let seeds = CheckupDuplicateCheck.seeds(in: files, fingerprints: fingerprints)
-        let answer = DupesSearch.answer(scope: [], fingerprints: fingerprints, filesScanned: paths.count, options: DupesOptions(seeds: seeds))
-        return CheckupDuplicateCheck.outcome(answer: answer, seeds: seeds)
-    }
 }
 
 extension SiftEngine {
-    /// The `affected` walk over `options`' change set, before it is framed: what `affected` and `checkup`'s checks read.
+    /// The `affected` walk over `options`' change set, before it is framed: what `affected` reads.
     func affectedOutput(options: AffectedOptions) async throws -> AffectedRenderer.Output {
         // Filtered through the same rule the indexer applies, so a path the tool would never index is not part of this question at all — a generated `.build` source is neither a changed file nor an honest gap, it is out of scope. What survives the filter and still has no rows is the gap the answer must name.
         //

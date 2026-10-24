@@ -17,17 +17,17 @@ struct FileEnumerator {
     /// Produces the git-visible string catalogs (`.xcstrings`, `.strings`, `.stringsdict`), as ``markdownListing`` does the `.md` ones.
     var catalogListing: (() throws -> [String])?
 
-    /// All indexable files, sorted for determinism; `includingManifests` adds the build manifests the index itself never stores, for `init`'s counted-apart report.
-    func swiftFiles(includingManifests: Bool = false) -> [String] {
+    /// All indexable files, sorted for determinism.
+    func swiftFiles() -> [String] {
         if let listing = try? gitListing?() {
             return listing
-                .filter { isIndexable(relativePath: $0) || (includingManifests && isCountableManifest($0)) }
+                .filter { isIndexable(relativePath: $0) }
                 .sorted()
         }
-        return walkedFiles(withExtension: "swift") { isIndexable(relativePath: $0) || (includingManifests && isCountableManifest($0)) }
+        return walkedFiles(withExtension: "swift") { isIndexable(relativePath: $0) }
     }
 
-    /// The `.md` files under the rules that narrow ``swiftFiles(includingManifests:)``: git-visible, outside the excluded directories, inside what `.swift-sure.json` asks for, and never a symbolic link; sorted.
+    /// The `.md` files under the rules that narrow ``swiftFiles()``: git-visible, outside the excluded directories, inside what `.swift-sure.json` asks for, and never a symbolic link; sorted.
     func markdownFiles() -> [String] {
         if let listing = try? markdownListing?() {
             return listing.filter(isListableMarkdown).sorted()
@@ -115,15 +115,6 @@ struct FileEnumerator {
             && !SwiftPMManifest.isManifestPath(relativePath)
             && !isAlwaysExcluded(relativePath)
             && !passesUserConfig(relativePath)
-    }
-
-    /// A manifest that would be enumerable were it not a manifest — counted by `init`, never stored by the index.
-    private func isCountableManifest(_ relativePath: String) -> Bool {
-        SwiftPMManifest.isManifestPath(relativePath) && passesConfigFilters(relativePath)
-    }
-
-    private func passesConfigFilters(_ relativePath: String) -> Bool {
-        !isAlwaysExcluded(relativePath) && passesUserConfig(relativePath)
     }
 
     /// The directories no configuration opts back in — build output, caches, vendored dependencies, and every hidden tree (``SiftConfig/isExcludedPathComponent(_:)``).

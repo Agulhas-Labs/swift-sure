@@ -170,7 +170,7 @@ struct WhereRenderer {
                 if let absence {
                     lines.insert(absence, at: bannerSlot)
                 }
-                lines += paging.settle(answer.lines) + siblingPointerLines(for: query)
+                lines += paging.settle(answer.lines) + siblingPointerLines(for: query, orTypeNamed: qualifierChain(of: query).last)
                 return Output(body: lines.joined(separator: "\n"), axis: answer.axis ?? axis)
             }
             // Said apart from "no such symbol", because the two are acted on differently: an unresolvable path is
@@ -461,11 +461,13 @@ struct WhereRenderer {
     }
 
     /// The cross-root pointer for a missed query — one line per sibling root whose existing index accounts for it, same claim strength and wording as digest's.
-    private func siblingPointerLines(for query: String) -> [String] {
+    ///
+    /// `type` is the external-type answer's fallback: where no sibling root declares the whole path, the roots that declare or extend the type are pointed at under the type's name, which is what they were checked for.
+    private func siblingPointerLines(for query: String, orTypeNamed type: String? = nil) -> [String] {
         guard let siblingRoots else { return [] }
-        let pointers = siblingRoots(query)
-        guard !pointers.isEmpty else { return [] }
-        return [""] + pointers.map { $0.line(for: query) }
+        let exact = siblingRoots(query)
+        let (pointers, name) = exact.isEmpty ? (type.map(siblingRoots) ?? [], type ?? query) : (exact, query)
+        return pointers.isEmpty ? [] : [""] + pointers.map { $0.line(for: name) }
     }
 
     func qualifiedName(of row: SymbolRow) throws -> String {
@@ -625,8 +627,9 @@ extension WhereRenderer {
                     typeUses[key] = listed || typeUses[key] == true
                 }
             }
-            // Each line `callers of` lists on a row of its own, repo-relative, which `references to` then does not list again.
-            var callSitesAbove: Set<String> = []
+            // Each line the section above lists on a row of its own (`callers of`, `reads and writes of`, `uses of`), repo-relative, which `references to` then does not list again.
+            var sitesAbove: Set<String> = []
+            let noteAbove: (SemanticStore.Hit) -> Void = { sitesAbove.insert("\(context.relativePath($0.path)):\($0.line)") }
             if callersApply(to: row.kind) {
                 callerEligible += 1
                 let callers = context.store.callers(ofUSR: usr)
@@ -636,14 +639,10 @@ extension WhereRenderer {
                     ImplementedRequirement.file(qualified, implementing: context.store.implementedRequirements(ofUSR: usr), relation: .calls, verdict: verdicts, plain: &withoutCallers, hedged: &implementersWithoutCallers)
                 } else if !callers.isEmpty {
                     // A call counts as listed only where its own line is: a fold's count or a truncation stands for it without showing it.
-                    var ownLines: Set<String> = []
                     let heading = ImplementedRequirement.listHeading(of: qualified, implementing: context.store.implementedRequirements(ofUSR: usr))
                     let qualifier = try [heading.qualifier, WhereCallersResolvedClause(store: store).clause(for: row, bare: splitQualified(query).count == 1)].compactMap(\.self).joined(separator: "; ")
-                    sections.append(contentsOf: hitSection(heading.title, hits: callers, noun: "call site", qualifier: qualifier.isEmpty ? nil : qualifier, foldByCaller: true, context: context, occurrences: occurrences) { hit in
-                        ownLines.insert("\(hit.path):\(hit.line)")
-                        callSitesAbove.insert("\(context.relativePath(hit.path)):\(hit.line)")
-                    })
-                    recordedCalls.formUnion(callers.filter { ownLines.contains("\($0.path):\($0.line)") }.map { "\(context.relativePath($0.path)):\($0.line):\($0.column)" })
+                    sections.append(contentsOf: hitSection(heading.title, hits: callers, noun: "call site", qualifier: qualifier.isEmpty ? nil : qualifier, foldByCaller: true, context: context, occurrences: occurrences, shown: noteAbove))
+                    recordedCalls.formUnion(callers.filter { sitesAbove.contains("\(context.relativePath($0.path)):\($0.line)") }.map { "\(context.relativePath($0.path)):\($0.line):\($0.column)" })
                 }
                 sections.append(contentsOf: wrapperSites.lines(for: row, owner: names.name(of: row), cap: Self.callSiteCap, judgedBy: occurrences, under: context.repoRoot, recording: filesCollector))
                 listedSites += wrapperSites.sites(for: row, cap: Self.callSiteCap)
@@ -658,7 +657,7 @@ extension WhereRenderer {
                     ImplementedRequirement.file(qualified, implementing: context.store.implementedRequirements(ofUSR: usr), relation: .uses, verdict: verdicts, plain: &withoutUses, hedged: &implementersWithoutUses)
                 } else {
                     let heading = ImplementedRequirement.listHeading(of: qualified, implementing: context.store.implementedRequirements(ofUSR: usr), relation: .uses)
-                    sections.append(contentsOf: listedSection(heading.title, rows: uses, noun: "use", qualifier: heading.qualifier, context: context, occurrences: occurrences))
+                    sections.append(contentsOf: listedSection(heading.title, rows: uses, noun: "use", qualifier: heading.qualifier, context: context, occurrences: occurrences, shown: noteAbove))
                 }
             }
             if row.kind == .enumCase {
@@ -668,7 +667,7 @@ extension WhereRenderer {
                     // A case that witnesses a protocol's static requirement (`case standard` for `static var standard: Self`) is used through it, which the store records against the requirement, so its empty case is hedged as a property's is.
                     ImplementedRequirement.file(qualified, implementing: context.store.implementedRequirements(ofUSR: usr), relation: .uses, verdict: verdicts, plain: &withoutCaseUses, hedged: &implementersWithoutCaseUses)
                 } else {
-                    sections.append(contentsOf: listedSection("uses of \(qualified)", rows: uses, noun: "use", context: context, occurrences: occurrences))
+                    sections.append(contentsOf: listedSection("uses of \(qualified)", rows: uses, noun: "use", context: context, occurrences: occurrences, shown: noteAbove))
                 }
             }
             // A protocol's conformers merge the store's with the scan's into one block, which its usage rows then do not repeat; a second protocol of the same name keeps the store's own block, so none of its conformers leaves the answer.
@@ -781,7 +780,7 @@ extension WhereRenderer {
                     }
                 }
                 if !references.isEmpty {
-                    sections.append(contentsOf: referenceSection(for: qualified, hits: references, offset: options.offset, context: context, occurrences: occurrences, paging: paging, callSitesAbove: callSitesAbove, conformanceLines: conformance.map { $0.folded($0.startLines, among: references, relativePath: context.relativePath) } ?? [], generatedMentions: generatedLines.subtracting(references.map { "\($0.path):\($0.line)" }).count, shown: { recordTypeUse($0, true) }))
+                    sections.append(contentsOf: referenceSection(for: qualified, hits: references, offset: options.offset, context: context, occurrences: occurrences, paging: paging, aboveNoun: callersApply(to: row.kind) ? "call sites" : row.kind == .enumCase ? "uses" : "reads and writes", sitesAbove: sitesAbove, conformanceLines: conformance.map { $0.folded($0.startLines, among: references, relativePath: context.relativePath) } ?? [], generatedMentions: generatedLines.subtracting(references.map { "\($0.path):\($0.line)" }).count, shown: { recordTypeUse($0, true) }))
                 }
             }
             conformerBlocks[row.name]?.lines += fileAccounting(of: row, usr: usr, listed: accounted, options: options, context: context, occurrences: occurrences)
@@ -902,7 +901,7 @@ extension WhereRenderer {
             lines += ["", StandingCaveats.sentences]
         }
         // The store records nothing in a file it holds no unit for, a new one above all, nor what a file it holds has written since the build, so a lower bound names the lines there that write the name, which a rename trusting the answer would otherwise miss, and the header counts each file no store holds that it names.
-        let mentions = try WhereChangedFileMentions(names: scannedNames, unbuilt: testTargets?.paths ?? verdicts.filesOutsideTheBuild, refused: Set(refusals.map(\.path)), in: store, context: primary, judge: declaringFiles, listsEveryLine: options.includeReferences, offset: options.offset, unbuiltScanned: testTargets?.scanned)
+        let mentions = try WhereChangedFileMentions(names: scannedNames, unbuilt: testTargets?.paths ?? verdicts.filesOutsideTheBuild, refused: Set(refusals.map(\.path)), in: store, context: primary, judge: declaringFiles, listsEveryLine: options.includeReferences, offset: options.offset, unbuiltScanned: testTargets?.scanned, listsText: filesCollector == nil)
         lines = mentions.placed(in: lines)
         lines += testTargets?.ownLine(besideEmptyVerdicts: !emptyVerdicts.isEmpty) ?? []
         filesCollector.map(mentions.record(into:))

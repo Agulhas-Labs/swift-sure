@@ -113,7 +113,7 @@ public struct GitContext {
         try dirtyFiles(pathspec: ["*.swift"])
     }
 
-    /// The same dirty set with no path restriction — every file git considers changed, `.swift` or not (`diff`'s non-Swift-files section).
+    /// The same dirty set with no path restriction — every file git considers changed, `.swift` or not (the non-Swift-files section).
     public func dirtyFiles() throws -> [Change] {
         try dirtyFiles(pathspec: [])
     }
@@ -155,7 +155,7 @@ public struct GitContext {
         try changedFiles(from: oldHead, to: newHead, pathspec: ["*.swift"])
     }
 
-    /// The same range diff with no path restriction — every file that differs, `.swift` or not (`diff`'s non-Swift-files section).
+    /// The same range diff with no path restriction — every file that differs, `.swift` or not (the non-Swift-files section).
     public func changedFiles(from oldHead: String, to newHead: String) throws -> [Change] {
         try changedFiles(from: oldHead, to: newHead, pathspec: [])
     }
@@ -194,20 +194,10 @@ public struct GitContext {
         return changes
     }
 
-    /// The git object every repository defines for "nothing" — diffing a root commit (no parent to name) against this reads as every path in it having been added, the same trick `git diff --root` relies on internally.
-    public static var emptyTreeHash: String {
-        "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-    }
-
-    /// Whether `rev` resolves to a commit in this repository — `diff` uses this to fall back to ``emptyTreeHash`` when a single commit it was given has no parent to name.
+    /// Whether `rev` resolves to a commit in this repository.
     public func resolvesToCommit(_ rev: String) -> Bool {
         // Same throw-on-nonzero-exit contract as `ignores(relativePath:)` above.
         (try? Self.run(arguments: ["rev-parse", "--verify", "--quiet", rev + "^{commit}"], in: repoRoot)) != nil
-    }
-
-    /// `rev`, or ``emptyTreeHash`` where `rev` names no commit — the one way that happens for `HEAD` is a branch with nothing committed to it yet, so every git call the working-tree diff makes in `HEAD`'s name reads that empty repository as having nothing, and everything present in the working tree as added, the same substitution a root commit's absent parent already gets.
-    public func revisionOrEmptyTree(_ rev: String) -> String {
-        resolvesToCommit(rev) ? rev : Self.emptyTreeHash
     }
 
     /// Every file path in `rev`'s tree, repo-relative whatever the working directory — what `digest --at` and `where --at` read a past revision from; throws git's own refusal when `rev` names no tree.
@@ -332,12 +322,6 @@ public struct GitContext {
         return lines.map { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : repoRoot.appendingPathComponent($0) }
     }
 
-    /// Every untracked file git would show as new — `--others` with no `--cached`, so tracked files are excluded (unlike ``visibleSwiftFiles()``, which wants both).
-    public func untrackedFiles() throws -> [String] {
-        let output = try Self.run(arguments: ["ls-files", "--others", "--exclude-standard", "-z"], in: repoRoot, within: ChildDeadline.gitBulk)
-        return output.split(separator: "\0").map(String.init)
-    }
-
     /// The repository's own `url.<base>.insteadof` rewrites, as git configuration keys and values in the order the file lists them — empty when it has none.
     ///
     /// Only the repository's configuration file is read, with the files it includes: the user's and the system's are read by any git wherever it runs, while this one is read only by a git that finds the repository, which a clone made in a build directory of its own does not.
@@ -356,49 +340,6 @@ public struct GitContext {
             }
             return (String(parts[0]), String(parts[1]))
         }
-    }
-
-    /// Added/removed line counts per path, keyed by the after-side path; `to` omitted compares `rev` against the working tree, the same as bare `git diff <rev>`.
-    ///
-    /// Renames are detected exactly as the change list detects them (both are plain `git diff`), so a renamed file is counted for what its edit changed rather than as a whole-file add — the rename's own record, `added TAB removed TAB NUL old NUL new NUL` under `-z`, is read for it.
-    public func lineStats(from rev: String, to: String? = nil) throws -> [String: LineStat] {
-        var arguments = ["diff", "--numstat", "--no-textconv", "-z", rev]
-        if let to {
-            arguments.append(to)
-        }
-        let tokens = try Self.run(arguments: arguments, in: repoRoot, within: ChildDeadline.gitBulk).split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
-        var stats: [String: LineStat] = [:]
-        var index = 0
-        while index < tokens.count {
-            let fields = tokens[index].split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-            index += 1
-            guard fields.count == 3 else { continue }
-            var path = String(fields[2])
-            if path.isEmpty {
-                // A rename: the two paths follow as tokens of their own.
-                guard index + 1 < tokens.count else { break }
-                path = tokens[index + 1]
-                index += 2
-            }
-            // A binary file prints "-" for both counts rather than a number.
-            guard let added = Int(fields[0]), let removed = Int(fields[1]) else {
-                stats[path] = LineStat(added: 0, removed: 0, binary: true)
-                continue
-            }
-            stats[path] = LineStat(added: added, removed: removed, binary: false)
-        }
-        return stats
-    }
-
-    /// The byte size of the raw, human-facing `git diff` for this same comparison — the baseline `diff` prices its own answer against.
-    ///
-    /// Counted as bytes, never decoded first (a diff of a file in another encoding is still bytes a reader is sent), and with `--no-ext-diff`, since a configured external diff tool is a program to launch, not a size to measure.
-    public func diffByteCount(from rev: String, to: String? = nil) throws -> Int {
-        var arguments = ["diff", "--no-color", "--no-ext-diff", "--no-textconv", rev]
-        if let to {
-            arguments.append(to)
-        }
-        return try Self.runData(arguments: arguments, in: repoRoot, within: ChildDeadline.gitBulk).count
     }
 
     /// Many blobs in one process: each `(rev, path)` read through `git cat-file --batch`, in order, `nil` where the path does not exist at that revision (or is not a file there).
@@ -496,7 +437,7 @@ public struct GitContext {
     ///
     /// The same, returning stdout's bytes undecoded, with `input` (when given) written to the child's stdin, and failing on any exit status it is not told to take as success.
     ///
-    /// **No read writes the index**, which two of git's reads otherwise do behind the caller's back. `git status` refreshes the index's stat cache and, when it can take `index.lock`, writes it back; `GIT_OPTIONAL_LOCKS=0` — the one `GIT_` key put back into the scrubbed environment — turns that off. A porcelain `git diff` against the working tree (``lineStats(from:to:)``, ``diffByteCount(from:to:)``) does the same through `refresh_index_quietly`, which ignores that variable; `diff.autoRefreshIndex=false` turns it off instead, and costs those two nothing in accuracy: a file whose stat changed and content did not is compared by content and still prints no count and no byte. It is not free for every diff — a `--name-only` or `--name-status` diff against the working tree cannot look at content and lists that file, which is why a list of changed working-tree paths comes from `status` (``dirtyFiles()``). The setting means nothing to any other command, so it rides on every one — a diff added later cannot forget it.
+    /// **No read writes the index**, which two of git's reads otherwise do behind the caller's back. `git status` refreshes the index's stat cache and, when it can take `index.lock`, writes it back; `GIT_OPTIONAL_LOCKS=0` — the one `GIT_` key put back into the scrubbed environment — turns that off. A porcelain `git diff` against the working tree does the same through `refresh_index_quietly`, which ignores that variable; `diff.autoRefreshIndex=false` turns it off instead, and costs a content diff nothing in accuracy: a file whose stat changed and content did not is compared by content and still prints no count and no byte. It is not free for every diff — a `--name-only` or `--name-status` diff against the working tree cannot look at content and lists that file, which is why a list of changed working-tree paths comes from `status` (``dirtyFiles()``). The setting means nothing to any other command, so it rides on every one — a diff added later cannot forget it.
     static func runData(arguments: [String], in directory: URL, input: Data? = nil, succeedingOn: Set<Int32> = [0], within bound: TimeInterval? = nil) throws -> Data {
         // A working directory `Process` cannot enter — one spelled `/..` from a transcript's relative
         // worktree path, or one gone since the transcript named it — would make it raise an Objective-C
@@ -708,15 +649,6 @@ public extension GitContext.Change {
         case addedOrModified
         case deleted
         case renamed(from: String)
-    }
-}
-
-public extension GitContext {
-    /// Added/removed line counts for one path, from `--numstat`.
-    struct LineStat: Sendable, Equatable {
-        public let added: Int
-        public let removed: Int
-        public let binary: Bool
     }
 }
 

@@ -38,7 +38,7 @@ public struct SwiftPMManifest {
 
     /// `true` for a SwiftPM manifest at any depth — source to the build system, not to any module.
     ///
-    /// The one predicate every layer shares: the indexer excludes these paths, `init` counts them apart, and the advice/measurement layers decline to treat reading one as a lookup the index lost — the index deliberately does not cover manifests, so a read of one is the right move, not a miss.
+    /// The one predicate every layer shares: the indexer excludes these paths, and the advice/measurement layers decline to treat reading one as a lookup the index lost — the index deliberately does not cover manifests, so a read of one is the right move, not a miss.
     public static func isManifestPath(_ path: String) -> Bool {
         let name = path.split(separator: "/").last.map(String.init) ?? path
         return name == "Package.swift" || (name.hasPrefix("Package@swift-") && name.hasSuffix(".swift"))

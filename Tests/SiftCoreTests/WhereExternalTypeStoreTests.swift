@@ -89,7 +89,7 @@ struct WhereExternalTypeStoreTests {
             #expect(output.contains("semantic: fresh"), "\(output)")
             #expect(output.contains("Tally is declared outside this repository"), "\(output)")
             #expect(!output.contains("declared, but not under"), "\(output)")
-            #expect(output.contains("other declarations of count in this repository (1):\n  GizmoCore.Widget.count — var — Sources/GizmoCore/Total.swift:4-6"), "\(output)")
+            #expect(output.contains("count is declared 1 time on other types in this repository — where count lists them"), "\(output)")
             #expect(output.contains("references to Tally.count (1 in 1 file):"), "\(output)")
             #expect(output.contains(":10"), "\(output)")
             #expect(!output.contains(":11"), "\(output)")

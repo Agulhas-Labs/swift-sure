@@ -32,28 +32,6 @@ struct GitReadsLeaveTheIndexAloneTests {
 
         #expect(dirty.isEmpty)
     }
-
-    @Test
-    func lineStatsAgainstTheWorkingTreeLeaveTheIndexAlone() throws {
-        let root = try Self.repositoryWithATouchedFile()
-
-        let stats = try Self.expectIndexUntouched(in: root) {
-            try GitContext(repoRoot: root).lineStats(from: "HEAD")
-        }
-
-        #expect(stats.isEmpty)
-    }
-
-    @Test
-    func theDiffSizeAgainstTheWorkingTreeLeavesTheIndexAlone() throws {
-        let root = try Self.repositoryWithATouchedFile()
-
-        let bytes = try Self.expectIndexUntouched(in: root) {
-            try GitContext(repoRoot: root).diffByteCount(from: "HEAD")
-        }
-
-        #expect(bytes == 0)
-    }
 }
 
 private extension GitReadsLeaveTheIndexAloneTests {

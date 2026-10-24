@@ -190,7 +190,17 @@ public struct ExactAnswer {
         var located = Set<Location>()
         // The file a store block's rows sit under while they are read: none under a file it marks as changed since the build.
         var heading: String?
+        // Inside a block of rows under a `…mention the name:` line: sites found by the name alone, in files the store holds no unit for.
+        var inMentionBlock = false
         for line in NameMatchedSites.linesOutside(answer: text) {
+            if inMentionBlock, line.hasPrefix("  ") {
+                continue
+            }
+            inMentionBlock = line.hasSuffix("mention the name:")
+            if inMentionBlock {
+                heading = nil
+                continue
+            }
             if line.hasPrefix("    :") {
                 if let heading, let match = line.wholeMatch(of: siteTextRow), let number = Int(match.output.1) {
                     located.insert(Location(path: heading, line: number))

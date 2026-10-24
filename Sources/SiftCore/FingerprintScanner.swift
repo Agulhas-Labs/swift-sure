@@ -7,10 +7,13 @@ import SwiftSyntax
 
 /// Reads one file's declarations-that-have-bodies into `DeclarationFingerprint` values, then lets the tree go.
 ///
-/// Shaped after `StructuralMatcher`, which answers the other working-tree question over the same nodes: the container walk, the `nameStack` that qualifies a member by its enclosing types, and the signature slice are the same, so a `similar` hit and a `search` hit spell the same declaration the same way.
+/// Shaped after `StructuralMatcher`, which answers the other working-tree question over the same nodes: the container walk, the `nameStack` that qualifies a member by its enclosing types, and the signature slice are the same, so a fingerprint and a `search` hit spell the same declaration the same way.
 ///
 /// What it admits is narrower than what `search` matches, and narrower on purpose. A fingerprint compares *bodies*, so a declaration with none — a protocol requirement, a stored property, a type — has nothing to compare and is left out rather than scored as an empty shape that would rank alike with every other empty shape.
 final class FingerprintScanner: SyntaxVisitor {
+    /// Control-flow tokens kept from one body, before the longest-common-subsequence comparison turns quadratic on them.
+    static let skeletonCap = 64
+
     private let path: String
     private let converter: SourceLocationConverter
     private let sourceBytes: [UInt8]
@@ -135,7 +138,7 @@ final class FingerprintScanner: SyntaxVisitor {
 
     override func visit(_ node: VariableDeclSyntax) -> SyntaxVisitorContinueKind {
         // A stored property has no body to compare; a computed one does. An observer alone (`willSet`/`didSet`)
-        // does not: the storage stays stored, and the code the observer runs is not the shape `similar` compares.
+        // does not: the storage stays stored, and the code the observer runs is not the shape the reuse nudge compares.
         guard let first = node.bindings.first, let accessors = first.accessorBlock, Self.hasComparableBody(accessors) else { return .skipChildren }
         record(
             node,
@@ -223,7 +226,7 @@ private extension FingerprintScanner {
 
     /// The collector of a candidate's three axes: callees and control flow from the body, type names from the signature fragments.
     ///
-    /// The skeleton is cut at `SimilarityScore.skeletonCap`, because the comparison below it is a longest-common-subsequence over two of these, which is quadratic: an uncapped pair of thousand-token skeletons would cost a million cells to compare a shape that was already decided by its first dozen tokens. Pre-order is source order, so the tokens come back in the order they are written.
+    /// The skeleton is cut at `skeletonCap`, because the comparison below it is a longest-common-subsequence over two of these, which is quadratic: an uncapped pair of thousand-token skeletons would cost a million cells to compare a shape that was already decided by its first dozen tokens. Pre-order is source order, so the tokens come back in the order they are written.
     final class AxisScanner: SyntaxVisitor {
         /// Base names of every call in the body, read as `BodyFacts` reads them.
         private(set) var callees: Set<String> = []
@@ -302,7 +305,7 @@ private extension FingerprintScanner {
         }
 
         private func append(_ token: DeclarationFingerprint.ControlToken) -> SyntaxVisitorContinueKind {
-            if inBody, skeleton.count < SimilarityScore.skeletonCap {
+            if inBody, skeleton.count < skeletonCap {
                 skeleton.append(token)
             }
             return .visitChildren

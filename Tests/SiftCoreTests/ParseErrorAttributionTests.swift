@@ -355,6 +355,6 @@ struct ParseErrorAttributionTests {
         let digest = try engine.digest(target: "Sources/App/Clean.swift", options: DigestOptions())
 
         #expect(digest.contains("⚠ module guessed"))
-        #expect(digest.contains("swift-sure init"))
+        #expect(digest.contains("`moduleMap` entry"))
     }
 }

@@ -66,42 +66,6 @@ struct WhereSetAsideLineTests {
         #expect(answer.contains("1 site in Sources/Lib/Lantern.swift \(Self.setAsideText)"), "\(answer)")
     }
 
-    /// A diff's callers section says the sites set aside for a member whose signature changed.
-    @Test
-    func diffCallersSaysTheSitesSetAside() async throws {
-        let root = try Self.package()
-        defer { try? FileManager.default.removeItem(at: root) }
-        try TestSources.write(Self.lantern(padding: 0), to: "Sources/Lib/Lantern.swift", in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try await Self.buildAroundEdit(in: root) {
-            try TestSources.write(Self.lantern(padding: 2, glow: Self.narrower), to: "Sources/Lib/Lantern.swift", in: root)
-            try TestSources.commitAll(in: root, message: "after")
-        }
-
-        let output = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
-
-        #expect(output.contains("resolved by the index store: 0 call sites"), "\(output)")
-        #expect(output.contains("1 site in Sources/Lib/Lantern.swift \(Self.setAsideText)"), "\(output)")
-    }
-
-    /// A diff whose builds all follow the edit sets nothing aside and says nothing of it.
-    @Test
-    func diffCallersSaysNothingWhereNothingWasSetAside() async throws {
-        let root = try Self.package()
-        defer { try? FileManager.default.removeItem(at: root) }
-        try TestSources.write(Self.lantern(padding: 0), to: "Sources/Lib/Lantern.swift", in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try TestSources.write(Self.lantern(padding: 2, glow: Self.narrower), to: "Sources/Lib/Lantern.swift", in: root)
-        try TestSources.commitAll(in: root, message: "after")
-        try await TestSources.swiftBuildSuspending(packageAt: root, arguments: Self.native)
-        try await TestSources.swiftBuildSuspending(packageAt: root, arguments: Self.native + ["-c", "release"])
-
-        let output = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
-
-        #expect(output.contains("resolved by the index store"), "\(output)")
-        #expect(!output.contains("set aside"), "\(output)")
-    }
-
     /// A property wrapper with two initializers, the first declared with `access`; only that first initializer's text changes between the two versions the tests commit, so the second keeps its identity.
     private static func clamp(access: String, value: String = "Int") -> String {
         """
@@ -130,19 +94,6 @@ struct WhereSetAsideLineTests {
         }
     }
 
-    /// The wrapper listing judges its sites against the references recorded to the wrapper's other initializers, so a diff of the first initializer says the one site set aside for its sibling.
-    @Test
-    func wrapperAttributeSitesSaysTheSitesSetAsideForASiblingInitializer() async throws {
-        let root = try Self.package()
-        defer { try? FileManager.default.removeItem(at: root) }
-        try await Self.siblingFixture(in: root)
-
-        let output = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
-
-        #expect(output.contains("resolved by the index store"), "\(output)")
-        #expect(output.contains("1 site in Sources/Lib/Box.swift \(Self.setAsideText)"), "\(output)")
-    }
-
     /// The single-owner answer for the first initializer says the one attribute site left out for its sibling, once.
     @Test
     func singleOwnerWrapperAnswerSaysTheSitesSetAside() async throws {
@@ -164,52 +115,8 @@ struct WhereSetAsideLineTests {
         try await Self.siblingFixture(in: root, padding: 2)
 
         let answer = try await Self.lookup("Clamp.init(wrappedValue:)", in: root)
-        let output = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
 
         #expect(answer.contains("1 site in Sources/Lib/Box.swift \(Self.setAsideText)"), "\(answer)")
-        #expect(output.contains("1 site in Sources/Lib/Box.swift \(Self.setAsideText)"), "\(output)")
-    }
-
-    /// A stale file that only names the wrapper type holds no attribute site, so a diff of the wrapper's initializers has none to say it set aside.
-    @Test
-    func wrapperTypeReferenceInAStaleFileIsNoSetAsideSite() async throws {
-        let root = try Self.package()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let holder = "struct Holder {\n    #if DEBUG\n    var c: Clamp? = nil\n    #endif\n}\n"
-        try TestSources.write(Self.clamp(access: ""), to: "Sources/Lib/Clamp.swift", in: root)
-        try TestSources.write(holder, to: "Sources/Lib/Holder.swift", in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try await Self.buildAroundEdit(in: root) {
-            try TestSources.write(Self.clamp(access: "", value: "Int64"), to: "Sources/Lib/Clamp.swift", in: root)
-            try TestSources.write(holder + "\n", to: "Sources/Lib/Holder.swift", in: root)
-            try TestSources.commitAll(in: root, message: "after")
-        }
-
-        let output = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
-
-        #expect(output.contains("resolved by the index store"), "\(output)")
-        #expect(!output.contains("set aside"), "\(output)")
-    }
-
-    /// An attribute added since the stale build, in a file whose only set-aside line is a debug-only reference to the wrapper type, is no set-aside site of either initializer.
-    @Test
-    func wrapperAttributeAddedBesideAStaleTypeReferenceIsNoSetAsideSite() async throws {
-        let root = try Self.package()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let holder = { (added: String) in "struct Holder {\n    #if DEBUG\n    let probe: Clamp? = nil\n\(added)    #endif\n}\n" }
-        try TestSources.write(Self.clamp(access: ""), to: "Sources/Lib/Clamp.swift", in: root)
-        try TestSources.write(holder(""), to: "Sources/Lib/Holder.swift", in: root)
-        try TestSources.commitAll(in: root, message: "before")
-        try await Self.buildAroundEdit(in: root) {
-            try TestSources.write(Self.clamp(access: "", value: "Int64"), to: "Sources/Lib/Clamp.swift", in: root)
-            try TestSources.write(holder("    @Clamp var added: Int64 = 1\n"), to: "Sources/Lib/Holder.swift", in: root)
-            try TestSources.commitAll(in: root, message: "after")
-        }
-
-        let output = try await DiffEngineTests.diff(root, range: "HEAD~1..HEAD")
-
-        #expect(output.contains("resolved by the index store"), "\(output)")
-        #expect(!output.contains("set aside"), "\(output)")
     }
 
     /// A name two unrelated owners declare as kinds the store is not asked about lists no uses, and so says nothing of sites it never counted.

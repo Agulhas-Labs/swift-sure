@@ -33,6 +33,20 @@ struct GitChildBoundTests {
         return finished.wait(timeout: .now() + budget) == .success ? box.value : nil
     }
 
+    /// The bound a git read reported going unanswered within, or `nil` where it answered or failed some other way.
+    ///
+    /// A test of the deadline asserts on this rather than on wall time: the read's own bound says the deadline ended it, and `within` holds it to the hook's budget, where an elapsed margin over the deadline measured the machine's load: 2.68 s against a 2.5 s margin at a load average of 113.
+    private static func unansweredWithin(_ read: () throws -> String) -> TimeInterval? {
+        do {
+            _ = try read()
+            return nil
+        } catch let error as GitError {
+            return error.unansweredWithin
+        } catch {
+            return nil
+        }
+    }
+
     /// The hook's first git call comes back, as a repository git cannot read, inside the hook's budget.
     @Test
     func aGitBlockedOnAFifoConfigIsAnsweredAsNoRepository() throws {
@@ -264,25 +278,21 @@ struct GitChildBoundTests {
         #expect(changes.map(\.path) == ["B.swift"])
     }
 
-    /// A descendant of git that holds its stdout does not hold the call: a 2 second call whose alias leaves a `sleep 30` on the pipe answers inside the bound and its grace, and the sleep is ended with git's group.
+    /// A descendant of git that holds its stdout does not hold the call: a 2 second call whose alias leaves a `sleep 30` on the pipe is ended by its deadline, inside the hook's budget, and the sleep is ended with git's group.
     @Test
     func aDescendantHoldingTheStreamsIsEndedWithTheGroup() throws {
         let root = try TemporaryDirectory.make("git-child-group")
         let held = try Self.holdingAlias(in: root, leavingTheGroup: false)
         defer { held.release() }
-        let started = Date()
-
-        let answered = Self.within { () -> Bool in
-            (try? GitContext.run(arguments: held.arguments, in: root, within: ChildDeadline.git)) == nil
+        let answered = Self.within { () -> TimeInterval? in
+            Self.unansweredWithin { try GitContext.run(arguments: held.arguments, in: root, within: ChildDeadline.git) }
         }
-        let elapsed = Date().timeIntervalSince(started)
 
-        guard let failed = answered else {
+        guard let bound = answered else {
             Issue.record("the call was still open \(Self.hookBudget) seconds on: a descendant holding the pipe kept it")
             return
         }
-        #expect(failed, "the alias never exits by itself, so the call cannot have succeeded")
-        #expect(elapsed < ChildDeadline.git + 0.5, "the call took \(elapsed) seconds")
+        #expect(bound == ChildDeadline.git, "the alias never exits by itself, so only the deadline can end the call")
         let pid = try #require(held.pid(), "the alias never wrote the sleep's pid")
         #expect(Self.isGone(pid), "the sleep (pid \(pid)) is still running after the call")
     }
@@ -293,20 +303,16 @@ struct GitChildBoundTests {
         let root = try TemporaryDirectory.make("git-child-left-group")
         let held = try Self.holdingAlias(in: root, leavingTheGroup: true)
         defer { held.release() }
-        let started = Date()
-
-        let answered = Self.within { () -> Bool in
-            (try? GitContext.run(arguments: held.arguments, in: root, within: ChildDeadline.git)) == nil
+        let answered = Self.within { () -> TimeInterval? in
+            Self.unansweredWithin { try GitContext.run(arguments: held.arguments, in: root, within: ChildDeadline.git) }
         }
-        let elapsed = Date().timeIntervalSince(started)
 
-        guard let failed = answered else {
+        guard let bound = answered else {
             Issue.record("the call was still open \(Self.hookBudget) seconds on: a descendant holding the pipe kept it")
             return
         }
 
-        #expect(failed, "the alias never exits by itself, so the call cannot have succeeded")
-        #expect(elapsed < ChildDeadline.git + 0.5, "the call took \(elapsed) seconds")
+        #expect(bound == ChildDeadline.git, "the alias never exits by itself, so only the deadline can end the call")
     }
 
     /// `changedFiles` is a bulk read: a range diff whose git takes 3 seconds to open the repository's objects is still answered.

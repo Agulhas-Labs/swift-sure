@@ -15,7 +15,7 @@ struct DeclarationDiffTests {
     }
 
     private static func changes(from old: String, to new: String) -> [DeclarationChange] {
-        DeclarationDiff.changes(old: side(old), new: side(new))
+        DeclarationDiff.compare(old: side(old), new: side(new)).changes
     }
 
     @Test func anAddedMemberCarriesItsAfterSideRangeAndNoBeforeSide() throws {
@@ -120,7 +120,7 @@ struct DeclarationDiffTests {
 
     /// The declarations section reports a deleted suite as one line — but a deleted suite is not a suite that lost no tests, and the test-files section needs the individual names even here.
     @Test func aWhollyRemovedSuiteStillNamesItsTestsIndividually() throws {
-        let changes = DeclarationDiff.changes(
+        let changes = DeclarationDiff.compare(
             old: Self.side("""
             import Testing
 
@@ -130,7 +130,7 @@ struct DeclarationDiffTests {
             }
             """),
             new: nil
-        )
+        ).changes
         let removed = try #require(changes.first { $0.name == "WidgetTests" })
 
         #expect(removed.kind == .removed)
@@ -149,14 +149,14 @@ struct DeclarationDiffTests {
     }
 
     @Test func anAddedFileReadsAsEveryDeclarationAdded() {
-        let changes = DeclarationDiff.changes(old: nil, new: Self.side("public struct Widget {\n    public func polish() {}\n}\n"))
+        let changes = DeclarationDiff.compare(old: nil, new: Self.side("public struct Widget {\n    public func polish() {}\n}\n")).changes
 
         #expect(changes.count == 1)
         #expect(changes.allSatisfy { $0.kind == .added })
     }
 
     @Test func aDeletedFileReadsAsEveryDeclarationRemoved() {
-        let changes = DeclarationDiff.changes(old: Self.side("public struct Widget {\n    public func polish() {}\n}\n"), new: nil)
+        let changes = DeclarationDiff.compare(old: Self.side("public struct Widget {\n    public func polish() {}\n}\n"), new: nil).changes
 
         #expect(changes.count == 1)
         #expect(changes.allSatisfy { $0.kind == .removed })
@@ -249,7 +249,6 @@ struct DeclarationDiffTests {
         let file = FileDiff.compare(
             path: "Widget.swift",
             status: .modified,
-            lineStat: nil,
             bytes: (
                 Data("struct A {\n    func f() -> Int { 1 }\n}\nstruct B {\n    func g() -> Int { 1 }\n}\n".utf8),
                 Data("struct B {\n    func g() -> Int { 1 }\n}\nstruct A {\n    func f() -> Int { 2 }\n}\n".utf8)
@@ -366,17 +365,5 @@ struct DeclarationDiffTests {
 
         #expect(changes.count == 1)
         #expect(changes.first?.kind == .moved)
-    }
-
-    /// A summary never needs bodies, and a large range holds many — they are kept only when asked for.
-    @Test func bodiesAreDroppedUnlessKept() throws {
-        let old = Self.side("struct W {\n    func a() -> Int { 1 }\n}\n")
-        let new = Self.side("struct W {\n    func a() -> Int { 2 }\n}\n")
-
-        let summary = try #require(DeclarationDiff.changes(old: old, new: new, keepBodies: false).first)
-        let member = try #require(DeclarationDiff.changes(old: old, new: new, keepBodies: true).first)
-
-        #expect(summary.oldBody == nil)
-        #expect(member.newBody == "    func a() -> Int { 2 }")
     }
 }

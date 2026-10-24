@@ -129,7 +129,7 @@ public final class IndexStore: @unchecked Sendable {
 
     /// Removes the rows for paths that no longer exist; FTS rows first, then the file row (cascade takes symbols and inheritance).
     ///
-    /// Every path that actually had rows AND is missing at the moment it is dropped is written to the ``DeletionLedger`` in the same transaction, at `instant`: this is the one place every route to a deletion passes through — a query's dirty set, a head move, `reconcile`, a full rebuild — and the rows it drops are the only evidence `status` could otherwise have had that the file was ever here.
+    /// Every path that actually had rows AND is missing at the moment it is dropped is written to the ``DeletionLedger`` in the same transaction, at `instant`: this is the one place every route to a deletion passes through — a query's dirty set, a head move, the reconcile sweep, a full rebuild — and the rows it drops are the only evidence `status` could otherwise have had that the file was ever here.
     ///
     /// `stillOnDisk` is what keeps a drop that is not a deletion out of the ledger: a row can be dropped from the store for a reason that leaves the file exactly where it was — narrowed away by a fresher `.swift-sure.json`, gitignored since the last build — and recording those crowds the bounded ledger with entries a real deletion never produced, which is exactly what lets the capacity's eviction (``DeletionLedger/record(_:at:)``) forget a file that is genuinely gone. The default records everything, for a caller with no file-system view of its own to ask.
     public func deleteFiles(paths: [String], at instant: Date = Date(), stillOnDisk: (String) -> Bool = { _ in false }) throws {

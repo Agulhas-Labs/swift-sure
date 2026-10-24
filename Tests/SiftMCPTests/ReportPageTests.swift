@@ -138,9 +138,9 @@ struct ReportPageTests {
         #expect(!page.contains("class=\"conditions\""))
     }
 
-    /// A condition names the repository it holds in and the command that clears it.
+    /// A condition names the repository it holds in and the file content that clears it, labelled with the file, not set in a command box.
     @Test
-    func aConditionNamesItsRootAndTheCommandToRun() throws {
+    func aConditionNamesItsRootAndTheFileContentToAdd() throws {
         let directory = try TemporaryDirectory.make("report")
         let log = try Self.writeLog([Self.entry(tool: "digest", target: "Widget")], in: directory)
         let data = Self.assemble(log: log, projects: directory, roots: ["/work/Monorepo"]) { _ in
@@ -151,9 +151,9 @@ struct ReportPageTests {
 
         #expect(data.conditions.count == 1)
         #expect(page.contains("Awaiting you"))
-        #expect(page.contains("Monorepo"))
         #expect(page.contains("279 of 279"))
-        #expect(page.contains("swift-sure init /work/Monorepo"))
+        #expect(page.contains("Add to /work/Monorepo/.swift-sure.json:"))
+        #expect(page.contains("<pre class=\"snippet\">{ &quot;moduleMap&quot;: { &quot;&lt;path prefix&gt;&quot;: &quot;&lt;Module&gt;&quot; } }</pre>"))
     }
 
     /// The threshold is the primer's: a handful of loose files outside any manifest is not a condition.

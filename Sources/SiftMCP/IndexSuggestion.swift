@@ -321,13 +321,13 @@ public extension IndexSuggestion {
         call.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
     }
 
-    /// The calls an index tool's own payload made, spelled the way ``call`` spells one — `where SimilarTarget`, `digest Gizmo` — or nothing for anyone else's tool.
+    /// The calls an index tool's own payload made, spelled the way ``call`` spells one — `where Depot`, `digest Gizmo` — or nothing for anyone else's tool.
     ///
     /// **One spelling for both sides, which is the whole of what makes the comparison exact.** An offer is rendered text and a call made is a tool name with arguments; normalised here to the offer's spelling, and whitespace-collapsed by the ledger on the way in and out, they are one string or they are two different calls.
     ///
     /// One element per target, so a `digest` given several answers for each of them — joined into one name they would match nothing, and a context that digested three files would be offered a fourth `digest` as though it had made no call at all. Read through ``IndexCallTarget/all(_:tool:)``, the tool-aware form, so a single-target call is named by the key its own tool reads — `where symbol:A target:B` resolves `A`, not the `target` it never looked at.
     ///
-    /// A tool call is read only for this server's MCP tools. Taking the advice from Bash (`swift-sure where SimilarTarget`) is read through `command`, below, and only in a plain spelling: a context whose transcript records the server gone is offered the CLI spelling (``cliCall``), which is not the string a tool call is offered.
+    /// A tool call is read only for this server's MCP tools. Taking the advice from Bash (`swift-sure where Depot`) is read through `command`, below, and only in a plain spelling: a context whose transcript records the server gone is offered the CLI spelling (``cliCall``), which is not the string a tool call is offered.
     ///
     /// `root` pins the spelling to the repository the call actually ran against — the caller's resolved root, whether stated on the call or read off its own working directory. Without it, a call made against one repository would read as circular for the identical question asked of a completely different one: `RepositoryIndex` is scoped to a repository "never to the machine", and a call this remembers has to be too.
     ///

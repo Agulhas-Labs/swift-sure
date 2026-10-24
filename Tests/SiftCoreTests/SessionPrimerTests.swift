@@ -246,7 +246,7 @@ struct SessionPrimerTests {
         #expect(primer.contains("151 of 151"))
         // The whole point: the reader of this text cannot run it, so it has to be handed on.
         #expect(primer.contains("Say so at the start of your reply"))
-        #expect(primer.contains("swift-sure init"))
+        #expect(primer.contains("`moduleMap` entry"))
     }
 
     /// The primer states the risk and the remedy in ``GuessedModuleNotice``'s words, because it is one of four surfaces that say this and the only one that opens a session.
@@ -263,9 +263,9 @@ struct SessionPrimerTests {
         #expect(primer.contains(GuessedModuleNotice.remedy))
     }
 
-    /// An upgrade re-attributes an existing index on its own, so the primer must not send anyone to `init` before mentioning that.
+    /// An upgrade re-attributes an existing index on its own, so the primer must not send anyone to a `moduleMap` entry before mentioning that.
     ///
-    /// The reverse order is what makes the advice expensive: `init` is per-repository and nobody runs it across ten checkouts, while the three build systems below cover almost every repository that would trigger this warning.
+    /// The reverse order is what makes the advice expensive: a `moduleMap` entry is per-repository and nobody writes one across ten checkouts, while the three build systems below cover almost every repository that would trigger this warning.
     @Test
     func theGuessedModuleWarningNamesWhatResolvesAutomatically() throws {
         let primer = try #require(SessionPrimer.render(
@@ -274,7 +274,7 @@ struct SessionPrimerTests {
         ))
 
         let automatic = try #require(primer.range(of: "re-attributes")).lowerBound
-        let initMention = try #require(primer.range(of: "swift-sure init")).lowerBound
+        let initMention = try #require(primer.range(of: "`moduleMap` entry")).lowerBound
 
         #expect(primer.contains("SwiftPM"))
         #expect(primer.contains("XcodeGen"))

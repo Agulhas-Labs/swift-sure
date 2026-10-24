@@ -49,7 +49,7 @@ struct AnswerHeaderNotes {
         build compiles is not counted. The header names the kinds present, in the order changed, deleted, new, \
         and the file's path where it counts exactly one: `stale since last build (1 cited file changed: <path>)`, \
         `(3 cited files changed)`, `(2 new cited files)`, `(4 cited files: 1 changed, 1 deleted, 2 new)`. A refusal after a partial \
-        build names the module the build skipped. `affected` and `diff` count by the same rule; `\(ProductName.current.binary) status` \
+        build names the module the build skipped. `affected` counts by the same rule; `\(ProductName.current.binary) status` \
         keeps the store's newest unit as its one anchor, so it reads fresh for a file a partial build skipped, \
         which only a query shows.
         """

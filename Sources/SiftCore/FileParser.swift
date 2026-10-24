@@ -24,7 +24,7 @@ struct FileParser {
 
     /// Parses `source` directly, for content that has no file on disk to stat — one side of a `git show <rev>:<path>` diff — with one more read of the same tree before it is discarded.
     ///
-    /// For `diff`, which needs what lies outside the declarations as well as the declarations, and must not parse a file twice to get both. Its signatures are the compared form (``SymbolVisitor/Signatures/compared``): whole, never cut for display. `mtime` is zero, since there is no file to have one.
+    /// For the declaration comparison, which needs what lies outside the declarations as well as the declarations, and must not parse a file twice to get both. Its signatures are the compared form (``SymbolVisitor/Signatures/compared``): whole, never cut for display. `mtime` is zero, since there is no file to have one.
     static func parse<Extra>(
         source: String,
         repoRelativePath: String,

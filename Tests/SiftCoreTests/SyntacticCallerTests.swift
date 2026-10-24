@@ -288,7 +288,7 @@ struct SyntacticCallerTests {
         #expect(!output.contains("spelled \"subscript\""))
     }
 
-    /// With no store, a subscript's answer has no name-matched list, so it disclaims none: the header saying a name is not a symbol, and the notice saying how to read an empty list, would describe a match that never ran — as `swift-sure diff` already declines to in the same case.
+    /// With no store, a subscript's answer has no name-matched list, so it disclaims none: the header saying a name is not a symbol, and the notice saying how to read an empty list, would describe a match that never ran — as the other faces already decline to in the same case.
     @Test
     func aSubscriptAloneDisclaimsNoNameMatchedListItNeverScanned() async throws {
         let root = try TestSources.makeTempRepo()
