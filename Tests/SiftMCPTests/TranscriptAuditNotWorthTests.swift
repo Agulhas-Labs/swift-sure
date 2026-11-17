@@ -17,7 +17,7 @@ struct TranscriptAuditNotWorthTests {
 
         let transcript = try TemporaryDirectory.make("projects").appendingPathComponent("replayed-session.jsonl")
         let lines = try [
-            TranscriptAuditReplayTests.call("sed -n 100,119p Sources/App/Depot.swift", id: "c1", cwd: root.path, at: "2026-09-20T10:00:00Z"),
+            TranscriptAuditReplayTests.call("awk 'NR>=100 && NR<=119' Sources/App/Depot.swift", id: "c1", cwd: root.path, at: "2026-09-20T10:00:00Z"),
             TranscriptFixture.toolResult(id: "c1", isError: false, text: "func stock2"),
         ]
         try Data(lines.joined(separator: [0x0A])).write(to: transcript)
@@ -82,7 +82,7 @@ struct TranscriptAuditNotWorthTests {
 
     /// A window the log records letting run on worth is out of the replayed share once: the one indexed call is the whole of a denominator of one, and the old denominator holds the window as its one miss.
     @Test(arguments: [
-        ("sed -n 100,119p Sources/App/Depot.swift", "notSmaller"),
+        ("awk 'NR>=100 && NR<=119' Sources/App/Depot.swift", "notSmaller"),
     ])
     func aLoggedWindowIsOutOfTheReplayedDenominatorOnce(command: String, rule: String) async throws {
         let logged = try await Self.loggedWindow(command: command, rule: rule)
@@ -153,7 +153,7 @@ struct TranscriptAuditNotWorthTests {
 private extension TranscriptAuditNotWorthTests {
     /// A transcript of one answered index call about another file and one cold window of an indexed repository, run as `command`, with a suppression log recording that window let run under `rule` for its call.
     static func loggedWindow(
-        command: String = "sed -n 100,119p Sources/App/Depot.swift",
+        command: String = "awk 'NR>=100 && NR<=119' Sources/App/Depot.swift",
         rule: String = "notSmaller"
     ) async throws -> LoggedWindow {
         let root = try await InPlaceAnswerTests.indexedRepository()

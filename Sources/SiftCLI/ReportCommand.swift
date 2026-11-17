@@ -92,7 +92,7 @@ struct ReportCommand: ParsableCommand {
         }
         let home = AgentPaths.userHome()
         // Validated here so a mistyped window is refused before any transcript is read, and in the same
-        // words `usage` and `audit` refuse it — one vocabulary, stated once (UsageWindow).
+        // words `audit` refuses it — one vocabulary, stated once (UsageWindow).
         guard UsageWindow.firstDay(from: since, now: Date()) != nil else {
             throw ValidationError("--since \(since) is not a window: use today, yesterday, <N>d, or YYYY-MM-DD.")
         }

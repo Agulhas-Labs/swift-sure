@@ -1,5 +1,5 @@
 {
-  "originHash" : "592b95bf7556005631b5913cc92a934db4f2190abe2b3c3435d0acfcfd2ca2f1",
+  "originHash" : "d81640151a374f78cb6fb5a93d82c05fc571d28a84b02038656595b68ec10d16",
   "pins" : [
     {
       "identity" : "indexstore-db",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Agulhas-Labs/swift-fieldwork.git",
       "state" : {
-        "revision" : "405af5ed382dec3446f568647ca536933ca0312e",
-        "version" : "0.7.0"
+        "revision" : "1152bb2b1748f2eefb6b7ed5fc4b3133e936ce47",
+        "version" : "0.11.0"
       }
     },
     {

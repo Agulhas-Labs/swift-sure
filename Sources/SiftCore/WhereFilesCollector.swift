@@ -160,7 +160,8 @@ final class WhereFilesCollector {
 
     /// The view's lines for the page starting at `offset`, under `kept`.
     func lines(query: String, kept: [String], offset: Int, cap: Int = WhereFilesCollector.filesListCap) -> [String] {
-        let paths = files.keys.sorted()
+        let paths = files.filter { $0.value.state != .deleted }.keys.sorted()
+        let deleted = files.count - paths.count
         var block = kept + ["", heading(query: query, count: paths.count)]
         let skipped = min(max(0, offset), paths.count)
         if PastEndLine.applies(offset: offset, count: paths.count) {
@@ -174,6 +175,9 @@ final class WhereFilesCollector {
         if hidden > 0 {
             block.append("  truncated: \(hidden) more file\(hidden == 1 ? "" : "s") — pass offset \(skipped + page.count) to continue")
         }
+        if deleted > 0 {
+            block.append("  + \(deleted) file\(deleted == 1 ? "" : "s") deleted since the last build also named it (`--refs` lists them)")
+        }
         return block
     }
 
@@ -184,13 +188,14 @@ final class WhereFilesCollector {
             let more = names.count - Self.namedOwnerCap
             subject = "\(query), \(names.count) owners: " + names.prefix(Self.namedOwnerCap).joined(separator: ", ") + (more > 0 ? ", and \(more) more" : "")
         }
-        let code = files.values.count { !$0.codeLines.isEmpty }
-        let mentions = files.values.count { $0.notCodeLines > 0 }
+        let listed = files.values.filter { $0.state != .deleted }
+        let code = listed.count { !$0.codeLines.isEmpty }
+        let mentions = listed.count { $0.notCodeLines > 0 }
         var details = ["\(count) file\(count == 1 ? "" : "s"): \(code) with code sites, \(mentions) with not-code mentions"]
         if !siblings.isEmpty {
             details.append("including \(siblings.sorted().joined(separator: " and "))")
         }
-        details += WhereRenderer.driftDetails(states: files.values.map(\.state))
+        details += WhereRenderer.driftDetails(states: listed.map(\.state))
         if generatedLines > 0 {
             details.append("\(generatedLines) more line\(generatedLines == 1 ? "" : "s") a macro generated, not listed")
         }

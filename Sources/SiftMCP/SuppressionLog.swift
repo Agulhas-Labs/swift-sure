@@ -118,7 +118,7 @@ public struct SuppressionLog: Sendable {
 
     /// ``overruns(in:prefix:since:until:root:)`` over entries already read.
     ///
-    /// The `root` test is the one `usage --root` applies to a logged call's root: canonically compared, the directory itself or beneath it.
+    /// The `root` test is the one `report --root` applies to a logged call's root: canonically compared, the directory itself or beneath it.
     static func overruns(from entries: [[String: Any]], since: Date? = nil, until: Date? = nil, root: String? = nil) -> Int {
         let stamp = ISO8601DateFormatter()
         return entries.filter { entry in

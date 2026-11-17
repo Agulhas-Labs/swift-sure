@@ -48,7 +48,7 @@ struct RunAllowRulesCoverageTests {
     }
 
     /// The rules allow the wrapper in front of the four builds and in front of nothing else.
-    @Test(arguments: ["swift-sure run -- rm -rf build", "swift-sure run -- swift run", "swift-sure run -- swift package reset", "swift-sure run", "swift-sure build"])
+    @Test(arguments: ["swift-sure run -- rm -rf build", "swift-sure run -- swift run", "swift-sure run -- swift package reset", "swift-sure run"])
     func nothingElseIsCovered(leg: String) {
         #expect(!Self.permission.addsNoPrompt(legs: [leg], mode: "default"))
     }

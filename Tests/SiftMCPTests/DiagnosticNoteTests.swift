@@ -35,7 +35,7 @@ struct DiagnosticNoteTests {
     func answer(_ make: (String) -> [String: Any], extraFiles: [String: String] = [:]) throws -> String {
         let repo = try MCPTestRepo.make(declaring: "Depot")
         try MCPTestRepo.add([Self.producerPath: Self.producer].merging(extraFiles) { first, _ in first }, to: repo)
-        let marks = try ReuseNudgeMarks(directory: TemporaryDirectory.make("nudge-marks"))
+        let marks = try HookMarks(directory: TemporaryDirectory.make("hook-marks"))
         let recorded = RecordedOutput()
         PostToolUseCommand.answer(to: make(repo.path), output: recorded.output, marks: marks)
         return recorded.printed

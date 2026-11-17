@@ -23,7 +23,7 @@ public struct RunScan: Sendable {
 
     /// Reads `fileURL` and narrows it; anything unreadable renders as an empty scan.
     ///
-    /// Asked to reach across worktrees, it widens a scope to every run filed under the same `repo` as a run inside it, or as the scope's own directory where that is a recorded root — the worktrees of the repositories it names, wherever they were cut. A line without `repo` is scoped by path alone. `flakes` alone asks for it: `usage` and `report` scope a lookup log beside this one with the same argument, and a lookup line carries no `repo` to widen by.
+    /// Asked to reach across worktrees, it widens a scope to every run filed under the same `repo` as a run inside it, or as the scope's own directory where that is a recorded root — the worktrees of the repositories it names, wherever they were cut. A line without `repo` is scoped by path alone. `flakes` alone asks for it: `report` scopes a lookup log beside this one with the same argument, and a lookup line carries no `repo` to widen by.
     public static func load(fileURL: URL, since: String? = nil, scope: LogScope? = nil, acrossWorktrees: Bool = false) -> RunScan {
         guard let data = try? Data(contentsOf: fileURL), !data.isEmpty else {
             return RunScan(entries: [], logged: 0, malformed: 0)

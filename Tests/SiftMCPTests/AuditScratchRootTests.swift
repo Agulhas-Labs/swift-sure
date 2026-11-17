@@ -8,7 +8,7 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// `audit` leaves out the sessions recorded in scratch roots, as `usage` and `report` leave out their calls, and says how many.
+/// `audit` leaves out the sessions recorded in scratch roots, as `report` leaves out its calls, and says how many.
 @Suite(.temporaryDirectories) struct AuditScratchRootTests {
     private static var relative: String {
         "Sources/App/Depot.swift"

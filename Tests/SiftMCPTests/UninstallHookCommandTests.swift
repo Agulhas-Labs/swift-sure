@@ -155,9 +155,9 @@ struct UninstallHookCommandTests {
         #expect(try Data(contentsOf: settings) == afterFirst)
     }
 
-    // MARK: - The PostToolUse reuse nudge
+    // MARK: - The PostToolUse entry
 
-    /// Installing twice leaves one `PostToolUse` entry, at the timeout and matcher the nudge is registered with, and a full uninstall takes it back out.
+    /// Installing twice leaves one `PostToolUse` entry, at the timeout and matcher the hook is registered with, and a full uninstall takes it back out.
     ///
     /// Applied directly (as ``installedSettings(in:)`` above does), not through `InstallHookCommand.run()`: that would build the command from *this test binary's own path*, which names neither `swift-sure` nor `post-tool-use`, so a second call could never recognise the first call's entry as its own — a property of driving the installer in-process, not of the merge this test is pinning.
     @Test

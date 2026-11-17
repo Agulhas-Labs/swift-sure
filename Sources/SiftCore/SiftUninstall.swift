@@ -118,20 +118,15 @@ public struct SiftUninstall {
 
         // The rule, then the copy of a differing rule `swift-sure install` kept beside it before replacing it, and the same pair under each earlier name.
         for rule in locations.ruleFiles {
-            do {
-                switch try removeRule(at: rule) {
-                case let .removed(line):
-                    removed.append(line)
-                    count += 1
-                case let .left(note):
-                    notes.append(note)
-                case nil:
-                    break
-                }
-            } catch {
-                failures += 1
-                notes.append("rule: not removed — \(rule.path): \(error.localizedDescription)")
+            let outcome = SiftClaudeSetup.rule.uninstall(destination: rule)
+            if outcome.written.isEmpty {
+                notes += outcome.lines
+            } else {
+                removed += outcome.lines
+                count += 1
             }
+            failures += outcome.failures.count
+            notes += outcome.failures
         }
 
         var directories = UninstallPurge.settle(caches, purge: purge)
@@ -176,9 +171,9 @@ public struct SiftUninstall {
     }
 
     /// Takes this tool's hooks and server out of the Codex home, silent when it holds none, as ``cursorStep(_:)`` does for Cursor.
-    static func codexStep(_ home: CodexInstall.Home?, runner: any CodexMcpRunner) -> (outcome: InstallOutcome, failure: String?) {
+    static func codexStep(_ home: AgentPaths.CodexHome?, runner: any CodexMcpRunner) -> (outcome: InstallOutcome, failure: String?) {
         guard let home else { return (InstallOutcome(lines: [], notes: [], written: []), nil) }
-        return agentStep("codex") { try CodexInstall.uninstall(home: home, runner: runner) }
+        return agentStep("codex") { try SiftCodexSetup.uninstall(home: home, runner: runner) }
     }
 
     /// One agent's uninstall, a refusal or a failed rewrite turned into the line naming it.
@@ -294,20 +289,6 @@ public struct SiftUninstall {
         }
         return caches
     }
-
-    /// Deletes the rule `install.sh` copied in, or leaves a symlink where it is, as `install.sh` does: a link means the rule is a checkout's own file, which the install never wrote.
-    static func removeRule(at url: URL) throws -> RuleRemoval? {
-        let path = url.path
-        guard let type = try? FileManager.default.attributesOfItem(atPath: path)[.type] as? FileAttributeType else {
-            return nil
-        }
-        guard type != .typeSymbolicLink else {
-            let target = (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) ?? "an unreadable target"
-            return .left("rule: \(path) is a symlink to \(target) — left as is")
-        }
-        try FileManager.default.removeItem(atPath: path)
-        return .removed("rule: removed \(path)")
-    }
 }
 
 public extension SiftUninstall {
@@ -328,9 +309,9 @@ public extension SiftUninstall {
         /// The Cursor directory whose `mcp.json` and `hooks.json` `install-hook --agent cursor` writes, or `nil` to leave Cursor out of the run.
         public var cursor: URL?
         /// The Codex home whose `hooks.json` and MCP server `install-hook --agent codex` writes, or `nil` to leave Codex out of the run.
-        public var codex: CodexInstall.Home?
+        public var codex: AgentPaths.CodexHome?
 
-        public init(settings: URL, claudeConfig: URL, rule: URL, siftHome: URL, homeOverride: String? = nil, logs: [URL], cursor: URL? = nil, codex: CodexInstall.Home? = nil) {
+        public init(settings: URL, claudeConfig: URL, rule: URL, siftHome: URL, homeOverride: String? = nil, logs: [URL], cursor: URL? = nil, codex: AgentPaths.CodexHome? = nil) {
             self.settings = settings
             self.claudeConfig = claudeConfig
             self.rule = rule
@@ -361,7 +342,7 @@ public extension SiftUninstall {
                 homeOverride: homeOverride(in: environment),
                 logs: [usageLog, RunUsageLog.standardFileURL(environment: environment)],
                 cursor: AgentPaths.cursorDirectory(environment: environment),
-                codex: CodexInstall.home(flag: nil, environment: environment)
+                codex: AgentPaths.codexHome(flag: nil, environment: environment)
             )
         }
 
@@ -431,12 +412,6 @@ extension SiftUninstall {
         var ledger = false
         /// The variable that moved it, where it is the home and a variable put it away from `~/.swift-sure`: checked again just before the delete.
         var movedBy: String?
-    }
-
-    /// What became of the agent rule.
-    enum RuleRemoval: Equatable {
-        case removed(String)
-        case left(String)
     }
 
     /// A Cursor or Codex file the uninstall may rewrite, read before it runs so that the `.bak-swift-sure` copy beside it afterwards can be told apart from an older one.

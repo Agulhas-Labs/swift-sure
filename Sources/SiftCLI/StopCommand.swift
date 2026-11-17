@@ -47,7 +47,7 @@ struct StopCommand: ParsableCommand {
     static func answer(
         to payload: [String: Any],
         output: CommandOutput = .standard,
-        marks: ReuseNudgeMarks = .standard(),
+        marks: HookMarks = .standard(),
         timeBudget: TimeInterval = StopBuildGate.timeBudget,
         now: Date = Date(),
         processStart: @escaping @Sendable (Int32) -> Date? = StopBuildGate.processStart(of:)

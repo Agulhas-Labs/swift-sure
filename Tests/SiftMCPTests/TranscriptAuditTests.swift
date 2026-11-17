@@ -470,7 +470,7 @@ struct TranscriptAuditTests {
         #expect(TranscriptAudit.render(projectsDirectory: root).contains("nothing to audit"))
     }
 
-    /// An empty or missing transcript directory reports as such rather than as a clean bill of health, which is the same "a typo and genuine silence must not render identically" rule `usage --root` follows.
+    /// An empty or missing transcript directory reports as such rather than as a clean bill of health, which is the same "a typo and genuine silence must not render identically" rule `report --root` follows.
     @Test
     func anEmptyDirectoryIsReportedRatherThanReadingAsNoMisses() throws {
         let missing = try TemporaryDirectory.make("absent").appendingPathComponent("absent")
@@ -561,7 +561,7 @@ struct TranscriptAuditTests {
 // MARK: - Root scope
 
 extension TranscriptAuditTests {
-    /// A transcript's `cwd` decides whether it counts toward a root's tallies, exactly as a logged call's `root` field decides for `usage` — canonically compared, so a nested directory still matches and an unrelated one does not.
+    /// A transcript's `cwd` decides whether it counts toward a root's tallies, exactly as a logged call's `root` field decides for `report` — canonically compared, so a nested directory still matches and an unrelated one does not.
     @Test
     func talliesAreScopedByATranscriptsCwd() throws {
         let root = try Self.projects(session: [

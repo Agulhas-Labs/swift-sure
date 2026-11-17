@@ -10,8 +10,8 @@ extension InstallSummary {
     static var sift: InstallSummary {
         InstallSummary(
             tool: .sift,
-            saidOnce: SiftCursorSetup.unsupported + [SiftCursorSetup.experimental] + CodexInstall.unsupported + [CodexHookInstaller.experimental],
-            restarts: [CursorHookInstaller.restart, CodexHookInstaller.restart]
+            saidOnce: SiftCursorSetup.unsupported + [SiftCursorSetup.experimental] + SiftCodexSetup.unsupported + [SiftCodexSetup.experimental],
+            restarts: [CursorHookInstaller.restart, SiftCodexSetup.restart]
         )
     }
 }

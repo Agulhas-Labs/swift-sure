@@ -5,9 +5,9 @@
 import Foundation
 import SiftCore
 
-/// The parsed, scoped view of `usage.jsonl` — the one reader behind both `usage` and `report`.
+/// The parsed, scoped view of `usage.jsonl` — the one reader behind `report`.
 ///
-/// Two faces over one log — ``UsageReport`` and the HTML report — and a second parser would be a second answer to "how many calls" and a second measured-savings number: precisely the divergence one-generator-per-value exists to stop.
+/// One reader behind the report page, because a second parser would be a second answer to "how many calls" and a second measured-savings number: precisely the divergence one-generator-per-value exists to stop.
 ///
 /// Read-tolerant by design: a malformed line is counted and skipped, never fatal, because the log is append-only best-effort and a partial line from a crashed writer must not wedge the review of every line around it.
 public struct UsageScan: Sendable {
@@ -219,13 +219,6 @@ public struct UsageScan: Sendable {
             .map { ($0.key, $0.value) }
             .sorted { ($1.1.count, $0.0) < ($0.1.count, $1.0) }
     }
-
-    /// The nearest-rank percentile of an already-sorted list.
-    public static func percentile(_ sorted: [Int], _ rank: Int) -> Int {
-        guard !sorted.isEmpty else { return 0 }
-        let index = min(sorted.count - 1, max(0, (sorted.count * rank + 99) / 100 - 1))
-        return sorted[index]
-    }
 }
 
 public extension UsageScan {
@@ -276,7 +269,6 @@ public extension UsageScan {
         /// Every target the call named: the several a `digest` recorded as `targets`, else `target` alone, else none.
         public let targets: [String]
         public let root: String
-        public let milliseconds: Int
         public let succeeded: Bool
         public let error: String?
 
@@ -396,7 +388,6 @@ public extension UsageScan {
             parts = (object["parts"] as? [[String: Any]] ?? []).compactMap { part in
                 (part["target"] as? String).map { Part(target: $0, source: part["srcBytes"] as? Int) }
             }
-            milliseconds = object["ms"] as? Int ?? 0
             succeeded = object["ok"] as? Bool ?? true
             error = object["err"] as? String
             stamp = timestamp
@@ -472,13 +463,6 @@ public extension UsageScan {
             total.percent
         }
 
-        /// That percentage as it must be printed: an answer that cost something never renders as having cost nothing.
-        ///
-        /// A rounded 0 here reads as a free answer, which is a stronger claim than the tool has ever been able to make and the exact opposite of the honest-numbers discipline the rest of this type is built on. `<1%` says small and says nonzero, and the two together are the truth.
-        public var percentText: String {
-            total.percentText
-        }
-
         /// What the figure was priced on, in the words every face states it: `on 3 intercepted reads (file or window asked for − answer served); 28 other calls unpriced`.
         public var sentence: String {
             let readAnyway = unpriced?.readAnyway ?? 0
@@ -537,10 +521,6 @@ public extension UsageScan.Savings {
         /// What this row served as a percentage of the source it stood in for.
         public var percent: Int {
             source > 0 ? Int((Double(served) / Double(source) * 100).rounded()) : 0
-        }
-
-        public var percentText: String {
-            percent == 0 && served > 0 ? "<1%" : "\(percent)%"
         }
 
         /// This row's arithmetic in words: how far under the source it served, or — for the answers that served source — what it cost over the source itself.

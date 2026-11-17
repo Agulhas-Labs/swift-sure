@@ -55,6 +55,14 @@ struct SessionPrimerBudgetTests {
         #expect(primer.contains("ranged Read"))
     }
 
+    /// A test-running session reaches `swift test` before any `.swift` file, so the rule has not loaded and the primer is the only steer: written as `<build or test>`, half the installer route's runs piped raw `swift test` into `grep | head` and lost failures.
+    @Test
+    func thePrimerNamesSwiftTestBareAndUnpiped() throws {
+        let primer = try #require(SessionPrimer.render(.insideRoot("/repos/App")))
+
+        #expect(primer.contains("run -- swift test` (or a build), bare, never piped"))
+    }
+
     /// The rule is not part of the fixed start: it is path-scoped, so Claude Code loads it with the first `.swift` file and never at a session's start.
     @Test
     func theShippedRuleLoadsOnlyWithASwiftFile() throws {

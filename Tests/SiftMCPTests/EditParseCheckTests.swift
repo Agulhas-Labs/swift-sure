@@ -31,7 +31,7 @@ struct EditParseCheckTests {
 
     /// In an indexed repository the reason says what the broken file costs: the index holds only what the parser recovered from it.
     ///
-    /// The block is all that is printed. A nudge is never drawn from a file that does not parse, and the one thing worth doing next is fixing it.
+    /// The block is all that is printed: the one thing worth doing next is fixing the file.
     @Test func inAnIndexedRepositoryTheReasonSaysWhatTheIndexHolds() async throws {
         let fixture = try EditParseFixture()
         try await SiftEngine(directory: fixture.repo, registry: nil).ensureFresh()
@@ -328,11 +328,11 @@ private extension EditParseCheckTests {
         }
 
         let repo: URL
-        let marks: ReuseNudgeMarks
+        let marks: HookMarks
 
         init() throws {
             repo = try MCPTestRepo.make(declaring: "Depot")
-            marks = try ReuseNudgeMarks(directory: TemporaryDirectory.make("parse-marks"))
+            marks = try HookMarks(directory: TemporaryDirectory.make("parse-marks"))
         }
 
         var depot: String {

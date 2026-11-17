@@ -37,7 +37,7 @@ let package = Package(
         // The semantic layer's index-store reader. No semver tags exist — the branch tracks the toolchain (Docs/Design.md §2/§8),
         // and Package.resolved pins the exact revision.
         .package(url: "https://github.com/apple/indexstore-db.git", branch: "release/6.3.1"),
-        .package(url: "https://github.com/Agulhas-Labs/swift-fieldwork.git", from: "0.7.0"),
+        .package(url: "https://github.com/Agulhas-Labs/swift-fieldwork.git", from: "0.11.0"),
     ],
     targets: [
         .target(

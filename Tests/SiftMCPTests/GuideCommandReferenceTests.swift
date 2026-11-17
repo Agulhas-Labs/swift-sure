@@ -80,7 +80,7 @@ struct GuideCommandReferenceTests {
         let guide = try Self.guideText()
         let claude = SiftClaudeSetup.events.filter { Self.exemptEventSubcommands[$0.subcommand] == nil }.map(\.name)
         let cursor = SiftCursorSetup.hooks.hooks.filter { Self.exemptEventSubcommands[$0.subcommand] == nil }.map(\.event)
-        let codex = CodexHooksFile.hooks.filter { Self.exemptEventSubcommands[$0.subcommand] == nil }.map(\.event)
+        let codex = SiftCodexSetup.hooksFile.hooks.filter { Self.exemptEventSubcommands[$0.subcommand] == nil }.map(\.event)
 
         #expect(claude.count >= 4 && !cursor.isEmpty && !codex.isEmpty)
         for event in claude + cursor + codex {

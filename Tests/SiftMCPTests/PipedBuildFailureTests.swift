@@ -176,7 +176,7 @@ struct PipedBuildFailureTests {
 
     private func claudeAnswer(command: String, stdout: String, event: String = "PostToolUse", repo: String? = nil) throws -> String {
         let cwd = try repo ?? TemporaryDirectory.make("piped-cwd").path
-        let marks = try ReuseNudgeMarks(directory: TemporaryDirectory.make("nudge-marks"))
+        let marks = try HookMarks(directory: TemporaryDirectory.make("hook-marks"))
         let recorded = RecordedOutput()
         PostToolUseCommand.answer(
             to: ["tool_name": "Bash", "tool_input": ["command": command], "tool_response": ["stdout": stdout, "stderr": ""], "session_id": "s1", "cwd": cwd, "hook_event_name": event],

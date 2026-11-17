@@ -40,10 +40,10 @@ struct InstallCommandSummaryTests {
         let run = try machine.run(["--yes"])
 
         #expect(run.status == 0)
-        for line in SiftCursorSetup.unsupported + CodexInstall.unsupported + [SiftCursorSetup.experimental, CodexHookInstaller.experimental] {
+        for line in SiftCursorSetup.unsupported + SiftCodexSetup.unsupported + [SiftCursorSetup.experimental, SiftCodexSetup.experimental] {
             #expect(run.lines.count { $0.hasSuffix(line) } == 1, "\(line)")
         }
-        for restart in [CursorHookInstaller.restart, CodexHookInstaller.restart] {
+        for restart in [CursorHookInstaller.restart, SiftCodexSetup.installer.restart] {
             #expect(!run.printed.contains(restart))
         }
         #expect(!run.printed.replacingOccurrences(of: "/hooks.json", with: "").contains("/hooks"))

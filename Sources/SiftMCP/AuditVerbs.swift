@@ -350,7 +350,7 @@ extension AuditVerbs {
         return Call(kind: kind, words: lookupVerbs.contains(verb) ? words(in: positional) : [])
     }
 
-    private static let wrappingVerbs: Set<String> = ["run", "test", "build"]
+    private static let wrappingVerbs: Set<String> = ["run", "test"]
     private static let lookupVerbs: Set<String> = ["where", "digest", "search", "strings"]
 
     /// What a digest's target is: a type, a `Type.member`, a file, a cited line or range, a module or `.`, or several.

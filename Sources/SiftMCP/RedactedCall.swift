@@ -126,7 +126,7 @@ extension TranscriptAudit {
             return lineContinuations.contains(String(lastWord))
         }
 
-        /// `text` split into words on whitespace and shell operators, except inside a single- or double-quoted span — which keeps a quoted phrase together as one token even when it holds a space, a pipe, or an escaped alternation — and with an operator glued to the word beside it (`devkit-hooks.conf;`) split into its own token.
+        /// `text` split into words on whitespace and shell operators, except inside a single- or double-quoted span — which keeps a quoted phrase together as one token even when it holds a space, a pipe, or an escaped alternation — and with an operator glued to the word beside it (`gizmo-hooks.conf;`) split into its own token.
         private static func tokenized(_ text: String) -> [String] {
             var tokens: [String] = []
             var buffer = ""
@@ -412,7 +412,7 @@ extension TranscriptAudit.CallRedaction {
     static var subcommandsByTool: [String: [Set<String>]] {
         let index: [Set<String>] = [[
             "digest", "where", "search", "strings", "run", "test", "affected", "flakes",
-            "report", "usage", "audit", "servers", "status", "help", "build",
+            "report", "audit", "servers", "status", "help",
         ]]
         return otherSubcommandsByTool.merging(ProductName.recognised.map { ($0.binary, index) }) { first, _ in first }
     }

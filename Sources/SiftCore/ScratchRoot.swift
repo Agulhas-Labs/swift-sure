@@ -7,7 +7,7 @@ import Foundation
 
 /// Whether a repository root is scratch: a probe or fixture, not a repository anyone works in.
 ///
-/// One predicate for `usage`, `report` and `audit`, so the faces cannot disagree about which calls were real. Scratch is anywhere under the system temporary directory (`/tmp`, `/private/tmp`, `/var/folders` and `$TMPDIR`, in both spellings, the same list the roots registry keeps out of its own), anywhere under `~/Library/Caches`, and anything with a `.build` directory in its path. Matched on component boundaries: a repository called `build` or `tmpfoo` is an ordinary one.
+/// One predicate for `report` and `audit`, so the faces cannot disagree about which calls were real. Scratch is anywhere under the system temporary directory (`/tmp`, `/private/tmp`, `/var/folders` and `$TMPDIR`, in both spellings, the same list the roots registry keeps out of its own), anywhere under `~/Library/Caches`, and anything with a `.build` directory in its path. Matched on component boundaries: a repository called `build` or `tmpfoo` is an ordinary one.
 public struct ScratchRoot {
     /// The one line each face prints when it left `count` calls or sessions out as scratch, or `nil` when it left none out.
     ///

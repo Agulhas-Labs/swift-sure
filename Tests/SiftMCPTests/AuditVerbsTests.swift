@@ -324,10 +324,9 @@ struct AuditVerbsTests {
     @Test(arguments: [
         ("swift-sure test", "swift-sure test", AuditVerbs.Next.sift),
         ("swift-sure test --filter A", "swift-sure test --filter  A", .sift),
-        ("swift-sure build --analyse", "swift-sure build --analyse", .sift),
         ("swift-sure test --filter A", "swift-sure test --filter B", .other),
     ])
-    func aTestOrBuildWithNoSeparatorIsFollowedUpByItsOwnArguments(first: String, later: String, expected: AuditVerbs.Next) throws {
+    func aTestWithNoSeparatorIsFollowedUpByItsOwnArguments(first: String, later: String, expected: AuditVerbs.Next) throws {
         let directory = try TemporaryDirectory.make("verbs-noseparator")
         let context = try Self.scanned([
             Self.request("m1", [Use("a", "Bash", ["command": first])]), Self.answer("a", "x"),

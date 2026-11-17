@@ -110,18 +110,6 @@ struct GrossSavingScenarioTests {
         #expect(Self.carriesNoNetting(report))
     }
 
-    /// `usage` reads the log alone: it says its figure is gross and points at `swift-sure audit` for the count.
-    @Test
-    func usageSaysGrossAndPointsAtTheAudit() throws {
-        let scenario = try Self.scenario(reading: Self.wholeRead)
-
-        let report = UsageReport.render(fileURL: scenario.log)
-
-        #expect(report.contains("estimated savings — \(TokenEstimate.saved(bytes: scenario.gross)) on 2 intercepted reads (\(TokenEstimate.baseline)) — \(TokenEstimate.basis(bytes: scenario.gross))"))
-        #expect(report.contains("the figure above is gross: an answer whose file was then read whole anyway is taken back only by a re-run or whole read the hook let through; swift-sure audit counts those reads"))
-        #expect(Self.carriesNoNetting(report))
-    }
-
     /// The report page leads with the gross figure, states its basis in gross bytes, and counts the read anyway in one line.
     @Test
     func theReportPageLeadsWithTheGrossFigure() throws {

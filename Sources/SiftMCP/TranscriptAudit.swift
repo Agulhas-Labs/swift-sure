@@ -24,7 +24,7 @@ public struct TranscriptAudit {
     ///
     /// `suppressionLog` is the hook's own record of what it withheld, read for the calls it let run on worth — `notSmaller` and `linesNotShown` windows and `notWorthTheTurn` whole reads, a window over most of a file and a narrower `Read` window among them — which are not worth answering rather than misses, and for the `otherStatementsRun` lines it let run whole, which are batched misses. Passed in, and read not at all where it is `nil`, for the reason `roots` is.
     ///
-    /// `root` narrows the audit to one repository: a session or subagent transcript counts only where its own recorded `cwd` is that directory or lies beneath it, the same test `usage --root` and `report --root` apply to a logged call's root.
+    /// `root` narrows the audit to one repository: a session or subagent transcript counts only where its own recorded `cwd` is that directory or lies beneath it, the same test `report --root` apply to a logged call's root.
     ///
     /// Share-only rendering prints just the headline share and the voluntary share, two lines, and drops every other row and list.
     ///
@@ -137,7 +137,7 @@ public struct TranscriptAudit {
             return shareLines(totals).joined(separator: "\n")
         }
         var lines = [
-            // Lookups by every route, and how many of them SwiftSure served, so the figure `usage` counts (SwiftSure's own
+            // Lookups by every route, and how many of them SwiftSure served, so the figure `report` counts (SwiftSure's own
             // answers, from its log) is named here in the same words rather than left to look like this one.
             "audit — \(SessionCount(sessions: findings.sessions, subagents: findings.subagents).spelled)\(window), "
                 + "\(everything) Swift lookup\(everything == 1 ? "" : "s") by any route, \(totals.indexed) served by \(ProductName.current.binary)\(plainShare(served: totals.indexed, of: everything))",
@@ -774,7 +774,7 @@ extension TranscriptAudit {
             "    larger    \(pad(rules.notSmaller))  of those, a read the hook let run, its answer no smaller than what it prints (the hook's logged verdict)",
             "    unshown   \(pad(rules.linesNotShown))  of those, a window the hook let run, its answer not showing the lines asked for (the hook's logged verdict)",
             "    files     \(pad(rules.filesOnly))  of those, a search printing only the names of the files it matches",
-            "    turn      \(pad(rules.notWorthTheTurn))  of those, a whole read of a Swift file (or a window over most of it) the hook let run, its digest sparing less than the turn after it costs, or a `Read` window, its answer sparing less than the expected re-run (the hook's logged verdict)",
+            "    turn      \(pad(rules.notWorthTheTurn))  of those, a whole read of a Swift file (or a window over most of it) the hook let run, its digest sparing less than the turn after it costs, or a `Read` or `sed -n` window, its answer sparing less than the expected re-run (the hook's logged verdict)",
             "    named     \(pad(rules.namedFiles))  of those, a name search of the Swift files it names, which the hook lets run rather than answer with a `where` of the whole tree",
         ]
     }
@@ -889,7 +889,7 @@ public extension TranscriptAudit {
     ///
     /// The `report` page needs the share and its trend and nothing else from the audit; giving it its own scanner would make two answers to "what share was this week", which is the divergence one-generator-per-value exists to stop. `render` and this go through the same walk.
     ///
-    /// `root` scopes the transcripts exactly as a logged call's `root` field scopes `usage`: a transcript counts only when its recorded `cwd` is `root` itself or a directory beneath it. `nil` counts every transcript, which is what `render`'s callers — `audit` has no root of its own — get by never passing one.
+    /// `root` scopes the transcripts exactly as a logged call's `root` field scopes `report`: a transcript counts only when its recorded `cwd` is `root` itself or a directory beneath it. `nil` counts every transcript, which is what `render`'s callers — `audit` has no root of its own — get by never passing one.
     ///
     /// `suppressionLog` is read as `render` reads it, so the page's share is the audit's.
     ///

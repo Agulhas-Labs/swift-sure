@@ -44,7 +44,7 @@ extension SiftUninstall {
             "suppressions.jsonl": .file, // SuppressionLog
             "answered.jsonl": .file, // AnsweredLog
             "answers": .directory, // AnsweredLog's markers
-            "reuse": .directory, // ReuseNudgeMarks
+            "reuse": .directory, // HookMarks (the directory keeps the name it was first written under)
             "backoff": .directory, // InPlaceBackoff
             "cursor-rewrites": .directory, // CursorRewriteNotices
         ]

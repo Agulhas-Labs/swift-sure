@@ -221,7 +221,7 @@ struct RunLaunchTests {
 
     /// `run` writes into `.swift-sure/` without ever building an engine, so it has to carry the engine's ignore coverage with it — and it reports the repository it found on the way.
     ///
-    /// The root is not incidental: it is the only thing that files this run under a repository in `run.jsonl`, and therefore the only thing `usage --root` can scope a run by.
+    /// The root is not incidental: it is the only thing that files this run under a repository in `run.jsonl`, and therefore the only thing `report --root` can scope a run by.
     @Test
     func aRunExcludesTheCacheFromAnUnindexedRepository() throws {
         let root = try TestSources.makeTempRepo()

@@ -11,7 +11,7 @@ import Testing
 /// A committed repository holding `Depot.swift`, a ledger and a marks store of its own, and transcripts written beside them.
 struct StopGateFixture {
     let repo: URL
-    let marks: ReuseNudgeMarks
+    let marks: HookMarks
     let transcripts: URL
 
     /// A neutral path puts the repository in a directory whose path names nothing of the tool, for a test that proves a scan does not match on it.
@@ -25,7 +25,7 @@ struct StopGateFixture {
             try "// swift-tools-version:6.0\nimport PackageDescription\nlet package = Package(name: \"Depot\")\n"
                 .write(to: repo.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
         }
-        marks = try ReuseNudgeMarks(directory: TemporaryDirectory.make("stop-marks"))
+        marks = try HookMarks(directory: TemporaryDirectory.make("stop-marks"))
         transcripts = try TemporaryDirectory.make("stop-transcripts")
     }
 

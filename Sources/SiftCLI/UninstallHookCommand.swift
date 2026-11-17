@@ -67,8 +67,8 @@ struct UninstallHookCommand: ParsableCommand {
             return
         }
         if agent == .codex {
-            let home = CodexInstall.home(flag: codexDirectory, environment: environment)
-            try CodexHookInstaller.uninstall(home: home, runner: codex ?? CodexCLI(environment: environment), output: output)
+            let home = AgentPaths.codexHome(flag: codexDirectory, environment: environment)
+            try SiftCodexHookInstaller.uninstall(home: home, runner: codex ?? CodexCLI(environment: environment), output: output)
             return
         }
         let settingsURL = settings.map { URL(fileURLWithPath: $0) } ?? AgentPaths.claudeSettings(environment: environment)

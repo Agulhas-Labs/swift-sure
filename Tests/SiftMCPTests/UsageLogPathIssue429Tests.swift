@@ -9,7 +9,7 @@ import Testing
 /// `SWIFT_SURE_USAGE_LOG` redirects the log for the faces that read it as much as for those that write it.
 @Suite(.temporaryDirectories) struct UsageLogPathIssue429Tests {
     @Test
-    func usageReadsTheFileSIFTUSAGELOGNamesAndNamesItWhenItIsMissing() throws {
+    func reportReadsAndNamesTheFileSIFTUSAGELOGPointsAt() throws {
         let binary = try #require(BuiltExecutable.sift, "no `swift-sure` built at \(BuiltExecutable.expected.path)")
         let home = try TemporaryDirectory.make("usage-429").appendingPathComponent("usage-429")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -17,19 +17,19 @@ import Testing
 
         let process = Process()
         process.executableURL = binary
-        process.arguments = ["usage", "--unredact"]
+        let page = home.appendingPathComponent("report.html")
+        process.arguments = ["report", "--no-open", "--out", page.path]
         var environment = ProcessInfo.processInfo.environment
         environment["CFFIXED_USER_HOME"] = home.path
         environment["SWIFT_SURE_USAGE_LOG"] = missing.path
         process.environment = environment
-        let output = Pipe()
-        process.standardOutput = output
+        process.standardOutput = Pipe()
         process.standardError = Pipe()
         try process.run()
-        let printed = try #require(String(bytes: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8))
         process.waitUntilExit()
+        let printed = try String(contentsOf: page, encoding: .utf8)
 
-        #expect(printed.contains("redirected-429.jsonl is missing or empty"), "\(printed)")
+        #expect(printed.contains("redirected-429.jsonl"), "\(printed)")
         #expect(!printed.contains("~/.swift-sure/usage.jsonl"))
     }
 

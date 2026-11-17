@@ -42,19 +42,6 @@ struct UsageSavingsCounterfactualTests {
     }
 
     @Test
-    func theUsageSummaryReportsMarkdownOnItsOwnLineNotAsSaved() throws {
-        let url = try log("usage-markdown-line", [
-            ("Docs/Designs/Depot/NEXT_SESSION.md", AnswerBytes(served: 4900, source: 184_600)),
-            ("Sources/App/Depot.swift", AnswerBytes(served: 3000, source: 23000)),
-        ])
-
-        let report = UsageReport.render(fileURL: url)
-
-        #expect(report.contains("Markdown outlines: 1 call, 4.9 kB served for 184 kB of documents"))
-        #expect(report.contains("~5.0k tokens saved on 1 intercepted read (file or window asked for − answer served) — 20 kB gross"))
-    }
-
-    @Test
     func aFileLongerThanOneReadIsCreditedOnlyTheReadWindow() throws {
         let url = try log("usage-window", [("Sources/App/Depot.swift", AnswerBytes(served: 6000, source: 900_000))])
 
@@ -123,16 +110,6 @@ struct UsageSavingsCounterfactualTests {
     }
 
     @Test
-    func aWindowOfOnlyMarkdownIsReportedByUsageNotCalledUnmeasured() throws {
-        let url = try log("usage-markdown-only", [("Docs/Big.md", AnswerBytes(served: 4900, source: 184_600))])
-
-        let report = UsageReport.render(fileURL: url)
-
-        #expect(report.contains("Markdown outlines: 1 call, 4.9 kB served for 184 kB of documents"))
-        #expect(!report.contains("   1  Markdown outlines: 1 call"))
-    }
-
-    @Test
     func aWindowOfOnlyMarkdownStatesNoSavingOnTheReportPage() throws {
         let url = try log("usage-markdown-page", [("Docs/Big.md", AnswerBytes(served: 4900, source: 184_600))])
         let projects = url.deletingLastPathComponent().appendingPathComponent("projects")
@@ -161,25 +138,5 @@ struct UsageSavingsCounterfactualTests {
         #expect(onlyLine.contains("Markdown outlines: 1 call, 4.9 kB served"))
         #expect(mixedLine.contains("Markdown outlines apart"))
         #expect(mixedLine.contains("Markdown outlines: 1 call, 4.9 kB served"))
-    }
-
-    @Test
-    func theMarkdownLineSitsAfterTheSubagentLine() throws {
-        let url = try TemporaryDirectory.make("usage-markdown-order").appendingPathComponent("usage.jsonl")
-        for (target, answer) in [
-            ("Docs/Big.md", AnswerBytes(served: 4900, source: 184_600)),
-            ("Sources/App/Depot.swift", AnswerBytes(served: 3000, source: 23000)),
-        ] {
-            UsageLog(fileURL: url).record(
-                tool: "digest", target: target, root: "/repo", milliseconds: 40, succeeded: true,
-                answer: answer, agent: "a1", session: "s1", via: "hook", intercepted: "file"
-            )
-        }
-
-        let report = UsageReport.render(fileURL: url)
-        let subagent = try #require(report.range(of: "subagent")?.lowerBound)
-        let markdown = try #require(report.range(of: "Markdown outlines:")?.lowerBound)
-
-        #expect(subagent < markdown)
     }
 }

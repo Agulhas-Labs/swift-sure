@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0
+
+- Fixed: `where <symbol> --files` folds the files deleted since the last build into one line after the rows, `+ N files deleted since the last build also named it (`--refs` lists them)`, where it printed each as its own `(file deleted since last build)` row; paging and the heading's counts cover the listed files, and `--refs` is unchanged.
+- Added: a `swift test --filter` run that ran a test on a tree with uncommitted `.swift` changes names the suites reaching the change that it left out, `filtered: the working tree changes ShellWord.swift; 1 suite reaching it did not run — run swift test --filter … (swift-sure affected lists every suite)`, a suite that ran in part with its share (`(2 of 9 ran)`), where it said nothing about what the filter skipped; it adds a line under the totals and never changes them, the verdict or the exit code.
+- Removed: the `build` subcommand (`build --analyse`, the type-check timing profiler; six agent calls in fourteen days). Build logs still go through `swift-sure run -- swift build`.
+- Removed: the `post-tool-use` reuse nudge (`<added> resembles <existing>`), which fired 133 times in fourteen days, half of them on test code, and was followed up at most 17 times; the parse block and the diagnostics notes are unchanged. An edit no longer refreshes the index as a side effect, so the next lookup refreshes it, inside its own time budget.
+- Fixed: the session primer's run line names the command again, `` `swift-sure run -- swift test` (or a build), bare, never piped ``, where `run -- <build or test>` left test-running sessions, which reach `swift test` before the rule loads, piping raw `swift test` into `grep | head` and losing failures the `head` cut.
+- Fixed: an explicit `sed -n` window (one, or several on one file in one line) the hook would answer with a member digest is weighed by the same inequality as a `Read` window, with its own measured re-run share of 0.15 against 0.48, and let through where the answer spares less than the expected re-run costs, where it was always answered.
+- Fixed: the located-diagnostics block after a `swift-sure run` says `<File>.swift changed after this diagnostic; the lines below are the file as it is now` under a site whose file changed after that run's log was written (a fix set aside and the tests re-run), where it quoted the live lines as if the compiler had seen them.
+- Fixed: `doctor` reads a hooks file holding both modes' `PreToolUse` entries (the `--run-only` one and the full set's) as a fault, `index: fail — both modes registered; re-run swift-sure install (with or without --run-only)`, in Claude Code, Cursor and Codex, where it had read it as a healthy run-mode install.
+- Fixed: a `swift test` whose test process trapped and exited with no signal line quotes the trap lines inside the stretch of the test it left unfinished, above the `test process ended without a result` line, where it named the test and quoted nothing; a trap-shaped line printed by a test that went on to finish is still not quoted. Identical trap lines now collapse to one, suffixed ` (×N)`, on both paths.
+- Fixed: the note an install or update prints when no `SwiftSure.md` ships beside the binary names Homebrew or the release bundle as what copies it, where it named npm, which SwiftSure no longer ships on.
+- Fixed: an uninstall or install leaves a directory, or anything else that is not a plain file, at the rule's path and reports it, as the dry run does, where it deleted it or the dry run said it would.
+- Removed: the `usage` subcommand (no agent outside this repository called it in fourteen days); `swift-sure report` shows the same calls and savings (not latency), and the usage log it reads stays.
+- Fixed: a failure in a file a feature branch committed reads `in a changed file since main` (and the summary `N in changed files since main (matched by name)`) on a clean worktree, where "changed" was the dirty tree alone and every failure read `not in a changed file`.
+
 ## 0.3.0
 
 - Removed: the `checkup`, `similar` and `dupes` subcommands (no agent called them in fourteen days). The `post-tool-use` reuse nudge stays, without its pointer to `similar`.

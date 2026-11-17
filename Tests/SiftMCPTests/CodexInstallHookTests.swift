@@ -33,9 +33,9 @@ import Testing
         #expect(Set(events.keys) == ["SessionStart", "PreToolUse", "PostToolUse"])
         #expect(printed.hasPrefix("codex home: \(home.path) (--codex-dir)\n"), "\(printed)")
         #expect(printed.contains("mcp: registered swift-sure — \(binary.path) mcp"), "\(printed)")
-        #expect(printed.contains(CodexHookInstaller.restart), "\(printed)")
+        #expect(printed.contains(SiftCodexSetup.installer.restart), "\(printed)")
         #expect(!printed.contains("run /hooks"), "\(printed)")
-        for line in CodexInstall.unsupported + [CodexHookInstaller.experimental] {
+        for line in SiftCodexSetup.unsupported + [SiftCodexSetup.experimental] {
             #expect(printed.contains(line), "\(line)")
         }
     }
@@ -197,9 +197,9 @@ import Testing
     func theCodexHomeIsTheFlagThenCodexHomeThenTheDotCodexDirectory() {
         let environment = ["CFFIXED_USER_HOME": "/scratch/home", "CODEX_HOME": "/scratch/codex"]
 
-        #expect(CodexInstall.home(flag: "/scratch/flag", environment: environment).line == "codex home: /scratch/flag (--codex-dir)")
-        #expect(CodexInstall.home(flag: nil, environment: environment).line == "codex home: /scratch/codex ($CODEX_HOME)")
-        #expect(CodexInstall.home(flag: nil, environment: ["CFFIXED_USER_HOME": "/scratch/home", "CODEX_HOME": ""]).line == "codex home: /scratch/home/.codex (~/.codex)")
+        #expect(AgentPaths.codexHome(flag: "/scratch/flag", environment: environment).line == "codex home: /scratch/flag (--codex-dir)")
+        #expect(AgentPaths.codexHome(flag: nil, environment: environment).line == "codex home: /scratch/codex ($CODEX_HOME)")
+        #expect(AgentPaths.codexHome(flag: nil, environment: ["CFFIXED_USER_HOME": "/scratch/home", "CODEX_HOME": ""]).line == "codex home: /scratch/home/.codex (~/.codex)")
     }
 
     @Test(arguments: [true, false])

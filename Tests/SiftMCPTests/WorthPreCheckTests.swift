@@ -103,15 +103,16 @@ struct WorthPreCheckTests {
         #expect(try await Self.hook(payload, in: root).indexed, "the answer was not built")
     }
 
-    /// A `sed -n` window is never weighed before its answer, however small: the window rules judge it once it is built.
+    /// A `sed -n` window too small to pay for a turn even with an empty answer is settled before its answer is built, as a `Read` window is.
     @Test
-    func aShellWindowIsNeverPreChecked() async throws {
+    func aTinySedWindowIsPreChecked() async throws {
         let (root, file) = try Self.repository(lines: 30)
         let payload = Self.payload(command: "sed -n 1,10p \(file)")
         let match = try #require(try Self.match(payload, in: root.path))
 
-        #expect(!WorthBeforeAnswer.settles(match, payload: payload))
-        #expect(try await Self.hook(payload, in: root).indexed, "the answer was not built")
+        #expect(WorthBeforeAnswer.settles(match, payload: payload))
+        let judged = try await Self.hook(payload, in: root)
+        #expect(!judged.indexed, "the answer was built")
     }
 
     /// The match the hook reads `payload` as, from `directory`.

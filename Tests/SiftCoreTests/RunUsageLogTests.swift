@@ -11,7 +11,7 @@ import Testing
 struct RunUsageLogTests {
     /// `shown` is what the answer printed, not what the filter counted on its way to composing one.
     ///
-    /// The two differ whenever the failures are served as a shape — over a thousand lines counted as shown against a couple of dozen printed — and filing the count puts a saving in `usage` and on the report page smaller than the one the tool actually made. Here the report says 800 lines arrived and the answer says it cost 12, and 12 is what is filed.
+    /// The two differ whenever the failures are served as a shape — over a thousand lines counted as shown against a couple of dozen printed — and filing the count puts a saving on the report page smaller than the one the tool actually made. Here the report says 800 lines arrived and the answer says it cost 12, and 12 is what is filed.
     @Test
     func aFilteredRunRecordsItsKindExitLineCountsAndRoot() throws {
         let file = try Self.scratchFile()

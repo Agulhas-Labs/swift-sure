@@ -18,6 +18,8 @@ public struct RunTestCrash: Sendable, Equatable {
     var trapMarks: [Mark] = []
     /// Where each test's last start line sat.
     var starts: [String: Mark] = [:]
+    /// Where the last test ending (passed, failed or skipped) of each test process sat, by the count that numbers it in a ``Mark``.
+    var lastEndings: [Int: Int] = [:]
     /// The framework of each test process the log announced, by the count that numbers it in a ``Mark``.
     var openedAs: [Int: Framework] = [:]
     /// The tests the run started and never ended, sorted.
@@ -85,10 +87,12 @@ public extension RunTestCrash {
         /// Whether `line` is a signal line or a trap line, which reach no other reader.
         public mutating func read(_ line: String) -> Bool {
             position += 1
-            if line.contains(" started"), let (name, event) = RunTestOutcomes.xctestEvent(in: line) ?? RunTestOutcomes.swiftTestingEvent(in: line),
-               case .started = event
-            {
-                crash.starts[name] = Mark(process: process, position: position)
+            if let (name, event) = RunTestOutcomes.xctestEvent(in: line) ?? RunTestOutcomes.swiftTestingEvent(in: line) {
+                if case .started = event {
+                    crash.starts[name] = Mark(process: process, position: position)
+                } else {
+                    crash.lastEndings[process] = position
+                }
             }
             if let process = Self.signalledProcess(line) {
                 crash.processes.append(process)
@@ -242,9 +246,20 @@ extension RunTestCrash {
         return "no signal line; swift test exited \(status)"
     }
 
-    /// The lines `traps` add beneath the answer's headline, one each, clipped.
+    /// The lines `traps` add beneath the answer's headline, one each, clipped; identical trap lines collapse to the first, in first-seen order, suffixed ` (×N)` where N is more than one.
     static func trapLines(_ traps: [String]) -> [String] {
-        traps.map { "  \(RunFailureCensus.clipped($0))" }
+        var order: [String] = []
+        var counts: [String: Int] = [:]
+        for trap in traps {
+            if counts[trap] == nil {
+                order.append(trap)
+            }
+            counts[trap, default: 0] += 1
+        }
+        return order.map { trap in
+            let count = counts[trap] ?? 1
+            return "  \(RunFailureCensus.clipped(trap))" + (count > 1 ? " (×\(count))" : "")
+        }
     }
 
     /// The lines this crash adds beneath the answer's headline: each trap, then each process that died with the tests it was running and the count it never started.
@@ -288,7 +303,7 @@ extension RunTestCrash.Reader {
     ///
     /// `nil` where the run exited 0, where `swift test` itself was interrupted or terminated (exit 130 or 143, whose unfinished tests were stopped rather than lost to their own process), and where no test that started and never finished sits in a process that never closed: a lost ending line in a run whose every process closed is no crash.
     ///
-    /// **No trap line is quoted.** A runtime trap ends its process on a signal SwiftPM reports, so a trap-shaped line in a run with no signal line is a test's printed text, never the reason this process ended.
+    /// **The trap lines inside an unfinished test's stretch, with no test ending after them in the same process's output, are quoted.** A trap can end a process with no signal line SwiftPM reports (the exit status swallows it), and it still follows the start of the test it ended, so the lines the signal path selects for a crashed test are quoted here by the same selection, kept only where nothing ended after them, since a real trap ends its process. A trap-shaped line printed inside a test that went on to finish, or outside every unfinished test's stretch, is that test's printed text and is not quoted.
     func unsignalled(exitCode: Int32?, outcomes: RunTestOutcomes, xctestUnclosed: Bool) -> RunTestCrash? {
         guard let exitCode, (1 ... 255).contains(exitCode), !Self.endedWithItsRun.contains(exitCode) else {
             return nil
@@ -305,9 +320,16 @@ extension RunTestCrash.Reader {
         guard !unfinished.isEmpty else {
             return nil
         }
-        var crash = RunTestCrash()
-        crash.unfinished = unfinished
-        crash.unsignalledExit = exitCode
-        return crash
+        var unsignalled = crash
+        unsignalled.unfinished = unfinished
+        unsignalled.unsignalledExit = exitCode
+        // A real trap ends its process, so a trap with a test ending after it in the same process's output is that test's printed text.
+        let last = unsignalled.lastEndings
+        let open = unsignalled.trapMarks.indices.filter { (last[unsignalled.trapMarks[$0].process] ?? 0) < unsignalled.trapMarks[$0].position }
+        unsignalled.traps = open.map { unsignalled.traps[$0] }
+        unsignalled.trapMarks = open.map { unsignalled.trapMarks[$0] }
+        unsignalled.traps = unsignalled.trapsOfTheCrash()
+        unsignalled.trapMarks = []
+        return unsignalled
     }
 }

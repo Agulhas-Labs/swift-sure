@@ -12,31 +12,6 @@ import Testing
 struct CodexPatchAcrossRepositoriesTests {
     typealias Scene = CursorPostToolUseTests.Scene
 
-    /// A near duplicate in the second repository draws its nudge though the patch opens with a comment-only edit in the first.
-    @Test func aNearDuplicateInTheSecondRepositoryDrawsItsNudge() async throws {
-        let folder = try await Folder()
-        try folder.restock()
-        let patch = Folder.xyloComment + Folder.restockSection
-
-        let codex = try folder.run(folder.codex(patch))
-
-        #expect(codex.status == 0)
-        #expect(codex.printed.contains("hookSpecificOutput") && codex.printed.contains("restock"), "\(codex.printed)")
-    }
-
-    /// A file no repository holds, first in the patch, is left out, and the near duplicate after it still draws the nudge.
-    @Test func aFileOutsideEveryRepositoryDoesNotSilenceTheRest() async throws {
-        let folder = try await Folder()
-        try folder.restock()
-        try "struct Loose {}\n".write(to: folder.parent.appendingPathComponent("Loose.swift"), atomically: true, encoding: .utf8)
-        let patch = "*** Add File: Loose.swift\n+struct Loose {}\n" + Folder.restockSection
-
-        let codex = try folder.run(folder.codex(patch))
-
-        #expect(codex.status == 0)
-        #expect(codex.printed.contains("hookSpecificOutput") && codex.printed.contains("restock"), "\(codex.printed)")
-    }
-
     /// A broken file added in the second repository is blocked exactly as a `Write` of it is, its path relative to its own repository, though the patch opens in the first.
     @Test func aBrokenFileInTheSecondRepositoryIsBlockedAsAWriteOfItIs() async throws {
         let folder = try await Folder()
@@ -51,6 +26,19 @@ struct CodexPatchAcrossRepositoriesTests {
         #expect(codex.status == 0)
         #expect(codex.printed == claude.printed)
     }
+
+    /// A file outside every repository, first in the patch, leaves the files after it judged: the broken one in `Depot` is still blocked.
+    @Test func aFileOutsideEveryRepositoryDoesNotSilenceTheRest() async throws {
+        let folder = try await Folder()
+        try "struct Loose {}\n".write(to: folder.parent.appendingPathComponent("Loose.swift"), atomically: true, encoding: .utf8)
+        try Scene.broken.write(to: folder.depot.appendingPathComponent("Sources/App/Broken.swift"), atomically: true, encoding: .utf8)
+        let patch = "*** Add File: Loose.swift\n+struct Loose {}\n*** Add File: Depot/Sources/App/Broken.swift\n+struct Catalogue {\n+    func count( {\n+}\n"
+
+        let codex = try folder.run(folder.codex(patch))
+
+        #expect(codex.status == 0)
+        #expect(codex.printed.contains("\"decision\":\"block\""), "\(codex.printed)")
+    }
 }
 
 extension CodexPatchAcrossRepositoriesTests {
@@ -58,11 +46,6 @@ extension CodexPatchAcrossRepositoriesTests {
     struct Folder {
         static var xyloComment: String {
             "*** Update File: Xylo/Sources/App/Xylo.swift\n@@\n+/// Played daily.\n /// The test type.\n"
-        }
-
-        static var restockSection: String {
-            "*** Update File: Depot/Sources/App/Catalogue.swift\n@@\n         1\n     }\n+\n+    func restock() -> Int {\n+        let crates = load()\n"
-                + "+        let weight = weigh(crates)\n+        label(crates, weight)\n+        return ship(crates)\n+    }\n }\n"
         }
 
         let parent: URL
@@ -82,11 +65,6 @@ extension CodexPatchAcrossRepositoriesTests {
             home = try TemporaryDirectory.make("codex-home")
             try ("/// Played daily.\n/// The test type.\nstruct Xylo {\n    let one = 1\n    func go() {}\n}\n")
                 .write(to: xylo.appendingPathComponent("Sources/App/Xylo.swift"), atomically: true, encoding: .utf8)
-        }
-
-        /// Writes the catalogue with `restock()` added, as the patch's update leaves it.
-        func restock() throws {
-            try Scene.restocked.write(to: depot.appendingPathComponent("Sources/App/Catalogue.swift"), atomically: true, encoding: .utf8)
         }
 
         /// Codex's `PostToolUse` payload for an `apply_patch` of `sections`, made from the folder above both checkouts.

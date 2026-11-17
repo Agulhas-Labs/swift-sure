@@ -144,28 +144,6 @@ Commands that run the toolchain and report what happened.
 
 - **Mentioned in:** README, Guide intro, §4, §5, §9, §10, §11, §12, SwiftSure.md, DocC (GettingStarted, HowTheHooksBehave, RunningBuildsAndTests, SwiftSure, TheFourTools, Troubleshooting).
 
-### `swift-sure build`
-
-- **Does:** Builds a SwiftPM package clean with the compiler's timers on and ranks the slowest bodies, expressions and files to type-check.
-- **Flags:** `--analyse` the only mode: build clean and rank by type-check time; `--build-tests` build the test targets too so their code is ranked; `--top` how many bodies, expressions and files to list (default 10); `--root` repository root.
-- **Needs a build:** it runs the build or tests itself.
-- **Typical time:** 9.2 s on the docs fixture.
-- **Sample:**
-
-  ```
-  ✔ swift-sure build --analyse — clean build, 9.1s, 108 timing lines over 4 files
-  slowest bodies — 3 of 30 sites:
-    Sources/Stacks/Shelf.swift:12 · 18.75 ms · Shelf.take(title:)
-    Sources/Stacks/Library.swift:16 · 9.35 ms · Library.lend(title:to:days:)
-    Sources/Stacks/Library.swift:29 · 8.65 ms · Library.giveBack(title:)
-  slowest expressions — 3 of 54 sites:
-    Sources/Stacks/Book.swift:16 · 8.13 ms · Book.titleStarts(with:)
-    Sources/Stacks/Shelf.swift:13 · 6.67 ms · Shelf.take(title:)
-    Sources/Stacks/Library.swift:39 · 5.55 ms · Library.count(for:)
-  ```
-
-- **Mentioned in:** README, Guide §4, §11, §12.
-
 ### `swift-sure test`
 
 - **Does:** Splits a scheme's tests across simulators it creates, or a SwiftPM package's across `swift test` processes, and reconciles what ran against the declared inventory; `--analyse` counts what is supposed to run without running anything.
@@ -229,7 +207,7 @@ Commands that run the toolchain and report what happened.
 
 ### `swift-sure help`
 
-- **Does:** Prints the reference topics behind the short rule (run output, answers, queries, refusals, test output, worktree index, build output, affected limits), or a subcommand's usage.
+- **Does:** Prints the reference topics behind the short rule (run output, answers, queries, refusals, test output, worktree index, affected limits), or a subcommand's usage.
 - **Flags:** none beyond `--help`; takes a topic or subcommand name as its argument.
 - **Needs a build:** no.
 - **Typical time:** 0.02 s.
@@ -264,31 +242,6 @@ Commands that run the toolchain and report what happened.
 ## Measuring use
 
 Reports built from the usage log, the run log and the agents' transcripts.
-
-### `swift-sure usage`
-
-- **Does:** Summarises the index usage log: calls by tool, root and day, latency, top targets.
-- **Flags:** `--file` usage log to read; `--run-file` wrapped-run log to read; `--since` only calls on or after this day; `--root` only calls under this directory; `--unredact` print the real target, root and failure names; `--all-roots` print every root, not the top 5; `--include-scratch` count scratch roots too.
-- **Needs a build:** no.
-- **Typical time:** 0.03 s over this run's small log.
-- **Sample:**
-
-  ```
-  usage — 0 failures, 9 calls, 2026-10-20 → 2026-10-20, from 1 session
-  log: ~/.swift-sure/usage.jsonl
-  counted: one call per answer swift-sure logged, failures and Markdown outlines included; swift-sure audit counts the transcripts' Swift lookups by any route inst…
-
-  by tool:
-    digest       3   p50 —     p90 —
-    where        3   p50 —     p90 —
-    search       2   p50 —     p90 —
-    strings      1   p50 —     p90 —
-    answered elsewhere: 9 on the CLI — counted above, left out of p50/p90, since their time includes opening the index
-
-  by root:
-  ```
-
-- **Mentioned in:** Guide §11, §12, DocC (Installing).
 
 ### `swift-sure flakes`
 
@@ -355,7 +308,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 - **Sample:**
 
   ```
-  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.3.0","name":"swift-sure"}},"jsonrpc":"2.0"}
+  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.4.0","name":"swift-sure"}},"jsonrpc":"2.0"}
   ```
 
 - **Mentioned in:** Guide §3, §4, §11, DocC (Installing, Troubleshooting).
@@ -408,7 +361,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
   claude hooks: pass — registered for SessionStart, SubagentStart, PreToolUse, PostToolUse, PostToolUseFailure, Stop, SubagentStop
   claude server: pass — swift-sure — ~/.local/bin/swift-sure mcp
   claude binary: pass — ~/.local/bin/swift-sure runs
-  claude version: pass — registered 0.3.0, running 0.3.0
+  claude version: pass — registered 0.4.0, running 0.4.0
   claude hook SessionStart: pass — exit 0, silent
   claude hook SubagentStart: pass — exit 0, silent
   ```
@@ -417,7 +370,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 
 ### `swift-sure install-hook`
 
-- **Does:** Registers the full set with an agent: the session primer, the lookup hooks, the PostToolUse nudge and the Stop build check; with `--run-only` only the build and test hooks; idempotent, and re-running switches the mode.
+- **Does:** Registers the full set with an agent: the session primer, the lookup hooks, the PostToolUse diagnostics hook and the Stop build check; with `--run-only` only the build and test hooks; idempotent, and re-running switches the mode.
 - **Flags:** `--run-only` register only the build and test hooks, not the primer, the lookup hooks or the lookup allow rules; `--settings` settings file to edit; `--command` (refused with `--run-only`) the primer's command, spelled `<path>/swift-sure session-start` (the other hooks keep this binary's path); `--allow-run` add the allow rules for lookups and builds without asking (builds only with `--run-only`); `--no-allow-run` add neither block of allow rules; `--allow-lookups` add only the lookup allow rules (refused with `--run-only`); `--agent` claude (default), cursor or codex; `--cursor-dir` with Cursor: the directory holding its config; `--codex-dir` with Codex: the Codex home.
 - **Needs a build:** no.
 - **Typical time:** 0.06 s against a scratch settings file.
@@ -475,7 +428,7 @@ What SwiftSure registers with an agent, one row per event, and what the check do
 | --- | --- | --- |
 | SessionStart, SubagentStart (Cursor `sessionStart`, Codex `SessionStart`) | `session-start` | Prints the session primer: which lookup answers what, and whether this directory has an index. Silent outside Swift work. The subagent copy adds a line for its case. |
 | PreToolUse (Cursor `preToolUse`, Codex `PreToolUse`) | `pre-tool-use` | Judges a shell, Read, Grep or Glob lookup of Swift source and refuses it with the index call that answers it (the identical re-run is allowed); rewrites a raw `swift build`, `swift test` or `xcodebuild` to its `swift-sure run --` wrapping where no permission prompt can follow; backs off after a run of denials. |
-| PostToolUse (Cursor `postToolUse`, Codex `PostToolUse`) | `post-tool-use` | After a Write, Edit or MultiEdit of a `.swift` file (Codex: `apply_patch`), parses it and blocks with the errors if the edit left it unparseable; names a function shaped like one that already exists; reads a failed build's output. |
+| PostToolUse (Cursor `postToolUse`, Codex `PostToolUse`) | `post-tool-use` | After a Write, Edit or MultiEdit of a `.swift` file (Codex: `apply_patch`), parses it and blocks with the errors if the edit left it unparseable; reads a failed build's output. |
 | PostToolUseFailure (Cursor `postToolUseFailure`) | `post-tool-use` | The same reading for a Bash call that exited non-zero: compiler error locations are located as for a success, nothing else of the PostToolUse hook runs. |
 | Stop, SubagentStop | `stop` | When a context edited Swift since its last green `swift-sure run` build or test of that tree, blocks the stop once with the build to run. |
 

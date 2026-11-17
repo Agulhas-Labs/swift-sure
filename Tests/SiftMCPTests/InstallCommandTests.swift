@@ -32,7 +32,7 @@ struct InstallCommandTests {
         _ = try SiftClaudeSetup.mcp.install(config: AgentPaths.claudeConfig(environment: environment), binary: binary, runner: FakeClaude(config: AgentPaths.claudeConfig(environment: environment)))
         _ = try SiftClaudeSetup.rule.install(source: SiftClaudeSetup.rule.source(forBinary: binary), destination: AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: environment))
         try SiftCursorSetup.installer.install(directory: AgentPaths.cursorDirectory(environment: environment), binary: binary).printed.forEach(output.emit)
-        _ = try CodexHookInstaller.installing(home: CodexInstall.home(flag: nil, environment: environment), binary: binary, runner: FakeCodex(), output: output)
+        _ = try SiftCodexHookInstaller.installing(home: AgentPaths.codexHome(flag: nil, environment: environment), binary: binary, runner: FakeCodex(), output: output)
         return try InstallCommandHarness.files(under: home)
     }
 

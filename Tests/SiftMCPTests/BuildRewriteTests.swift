@@ -77,7 +77,7 @@ struct BuildRewriteTests {
     }
 
     /// Where the user is asked about what no rule allows, the rewrite could turn an allowed build into a prompt, so the build is refused with its wrapping as before.
-    @Test(arguments: [("default", [String]()), ("acceptEdits", ["swift test", "swift test *"]), ("default", ["swift-sure build *"])])
+    @Test(arguments: [("default", [String]()), ("acceptEdits", ["swift test", "swift test *"]), ("default", ["swift-sure flakes *"])])
     func aBuildTheRewriteCouldPromptForIsStillDenied(mode: String, allowed: [String]) throws {
         let outcome = try Self.judged("swift test", mode: mode, permission: WrappedRunPermission(allowed: allowed, vetoed: []))
 
@@ -194,7 +194,7 @@ struct BuildRewriteTests {
         let project = root.appendingPathComponent("project")
         let missing = root.appendingPathComponent("managed-settings.json").path
         try Self.write(#"{"permissions":{"allow":["Bash(swift-sure run *)"]}}"#, to: home.appendingPathComponent(".claude/settings.json"))
-        try Self.write(#"{"permissions":{"allow":["Bash(swift-sure build *)"]}}"#, to: configuration.appendingPathComponent("settings.json"))
+        try Self.write(#"{"permissions":{"allow":["Bash(swift-sure flakes *)"]}}"#, to: configuration.appendingPathComponent("settings.json"))
         try Self.write(#"{"permissions":{"allow":["Bash(swift-sure test *)"]}}"#, to: project.appendingPathComponent(".claude/settings.json"))
         try Self.write(#"{"projects":{"\#(project.path)":{"hasTrustDialogAccepted":true}}}"#, to: configuration.appendingPathComponent(".claude.json"))
 
@@ -202,7 +202,7 @@ struct BuildRewriteTests {
         let byConfiguration = WrappedRunPermission.load(project: project.path, environment: ["HOME": home.path, "CLAUDE_CONFIG_DIR": configuration.path], managed: missing)
 
         #expect(byHome.allowed == ["swift-sure run *"])
-        #expect(byConfiguration.allowed == ["swift-sure build *", "swift-sure test *"])
+        #expect(byConfiguration.allowed == ["swift-sure flakes *", "swift-sure test *"])
     }
 
     /// An ask or deny rule on the command as written is the user's say over it: the build is neither rewritten nor refused with a wrapping that rule would not match, but let through for Claude Code to apply the rule.
@@ -277,7 +277,7 @@ struct BuildRewriteTests {
         let missing = root.appendingPathComponent("managed-settings.json").path
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try Self.write(#"{"permissions":{"allow":["Bash(swift-sure run *)"],"ask":["Bash(swift-sure run -- xcodebuild *)"]}}"#, to: project.appendingPathComponent(".claude/settings.json"))
-        try Self.write(#"{"permissions":{"allow":["Bash(swift-sure build *)"]}}"#, to: project.appendingPathComponent(".claude/settings.local.json"))
+        try Self.write(#"{"permissions":{"allow":["Bash(swift-sure flakes *)"]}}"#, to: project.appendingPathComponent(".claude/settings.local.json"))
 
         let untrusted = WrappedRunPermission.load(project: project.path, environment: ["HOME": home.path], managed: missing)
         try Self.write(#"{"projects":{"\#(project.path)":{"hasTrustDialogAccepted":true}}}"#, to: home.appendingPathComponent(".claude.json"))
@@ -286,7 +286,7 @@ struct BuildRewriteTests {
         #expect(untrusted.allowed.isEmpty)
         #expect(untrusted.vetoed == ["swift-sure run -- xcodebuild *"])
         #expect(!untrusted.addsNoPrompt(legs: ["swift-sure run -- swift test"], mode: "default"))
-        #expect(trusted.allowed == ["swift-sure run *", "swift-sure build *"])
+        #expect(trusted.allowed == ["swift-sure run *", "swift-sure flakes *"])
         #expect(trusted.addsNoPrompt(legs: ["swift-sure run -- swift test"], mode: "default"))
     }
 
@@ -296,11 +296,11 @@ struct BuildRewriteTests {
         let root = try TemporaryDirectory.make("rewrite-managed")
         let home = root.appendingPathComponent("home")
         let managed = root.appendingPathComponent("managed/managed-settings.json")
-        try Self.write(#"{"permissions":{"allow":["Bash(swift-sure build *)","*"],"ask":["B*"]}}"#, to: home.appendingPathComponent(".claude/settings.json"))
+        try Self.write(#"{"permissions":{"allow":["Bash(swift-sure flakes *)","*"],"ask":["B*"]}}"#, to: home.appendingPathComponent(".claude/settings.json"))
         try Self.write(#"{"permissions":{"ask":["Bash(swift-sure run -- swift test *)"]}}"#, to: root.appendingPathComponent("managed/managed-settings.d/10-policy.json"))
 
         let permission = WrappedRunPermission.load(project: nil, environment: ["HOME": home.path], managed: managed.path)
-        #expect(permission.allowed == ["swift-sure build *"])
+        #expect(permission.allowed == ["swift-sure flakes *"])
         #expect(permission.vetoed == ["*", "swift-sure run -- swift test *"])
         #expect(permission.vetoes(line: "swift build"))
 

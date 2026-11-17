@@ -123,19 +123,9 @@ public extension RunTestSelector {
     /// Judged as ``matchedNothing(_:exitCode:)`` is, on positive evidence only: a run of more than one `--filter` (a single one that matched nothing ran nothing, which is that reading's), that exited 0 with no failure and no error, not under `--parallel` (which prints no line for an XCTest it ran), that shows a test ran, whose Swift Testing tests the event stream declared, and whose every XCTest name reads as `-[Module.Class method]`. **A class the console prints without its module is not judged**: an `@objc(RenamedObjCTests)` class logs as `-[RenamedObjCTests testRenamed]` while SwiftPM matches its Swift name, `Module.SwiftNamedTests/testRenamed`, which nothing in the log spells, and a real filter must never be named unmatched. A pattern that does not compile is never named. A run that ran nothing is ``matchedNothing(_:exitCode:)``'s.
     func unmatchedFilters(_ report: RunReport, exitCode: Int32) -> [String] {
         guard patterns.count > 1, exitCode == 0, report.testFailures.isEmpty, report.errors.isEmpty,
-              !report.parallelSwiftTest, Self.showsATestRan(report)
+              let identifiers = ranIdentifiers(report)
         else {
             return []
-        }
-        var identifiers = report.streamedTestIDs ?? []
-        if !report.testOutcomes.swiftTestingNames.isEmpty, identifiers.isEmpty {
-            return []
-        }
-        for name in report.testOutcomes.leavingOutSwiftTesting.names {
-            guard let (type, method) = TestIdentifier.xctestLogName(name), type.contains(".") else {
-                return []
-            }
-            identifiers.insert("\(type)/\(method)")
         }
         return zip(spellings, patterns).compactMap { spelling, pattern in
             guard let expression = try? NSRegularExpression(pattern: pattern) else {
@@ -146,6 +136,26 @@ public extension RunTestSelector {
             }
             return matched ? nil : spelling
         }
+    }
+
+    /// Every test id a `swift test` run ran, as SwiftPM matches a `--filter` against it, or `nil` where the run cannot say which tests it ran: under `--parallel`, with no test shown to have run, with no event stream for a Swift Testing test it ran, or with an XCTest the console printed without its module.
+    ///
+    /// The evidence ``unmatchedFilters(_:exitCode:)`` is judged on, apart from its exit code and its count of filters, so a run that failed tests is read the same way.
+    func ranIdentifiers(_ report: RunReport) -> Set<String>? {
+        guard !report.parallelSwiftTest, Self.showsATestRan(report) else {
+            return nil
+        }
+        var identifiers = report.streamedTestIDs ?? []
+        if !report.testOutcomes.swiftTestingNames.isEmpty, identifiers.isEmpty {
+            return nil
+        }
+        for name in report.testOutcomes.leavingOutSwiftTesting.names {
+            guard let (type, method) = TestIdentifier.xctestLogName(name), type.contains(".") else {
+                return nil
+            }
+            identifiers.insert("\(type)/\(method)")
+        }
+        return identifiers
     }
 
     /// Whether a run that exited `exitCode` with this `report` failed to build before any test process started.

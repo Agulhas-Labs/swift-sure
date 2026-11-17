@@ -7,7 +7,7 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// Every face that prints the saving states what it was priced on, always and once, and none says it leans high: `usage` in its headline and the report page in the caption under its figure, whether or not an unpriced call sits beside it.
+/// Every face that prints the saving states what it was priced on, always and once, and none says it leans high: the report page in the caption under its figure, whether or not an unpriced call sits beside it.
 @Suite(.temporaryDirectories)
 struct SavingBaselineOnceTests {
     /// A usage-log line at a fixed second: an intercepted window carries what the hook intercepted, a `where` records no source and so is unpriced.
@@ -69,20 +69,6 @@ struct SavingBaselineOnceTests {
 
     private static func occurrences(of text: String, in report: String) -> Int {
         report.components(separatedBy: text).count - 1
-    }
-
-    /// `usage` states what the figure was priced on once in its headline, with or without unpriced calls beside it, and never says it leans high.
-    @Test(arguments: [false, true])
-    func usageStatesTheBaselineOnceInItsHeadline(unweighed: Bool) throws {
-        let directory = try TemporaryDirectory.make("baseline-once-usage")
-
-        let report = try UsageReport.render(fileURL: Self.log(in: directory, unweighed: unweighed))
-        let headline = report.split(separator: "\n").first { $0.hasPrefix("estimated savings — ") }
-
-        #expect(headline?.contains("(\(TokenEstimate.baseline))") == true)
-        #expect(Self.occurrences(of: TokenEstimate.baseline, in: report) == 1)
-        #expect(!report.contains("leans high"))
-        #expect(report.contains("other call unpriced") == unweighed)
     }
 
     /// The report page says it in the caption under its figure, once, unpriced calls or none.

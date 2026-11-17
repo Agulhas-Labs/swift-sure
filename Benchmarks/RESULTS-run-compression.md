@@ -45,7 +45,7 @@ The earlier results for them were 100% fewer bytes with the one spliced error na
 ## Results
 
 18 cases. The unfiltered full-suite run is named `test-full-red`, not `test-full-green` as before: on this clone it
-failed (exit 1, 2 tests in `ReuseNudgeBatchTests` failing, 4 issues), so it is a red run and is scored as one. Why those
+failed (exit 1, 2 tests in a post-tool-use suite (since removed) failing, 4 issues), so it is a red run and is scored as one. Why those
 2 tests fail in a clone under `.build/` was not investigated.
 
 | case | family | exit | raw lines / bytes / ~tok | sift lines / bytes / ~tok | byte reduction | sift recall (full+located/n) | invented | tail -50 bytes, recall | grep error: bytes, recall |

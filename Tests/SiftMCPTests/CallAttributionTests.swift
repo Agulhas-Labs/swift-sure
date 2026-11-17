@@ -103,7 +103,7 @@ struct CallAttributionTests {
 
     /// The documented limit, pinned so the claim and the code cannot drift apart.
     ///
-    /// The tool and target are all there is to match on — nothing in a `tools/call` names the caller, and nothing shared between the hook run and the request could tell two `digest Alpha` calls apart. Two subagents making that call at once each leave a slip, claimed in the order the hook runs wrote them, which names each call's caller only where the calls are answered in that order. The aggregate stays a floor, which is what `usage` and `report` claim; a given line is not evidence about a given caller, which they do not.
+    /// The tool and target are all there is to match on — nothing in a `tools/call` names the caller, and nothing shared between the hook run and the request could tell two `digest Alpha` calls apart. Two subagents making that call at once each leave a slip, claimed in the order the hook runs wrote them, which names each call's caller only where the calls are answered in that order. The aggregate stays a floor, which is what `report` claims; a given line is not evidence about a given caller, which they do not.
     @Test
     func twoCallsOfOneShapeAreClaimedInTheOrderTheirHooksRan() throws {
         let (callers, directory) = try Self.store()

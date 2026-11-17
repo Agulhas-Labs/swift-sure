@@ -374,12 +374,27 @@ public final class SiftEngine: @unchecked Sendable {
     func filterHint(named name: String) async throws -> UnmatchedFilterHint? {
         let declared = try store.typeDeclarations(named: name) + store.symbols(named: name).filter { $0.kind == .function && $0.parentID == nil }
         guard !declared.isEmpty else { return nil }
+        let reached = try await suitesReaching(declared)
+        guard !reached.isEmpty else { return nil }
+        return UnmatchedFilterHint(name: name, declaredIn: Set(declared.map(\.path)).sorted(), suites: reached.map(\.filter), direct: reached.prefix { $0.depth == 1 }.count)
+    }
+
+    /// The uncommitted indexable `.swift` files and the suites that reach any declaration stored for them, for the line a filtered `swift-sure run` adds; `nil` where the tree has no such file or no suite reaches one.
+    ///
+    /// The seeds are the stored rows of each dirty file, every declaration in it, since the diff's changed lines fall exactly where those rows are stale; the walk is `affected`'s, at its default depth and over the index as it stands.
+    func suitesReachingWorkingTree() async throws -> (files: [String], suites: [AffectedRenderer.ReachedSuite])? {
+        let files = try git.dirtySwiftFiles().map(\.path).filter { enumerator.isIndexable(relativePath: $0) }
+        let declared = try files.flatMap { try store.symbols(inFile: $0) }
+        guard !declared.isEmpty else { return nil }
+        let reached = try await suitesReaching(declared)
+        return reached.isEmpty ? nil : (files, reached)
+    }
+
+    private func suitesReaching(_ declared: [SymbolRow]) async throws -> [AffectedRenderer.ReachedSuite] {
         let scanner = NameMentionScanner(repoRoot: repoRoot, enumerator: enumerator)
         var renderer = AffectedRenderer(store: store, repositoryRoot: repoRoot, projectDirectories: resolver.projectDirectories)
         renderer.mentions = { await scanner.mentions(of: $0) }
-        let reached = try await renderer.suitesReaching(declared, semantic: semanticInput(), depth: AffectedOptions.defaultDepth)
-        guard !reached.isEmpty else { return nil }
-        return UnmatchedFilterHint(name: name, declaredIn: Set(declared.map(\.path)).sorted(), suites: reached.map(\.filter), direct: reached.prefix { $0.depth == 1 }.count)
+        return try await renderer.suitesReaching(declared, semantic: semanticInput(), depth: AffectedOptions.defaultDepth)
     }
 
     /// How many tests are *supposed* to run: the declared inventory joined to the test plans, and the gaps between the two.

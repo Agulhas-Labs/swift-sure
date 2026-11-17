@@ -194,7 +194,7 @@ private extension RunDominantFailureClass {
         emptyReads.contains(value)
             && subjects * 2 > shared
             && namesAnAccessibilityRead(expression)
-            && census.inChangedFiles == .count(0)
+            && census.inChangedFiles.changedCount == 0
             && census.fileCount > RunFailureCensus.signatureCap
     }
 

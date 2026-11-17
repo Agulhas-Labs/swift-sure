@@ -23,8 +23,9 @@ struct DoctorCursorRunMode {
     func checks() -> [DoctorCheck] {
         let doctor = DoctorCursor(directory: directory, probe: probe, install: CursorInstall(mcp: SiftCursorSetup.mcp, hooks: SiftCursorSetup.runHooks, directoryFlag: SiftCursorSetup.install.directoryFlag), expectedTools: expectedTools)
         var checks = doctor.checks().filter { $0.name == "hooks" }
-        checks.append(.pass(.cursor, "index", "off (installed with --run-only)"))
-        let registered = Self.registeredCommands(in: try? Data(contentsOf: directory.appendingPathComponent(CursorHooksFile.fileName)))
+        let hooksData = try? Data(contentsOf: directory.appendingPathComponent(CursorHooksFile.fileName))
+        checks.append(SiftCursorSetup.registersBothModes(hooksData) ? .fail(.cursor, "index", "both modes registered; re-run \(ProductName.current.binary) install (with or without --run-only)") : .pass(.cursor, "index", "off (installed with --run-only)"))
+        let registered = Self.registeredCommands(in: hooksData)
         guard let first = registered.first else { return checks }
         let run = DoctorRun(agent: .cursor, probe: probe, expectedTools: expectedTools)
         checks += run.binaryChecks(DoctorClaudeRunMode.binary(of: first.command))

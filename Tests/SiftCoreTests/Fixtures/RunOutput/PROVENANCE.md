@@ -1092,43 +1092,6 @@ substitute.
 
 ---
 
-## The compiler's own timings
-
-`swift-build-debug-time.txt` is a clean `swift build` of a throwaway SwiftPM package, **Widget** (one
-executable target, two files, a `Ledger` struct written to hold the three expression shapes known to
-type-check slowly: a long chain of mixed numeric literals, a nested ternary chain and an unannotated
-array literal in a stored property, plus a top-level `outer()` holding a local function `inner()`, to
-capture the compiler double-printing a local function's body time inside its enclosing body's own line).
-Captured on macOS 27.0, Swift 6.4 (swiftlang-6.4.0.34.1), with:
-
-```sh
-swift build --build-system native --scratch-path .build/sift-timing \
-  -Xswiftc -Xfrontend -Xswiftc -debug-time-function-bodies \
-  -Xswiftc -Xfrontend -Xswiftc -debug-time-expression-type-checking
-```
-
-Exit 0. The one edit is the package root, which became `/Users/dev/Widget`. `--build-system native`
-is load-bearing: the default build system of this toolchain prints none of the timing lines on a
-successful build, and under `-v` prints them glued to the end of an echoed command line.
-
-Re-captured on the same toolchain to add `outer()`/`inner()`: a local function's body line carries a
-third, tab-separated field spelled exactly `local function Widget.(file).outer().inner()@<path>:<line>:<col>`
-(the enclosing function's own line reads `global function Widget.(file).outer()@...`), which is how
-`BuildTimingAnalysis` tells a nested body apart from a top-level one and names it.
-
-`swift-build-tests-debug-time-macros.txt` is the raw log `sift build --analyse --build-tests` kept for another
-throwaway **Widget** package (a library target `Widget` holding a `Ledger` struct, and a test target
-`WidgetTests` with one Swift Testing `@Test` function asserting with two `#expect`), so the build is the exact
-command `sift` runs (`--build-tests --build-system native --scratch-path .build/sift-timing` and the two timing
-flags). Captured on macOS 27.0.1, `swift-driver version: 1.168.6 Apple Swift version 6.4 (swiftlang-6.4.0.34.1
-clang-2100.3.34.1)`. Exit 0. It is here for the 25 timing lines whose location is a macro expansion's
-generated buffer, printed as a bare, relative `@__swiftmacro_….swift:<line>:<col>` — the attached `@Test`
-peer's buffer, named after the declaration, and the freestanding `#expect`/`#_sourceLocation` buffers, named
-after the module, file and position of the expansion — beside the source file's own line for each expanding
-expression. The one edit is the package root, which became `/Users/dev/Widget`.
-
----
-
 ## A fix-it printed as a struct dump
 
 `swift-build-fixit-6.4.txt` is a `swift build` of a throwaway SwiftPM package, **Widget** (a library target

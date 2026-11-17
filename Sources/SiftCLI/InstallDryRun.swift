@@ -96,12 +96,12 @@ struct InstallDryRun {
                 },
             ]
         case .codex:
-            let home = CodexInstall.home(flag: directories.codex, environment: environment)
+            let home = AgentPaths.codexHome(flag: directories.codex, environment: environment)
             let hooks = home.directory.appendingPathComponent(CodexHooksFile.fileName)
             let config = home.directory.appendingPathComponent("config.toml")
             return [
                 hooks.path: TargetState.reading {
-                    try CodexHooksFile.install(into: SettingsFile.read(hooks, agent: "codex", flag: "--codex-dir"), binaryWord: word, mode: mode).changed ? .write : .installed
+                    try SiftCodexSetup.mergeHooks(into: SettingsFile.read(hooks, agent: "codex", flag: "--codex-dir"), binaryWord: word, mode: mode).changed ? .write : .installed
                 },
                 // Only `codex mcp get` can say what the file registers, and a dry run runs nothing; a file that is not there registers nothing.
                 config.path: codexServer(config, mode: mode),

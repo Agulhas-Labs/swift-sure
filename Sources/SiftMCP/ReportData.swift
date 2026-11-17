@@ -17,7 +17,7 @@ public struct ReportData: Sendable, Equatable {
     /// The window as it was asked for (`7d`, `today`, `YYYY-MM-DD`).
     public let window: String
 
-    /// The inclusive first day of the log read, as the log files days — UTC, matching `usage --since`.
+    /// The inclusive first day of the log read, as the log files days — UTC, matching `report --since`.
     public let firstLogDay: String?
 
     /// The first local day transcripts were read from, matching `audit --since`.
@@ -78,7 +78,7 @@ public struct ReportData: Sendable, Equatable {
     ///
     /// `tallyCache` is where each transcript's counts are kept between runs, so an unchanged transcript is not read twice; `nil`, every test's default, reads them all.
     ///
-    /// `runLogURL` is optional for the reason `UsageReport`'s is: defaulting it to the standard path would have a test asking about a log it wrote pick up whatever this machine happens to have built. The suppression log is optional for the same reason, and read as `TranscriptAudit.render` reads it.
+    /// `runLogURL` is optional because defaulting it to the standard path would have a test asking about a log it wrote pick up whatever this machine happens to have built. The suppression log is optional for the same reason, and read as `TranscriptAudit.render` reads it.
     public static func assemble(
         logURL: URL,
         runLogURL: URL? = nil,

@@ -215,7 +215,7 @@ struct DoctorAbsentAgentTests {
     }
 
     private static func codex(_ directory: URL, _ runner: FakeCodex) throws -> DoctorCodex {
-        try DoctorCodex(home: CodexInstall.home(flag: directory.path, environment: [:]), runner: runner, probe: spentProbe(), hooks: SiftCodexSetup.hooks, server: SiftCodexSetup.server, expectedTools: MCPToolCatalog.toolNames)
+        try DoctorCodex(home: AgentPaths.codexHome(flag: directory.path, environment: [:]), runner: runner, probe: spentProbe(), hooks: SiftCodexSetup.hooks, server: SiftCodexSetup.server, expectedTools: MCPToolCatalog.toolNames)
     }
 
     /// A probe already closed: the doctor runs nothing, and the scratch the probe made is gone.

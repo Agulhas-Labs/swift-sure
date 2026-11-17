@@ -60,6 +60,9 @@ public struct RegisteredHooks {
         let data = data
         let expected = registration(of: data)
         guard let registered else { return nil }
+        if SiftClaudeSetup.registersBothModes(data) {
+            return "index: both modes registered — re-run \(ProductName.current.binary) install (with or without --run-only)"
+        }
         if registered == expected.fingerprint {
             return SiftClaudeSetup.mode(of: data) == .run ? "index: off (installed with --run-only)" : nil
         }

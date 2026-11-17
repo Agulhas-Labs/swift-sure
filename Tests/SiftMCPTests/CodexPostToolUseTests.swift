@@ -27,21 +27,7 @@ struct CodexPostToolUseTests {
         #expect(codex.printed == claude.printed)
     }
 
-    /// An update adding a near duplicate draws the nudge a Claude Code `Write` of the same file draws.
-    @Test func anUpdateAddingANearDuplicateDrawsTheNudgeAWriteOfItDraws() async throws {
-        let scene = try await Scene()
-        try Scene.restocked.write(toFile: scene.catalogue, atomically: true, encoding: .utf8)
-        let claude = try scene.run(scene.claude(scene.catalogue, content: Scene.restocked), agent: nil)
-        #expect(claude.printed.contains("hookSpecificOutput"), "\(claude.printed)")
-        try await scene.setBack()
-
-        let codex = try scene.run(Self.codex(Self.restock, in: scene), agent: nil)
-
-        #expect(codex.status == 0)
-        #expect(codex.printed == claude.printed)
-    }
-
-    /// A patch touching several files draws one answer: the block for the first file left unparseable, though an earlier file would draw a nudge and a later one a block of its own.
+    /// A patch touching several files draws one answer: the block for the first file left unparseable, though a later one would draw a block of its own.
     @Test func aPatchOfSeveralFilesDrawsOneBlockForTheFirstBrokenFile() async throws {
         let scene = try await Scene()
         try Scene.restocked.write(toFile: scene.catalogue, atomically: true, encoding: .utf8)
@@ -69,20 +55,6 @@ struct CodexPostToolUseTests {
 
         #expect(run.status == 0)
         #expect(run.printed.isEmpty, "printed \(run.printed)")
-    }
-
-    /// A near duplicate in the second file of a patch draws the nudge though the first file is updated too: bringing the first file's record up to date must not make the second file's new function look as if the index held it before.
-    @Test func aNearDuplicateAfterAnotherUpdatedFileStillDrawsTheNudge() async throws {
-        let scene = try await Scene()
-        try Scene.restocked.write(toFile: scene.catalogue, atomically: true, encoding: .utf8)
-        try await scene.setBack()
-        try ("/// Stocked daily.\n" + Self.depot).write(toFile: Self.path("Depot.swift", in: scene), atomically: true, encoding: .utf8)
-        let patch = "*** Update File: Sources/App/Depot.swift\n@@\n+/// Stocked daily.\n struct Depot {\n" + Self.restock
-
-        let codex = try scene.run(Self.codex(patch, in: scene), agent: nil)
-
-        #expect(codex.status == 0)
-        #expect(codex.printed.contains("hookSpecificOutput") && codex.printed.contains("restock"), "\(codex.printed)")
     }
 
     /// `Depot.swift` as the scene indexes it.

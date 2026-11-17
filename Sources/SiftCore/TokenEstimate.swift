@@ -6,9 +6,9 @@ import Foundation
 
 /// A byte saving stated in the unit the reader already thinks in.
 ///
-/// What the tool measures is bytes: the source a digest stood in for, less the bytes it served. What a developer reading `usage` or the report page wants to know is how much source the index's answers stood in for, and an agent's context is counted in tokens, not kilobytes, so that is the unit the headline figure is stated in: a kilobyte has to be converted in the head before it means anything, and a token count beside a context limit does not.
+/// What the tool measures is bytes: the source a digest stood in for, less the bytes it served. What a developer reading the report page wants to know is how much source the index's answers stood in for, and an agent's context is counted in tokens, not kilobytes, so that is the unit the headline figure is stated in: a kilobyte has to be converted in the head before it means anything, and a token count beside a context limit does not.
 ///
-/// **It is an estimate, and it says so.** The tool never tokenizes anything; it counts bytes and divides. Every rendering carries the tilde, and the faces with room for it (`usage`, the report page) print the measured bytes and the ratio beside the estimate so the arithmetic can be checked. The status line states no saving at all: it has room for the tilde and not for the baseline, and a figure without its baseline reads as a measurement.
+/// **It is an estimate, and it says so.** The tool never tokenizes anything; it counts bytes and divides. Every rendering carries the tilde, and the faces with room for it (the report page) print the measured bytes and the ratio beside the estimate so the arithmetic can be checked. The status line states no saving at all: it has room for the tilde and not for the baseline, and a figure without its baseline reads as a measurement.
 ///
 /// In Core rather than beside the MCP faces that first used it, so that no two surfaces can state the same saving differently.
 ///
@@ -48,12 +48,12 @@ public struct TokenEstimate {
 
     /// What every face that states the index's saving says beside it — `~2.1k tokens saved` — the tilde marking the conversion as an estimate.
     ///
-    /// The bytes are measured, and so is the counterfactual: a saving is priced only where the advice hook intercepted a read and the command named what it would have printed (``baseline``). Nothing read afterwards is subtracted: the figure is gross, and the whole reads after a digest are counted beside it (``readAnyway(_:)``), never priced. One wording, defined here, so `usage`, the report page and `audit` cannot drift apart on it.
+    /// The bytes are measured, and so is the counterfactual: a saving is priced only where the advice hook intercepted a read and the command named what it would have printed (``baseline``). Nothing read afterwards is subtracted: the figure is gross, and the whole reads after a digest are counted beside it (``readAnyway(_:)``), never priced. One wording, defined here, so the report page and `audit` cannot drift apart on it.
     public static var savedLabel: String {
         "saved"
     }
 
-    /// What every saving is priced against, printed beside the saving by each face that states it, always and once: `usage`'s headline, the report page's caption, `audit`'s baseline line.
+    /// What every saving is priced against, printed beside the saving by each face that states it, always and once: the report page's caption, `audit`'s baseline line.
     ///
     /// Only an observed counterfactual is priced: the file or window an intercepted read asked for, less the answer the hook served in its place. A call made by choice and a grep the hook answered stand in for something nobody ran and nobody can size, and pricing them against a whole file was a number that leaned high; they are counted, never priced.
     public static var baseline: String {

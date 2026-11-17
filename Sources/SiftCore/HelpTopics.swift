@@ -24,7 +24,7 @@ public struct HelpTopics {
 
         **A gate that fails in bulk** — read the line above the failures before reading the failures. Every \
         red run opens with the same measurement: how many failed, how many distinct kinds of failure they \
-        reduce to, how many files they span, and how many landed in a file the working tree has changed (a new \
+        reduce to, how many files they span, and how many landed in a file the working tree has changed, plus, on a feature branch, one its commits changed since the default branch, and the line then says `since main` (a new \
         file not yet added counts, one git ignores does not) — a line like `666 failures · 210 signatures · 53 \
         files · 0 in changed files` is what separates a broken environment from a broken change. Read it as a \
         measurement and nothing more: it names no cause and suggests no retry, deliberately, and "0 in changed \
@@ -87,7 +87,7 @@ public struct HelpTopics {
         **It is a note and never a verdict: the exit code is the wrapped command's either \
         way** (a run that executed no test exits 4 for its zero, not for this line), and that run is reconciled \
         as zero reported, `inventory: 3 declared, 0 reported — 3 never reported: …`. A filtered, skipped or `--parallel` run prints \
-        nothing, since each runs a set the package's manifest does not bound. **An `xcodebuild` test of a package's `<Name>-Package` scheme** \
+        nothing, since each runs a set the package's manifest does not bound. A filtered `swift test` on a tree with uncommitted `.swift` changes adds one `filtered:` line instead, naming up to five suites that reach the change and did not run, with the `--filter` command that runs them (left out without an index; the totals, verdict and exit code never change). **An `xcodebuild` test of a package's `<Name>-Package` scheme** \
         (Xcode's over every test target), from the package's directory with no Xcode project named or beside it, is checked as that `swift test` is; \
         any other prints `inventory: not checked — …` saying why, unless `-only-testing`, `-skip-testing`, `-testPlan` or a test configuration narrows it. A run in scope that could not be \
         checked prints the one line saying why, `inventory: not checked — …`: the checkout has no index yet, \
@@ -111,7 +111,7 @@ public struct HelpTopics {
         tests that both failed and passed on identical bytes under one command line (`2 of 9 on one tree`), then those that failed \
         only on trees they never passed on — which is what a deliberate red, such as a negative gate, looks \
         like — and apart from both, runs recorded before the log kept a tree, whose tier is unknown. \
-        Test names are pseudonymised by default, as `usage` and `audit` are; \
+        Test names are pseudonymised by default, as `report` and `audit` are; \
         `--unredact` prints them, and `--root` narrows to one repo. `\(ProductName.current.binary) flakes <name>` answers for one named test \
         instead: every test whose recorded name contains it (`.` and `/` read alike), printed by its real name, \
         with every population it was recorded failing in, including a test that failed in every run. Two things it withholds rather than \
@@ -291,6 +291,8 @@ public struct HelpTopics {
         not act on this row"**: an unlabelled row in the same section is unaffected and still resolved. \
         Keeping them listed is deliberate — after deleting a file, this is what separates a reference the \
         delete just orphaned from one that was already dead — and a build is the only thing that clears them.
+        `--files` lists files to open, so it folds the deleted ones into one `+ N files deleted since the last \
+        build also named it` line instead of a row each.
 
         **`\(ProductName.current.binary) status` reports the same axis without opening the store**, from file state against the \
         store's last build, so its header reads `stale since last build (N files: C changed, D deleted)` — each \
@@ -459,7 +461,7 @@ public extension HelpTopics {
         """
         The hook's own accounting, and the shapes it never interrupts — the nuance behind "a lookup of \
         Swift source — a shell command, a Grep, a Glob, or a whole-file Read — is answered in place, or let through." (This is `pre-tool-use`'s accounting; the \
-        separate `post-tool-use` nudge never denies a call, so none of it applies there.)
+        separate `post-tool-use` hook never denies a call, so none of it applies there.)
 
         **The outcome is one of two.** Where the index's answer accounts for everything the command \
         would have printed, the call is denied and that answer comes back in the denial, so the round trip \
@@ -614,11 +616,6 @@ public extension HelpTopics {
             name: "worktree-index",
             summary: "Why `where` and `affected` answer thin in a linked worktree, why the checkout it was cut from is not read in its place, and how to build a store here.",
             body: WorktreeIndexTopic.body
-        ),
-        Topic(
-            name: "build-output",
-            summary: "Reading `\(ProductName.current.binary) build --analyse` — the clean build it runs, the slowest bodies and expressions, the totals that are never added, and when it refuses.",
-            body: HelpTopicBodies.buildOutputBody
         ),
     ] + [AffectedHelpTopic.topic]
 }

@@ -25,7 +25,7 @@ public struct StopBuildGate {
     /// `now` is the instant a run's start and heartbeat are judged against, and `processStart` when the process holding a pid started, or `nil` where none holds it.
     public static func reason(
         for payload: [String: Any],
-        marks: ReuseNudgeMarks,
+        marks: HookMarks,
         now: Date = Date(),
         processStart: (Int32) -> Date? = processStart(of:)
     ) -> String? {

@@ -197,7 +197,7 @@ containment; `swift-sure help run-output` has the tags and when each applies.)
   (`Sources/Core/Store.swift:41-58`) are the unit of location.
 - Machine names never appear in an answer. Dates never appear in a query answer — `digest`, `where`,
   `search`, `strings`: stored rows carry the revision hash (`head:`) as provenance, a live read the tree
-  it names. A report over time (`usage`, `flakes`, `audit`, `report`) dates what it reports on, because
+  it names. A report over time (`flakes`, `audit`, `report`) dates what it reports on, because
   the span is its subject.
 
 ## Amendment: one header line, standing caveats said where they apply (in force)

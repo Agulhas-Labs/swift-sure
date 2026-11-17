@@ -25,7 +25,7 @@ identical tokens and no token can be checked against a guess:
 | `target` | `target-<6hex>` | except `.`, which is a structural token rather than a name and stays as it is |
 | `err` | `reason-<6hex>` | identical reasons share a token, so failure *grouping* survives redaction |
 
-That is the same standard `sift usage` and `sift report` apply to their own output by
+That is the same standard `sift report` applies to its own output by
 default, on the same reasoning: what makes a usage log private is which repositories and which symbols
 were asked about, and none of the numbers depend on either.
 
@@ -40,7 +40,7 @@ depends on the interval between two calls.
 ## What it measures
 
 `UsageSavingsFixtureTests` now pins that **nothing in the capture is priced**: every call in it was made
-by choice, none is a read the advice hook intercepted, so it has no observed counterfactual and `usage`
+by choice, none is a read the advice hook intercepted, so it has no observed counterfactual and `report`
 states no saving for it (6,678 entries, none credited). The table below is kept as the record of what
 the log measures, derived from the raw log before any of the splitting code was written; it was the
 figure the tests pinned while every measured call was priced against its whole source.

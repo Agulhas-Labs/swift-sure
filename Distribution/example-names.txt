@@ -1005,6 +1005,7 @@ outsideWindow
 overSize
 overdueCountsLongLoans
 overrideOf
+ownPath
 packageAuthorizationProvider
 packageCachePath
 packageDependencySCMToRegistryTransformation
@@ -1081,7 +1082,6 @@ rnC2
 rootObject
 runEnded
 runFails
-runFileURL
 runFirstLaunch
 runLogURL
 runStarted
@@ -1222,7 +1222,6 @@ timeoutMs
 titleStarts
 toBe
 tooTight
-totalAddsRates
 totalTestCount
 treatAllWarnings
 trimmingCharacters

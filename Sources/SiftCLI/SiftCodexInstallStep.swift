@@ -1,0 +1,18 @@
+//
+// Copyright © Agulhas Labs
+//
+
+import Fieldwork
+import Foundation
+import SiftCore
+
+/// The Codex step of `swift-sure install`: the hooks in the Codex home and the server through `codex mcp`, through the same installer as `install-hook --agent codex`, without its exit.
+struct SiftCodexInstallStep {
+    /// Installs `binary` into the Codex home `directory` names, else the one `environment` names, printing to `output`.
+    static func run(binary: String, environment: [String: String], directory: String? = nil, runner: any CodexMcpRunner, output: CommandOutput, mode: SiftClaudeSetup.InstallMode = .index) throws -> InstallStepReport {
+        let home = AgentPaths.codexHome(flag: directory, environment: environment)
+        let outcome = try SiftCodexHookInstaller.installing(home: home, binary: binary, runner: runner, output: output, mode: mode)
+        // The lines were printed to `output` already, so the report carries none.
+        return CodexInstallStep.report(HookInstallResult(outcome: outcome, printed: []))
+    }
+}

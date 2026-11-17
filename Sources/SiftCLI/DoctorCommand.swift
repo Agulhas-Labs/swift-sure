@@ -136,7 +136,7 @@ struct DoctorCommand: ParsableCommand {
                 }
                 checks += doctor.checks()
             case .codex:
-                let home = CodexInstall.home(flag: codexDirectory, environment: machine.environment)
+                let home = AgentPaths.codexHome(flag: codexDirectory, environment: machine.environment)
                 let runner = codex ?? CodexCLI(environment: machine.environment)
                 let runMode = DoctorCodexRunMode.applies(home: home)
                 let doctor = DoctorCodex(home: home, runner: runner, probe: probe, hooks: runMode ? SiftCodexSetup.runHooks : SiftCodexSetup.hooks, server: SiftCodexSetup.server, expectedTools: MCPToolCatalog.toolNames)

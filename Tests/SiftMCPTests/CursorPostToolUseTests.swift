@@ -25,21 +25,6 @@ struct CursorPostToolUseTests {
         #expect(cursor.printed == Self.additionalContext(reason))
     }
 
-    /// A write adding a near duplicate: the nudge Claude Code is given reaches Cursor's model as context.
-    @Test func aWriteAddingANearDuplicateHandsTheClaudeNudgeAsContext() async throws {
-        let scene = try await Scene()
-        try Scene.restocked.write(toFile: scene.catalogue, atomically: true, encoding: .utf8)
-        let claude = try scene.run(scene.claude(scene.catalogue, content: Scene.restocked), agent: nil)
-        let specific = try #require(Self.object(claude.printed)["hookSpecificOutput"] as? [String: Any])
-        let nudge = try #require(specific["additionalContext"] as? String)
-        try await scene.setBack()
-
-        let cursor = try scene.run(scene.cursor(scene.catalogue, content: Scene.restocked))
-
-        #expect(cursor.status == 0)
-        #expect(cursor.printed == Self.additionalContext(nudge))
-    }
-
     /// Every payload this cannot read, and every call the Claude Code registration says nothing about, prints nothing and exits 0; each is a variant of a write that would draw context.
     @Test(arguments: Unread.allCases)
     func aPayloadThisCannotReadDrawsNothing(unread: Unread) async throws {
@@ -198,7 +183,7 @@ extension CursorPostToolUseTests {
             environment["SWIFT_SURE_USAGE_LOG"] = home.appendingPathComponent("usage.jsonl").path
             environment["SWIFT_SURE_NO_ADVICE"] = disabled ? "1" : nil
             environment["CLAUDE_CODE_SESSION_ID"] = nil
-            // The nudge's real one-second budget runs out on a loaded machine; no test here has the budget as its subject.
+            // The hook's real one-second budget runs out on a loaded machine; no test here has the budget as its subject.
             environment["SWIFT_SURE_TEST_HOOK_BUDGET"] = "60"
             process.environment = environment
             // Fed from a file, not a pipe: a hook that has nothing to do (advice off) exits without reading its input, and a write into a pipe it has already closed fails the test with a broken pipe.

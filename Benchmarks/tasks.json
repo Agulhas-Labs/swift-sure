@@ -95,6 +95,28 @@
         "replace": "#\"\\'\"#.unicodeScalars"
       },
       "check": { "type": "answer_set", "expected": ["aPathWithASingleQuoteIsEscapedInTheRmLine", "aPlainQuoteIsClosedEscapedAndReopened", "aQuoteAfterAPrependCharacterIsEscaped", "aQuoteBeforeACombiningMarkIsEscaped", "aQuoteFollowedByACombiningMarkIsEscapedAndReachesTheBinary"], "filter": "ShellWord", "unchanged": ["Sources", "Tests"], "controls": { "clean": "pass", "injected": "fail", "verified_at": "27d3aca3" } }
+    },
+    {
+      "id": "report-test-container-choice-failures",
+      "kind": "run tests and report",
+      "prompt": "Someone changed how a test run decides which Xcode project or workspace to build when it was not told one, in the case where the working directory holds a Swift package manifest. Run the tests that cover that choice and report every failing test function by name. Do not change any file.",
+      "inject": {
+        "file": "Sources/SiftCore/TestContainerChoice.swift",
+        "find": "if workingDirectoryNames.contains(where: SwiftPMManifest.isManifestPath) {",
+        "replace": "if !workingDirectoryNames.contains(where: SwiftPMManifest.isManifestPath) {"
+      },
+      "check": { "type": "answer_set", "expected": ["aNestedPackageIsNeverMistakenForTheRootsProject", "aPackageWithNoProjectSettlesOnNoContainer", "neitherAManifestNorAProjectAnywhereRefusesNamingTheFlags"], "filter": "TestContainerChoiceTests", "unchanged": ["Sources", "Tests"], "controls": { "clean": "pass", "injected": "fail", "verified_at": "332732aa" } }
+    },
+    {
+      "id": "report-result-bundle-line-failures",
+      "kind": "run tests and report",
+      "prompt": "Someone changed which lines are read as executable when the coverage of an Xcode result bundle is parsed. Run the tests that cover reading that coverage and report every failing test function by name. Do not change any file.",
+      "inject": {
+        "file": "Sources/SiftCore/ResultBundleCoverage.swift",
+        "find": "where line[\"isExecutable\"] as? Bool == true",
+        "replace": "where line[\"isExecutable\"] as? Bool != true"
+      },
+      "check": { "type": "answer_set", "expected": ["executableLinesCarryTheirCountsAndTheRestAreNotCode", "theCountsRenderAsTheChangedDeclarationsLines"], "filter": "ResultBundleCoverageTests", "unchanged": ["Sources", "Tests"], "controls": { "clean": "pass", "injected": "fail", "verified_at": "332732aa" } }
     }
   ]
 }

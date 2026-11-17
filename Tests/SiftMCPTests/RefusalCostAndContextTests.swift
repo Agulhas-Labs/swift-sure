@@ -388,7 +388,7 @@ struct RefusalCostAndContextTests {
     @Test
     func redactedCallHidesEveryNameInACompoundPipeline() {
         let command = """
-        grep -n -i warden devkit-hooks.conf; echo ---; \
+        grep -n -i warden gizmo-hooks.conf; echo ---; \
         grep -n "path\\|url\\|GizmoCore" Tools/GizmoKit/Package.swift; echo ---; \
         grep -rn "isTestFile" Tools | head -5
         """
@@ -397,7 +397,7 @@ struct RefusalCostAndContextTests {
 
         let redacted = TranscriptAudit.CallRedaction.redactedCall(text, by: redactor)
 
-        for leaked in ["devkit-hooks", "GizmoCore", "isTestFile", "Tools", "warden", "url"] {
+        for leaked in ["gizmo-hooks", "GizmoCore", "isTestFile", "Tools", "warden", "url"] {
             #expect(!redacted.contains(leaked))
         }
 

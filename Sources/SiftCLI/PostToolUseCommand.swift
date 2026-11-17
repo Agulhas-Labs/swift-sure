@@ -10,16 +10,16 @@ import SiftMCP
 
 /// `swift-sure post-tool-use` — the body of the Claude Code `PostToolUse` hook, run after a write or an edit of a Swift file.
 ///
-/// This asks "does this helper already exist?" on the model's behalf just after a function is written, while undoing the duplicate is still one edit. It holds to the `PreToolUse` hook's invariants, for the same reason — a misbehaving hook degrades every session on the machine: it always exits 0, it prints nothing unless it has a nudge or a parse block, and it gives up in silence past its budget.
+/// It holds to the `PreToolUse` hook's invariants — a misbehaving hook degrades every session on the machine: it always exits 0, it prints nothing unless it has a parse block or a note, and it gives up in silence past its budget.
 struct PostToolUseCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "post-tool-use",
-            abstract: "Block an edit that left a Swift file unparseable, or point out a declaration like one just added (PostToolUse hook).",
+            abstract: "Block an edit that left a Swift file unparseable, and locate the diagnostics a call printed (PostToolUse hook).",
             discussion: """
-            Reads the hook's payload on stdin. After a Write, Edit or MultiEdit of a .swift file that no longer parses, or a Codex apply_patch adding or updating one, it blocks with each syntax error placed at path:line:col, once per content. Otherwise, in an indexed repository, it brings every dirty file's index record up to date and ranks each function-like declaration the edit added — one the index did not hold for the file before — against the rest of its module by the callees they share. The closest hit that clears the overlap floor is handed to the model as one line, `\(ProductName.current.binary): A resembles B — path:line (overlap 0.xx)`, naming where the existing declaration is.
+            Reads the hook's payload on stdin. After a Write, Edit or MultiEdit of a .swift file that no longer parses, or a Codex apply_patch adding or updating one, it blocks with each syntax error placed at path:line:col, once per content. After a Grep or Bash call that printed Swift compiler diagnostics, it locates them; after a piped build that failed, it names the `\(ProductName.current.binary) run` call.
 
-            Otherwise silent: when nothing clears the floor, for a file the index never held (a first write is not a reuse question), past a one-second budget, on any error, and for a nudge this context has already been given about the same declaration in the same file. \(EnvironmentVariable.noAdvice.name) turns it off, as it does pre-tool-use.
+            Otherwise silent: past a one-second budget, on any error, and for a parse block this context has already been given for the same content. \(EnvironmentVariable.noAdvice.name) turns it off, as it does pre-tool-use.
             """
         )
     }
@@ -74,7 +74,7 @@ struct PostToolUseCommand: ParsableCommand {
         }
     }
 
-    /// Cursor's answer: the rewrite notice for a `Shell` result and the diagnostics note for its output, in one `additional_context` with the notice first; else the parse and nudge answer for a `Write`.
+    /// Cursor's answer: the rewrite notice for a `Shell` result and the diagnostics note for its output, in one `additional_context` with the notice first; else the parse answer for a `Write`.
     private static func answerCursor(to payload: [String: Any]) {
         let budget = timeBudget()
         guard CursorPostToolUse.isShellResult(payload) else {
@@ -93,25 +93,26 @@ struct PostToolUseCommand: ParsableCommand {
         }
     }
 
-    /// A test seam, inert unless `SWIFT_SURE_TEST_HOOK_BUDGET` holds a number of seconds: that is the hook's budget in place of ``ReuseNudge/timeBudget``.
+    /// The hook's budget, in seconds, when nothing overrides it.
+    static let defaultTimeBudget: TimeInterval = 1
+
+    /// How long the hook may spend on one payload before it says nothing; a test seam, inert unless `SWIFT_SURE_TEST_HOOK_BUDGET` holds a number of seconds, replaces it.
     ///
     /// So a test that spawns the built binary on a loaded machine is not answered by a budget the machine's load spent. Nothing outside a test sets the variable; an absent or unparsable value leaves the real budget.
     static func timeBudget(environment: [String: String] = ProcessInfo.processInfo.environment) -> TimeInterval {
-        EnvironmentVariable.testHookBudget.value(in: environment).flatMap(Double.init) ?? ReuseNudge.timeBudget
+        EnvironmentVariable.testHookBudget.value(in: environment).flatMap(Double.init) ?? defaultTimeBudget
     }
 
-    /// Everything the hook does with one payload: a block on an edit that left the file unparseable, else the nudge, printed to `output` — the standard streams in every real run, a recorder in a test — or nothing.
-    ///
-    /// The block wins and the nudge is dropped, not carried in its reason: a nudge is never found in a file that does not parse, and the one thing the model should do next is fix it. Both share the one budget, the nudge taking what the parse left.
-    static func answer(to payload: [String: Any], output: CommandOutput = .standard, marks: ReuseNudgeMarks = .standard(), timeBudget: TimeInterval = ReuseNudge.timeBudget) {
+    /// Everything the hook does with one payload: a block on an edit that left the file unparseable, printed to `output` — the standard streams in every real run, a recorder in a test — or nothing.
+    static func answer(to payload: [String: Any], output: CommandOutput = .standard, marks: HookMarks = .standard(), timeBudget: TimeInterval = defaultTimeBudget) {
         answer(toEach: [payload], output: output, marks: marks, timeBudget: timeBudget)
     }
 
-    /// The one answer for an edit of several files, as a Codex `apply_patch` makes: the first block across `payloads`, else the first nudge, all of them sharing the one budget.
+    /// The one answer for an edit of several files, as a Codex `apply_patch` makes: the first block across `payloads`, all of them sharing the one budget.
     ///
     /// The files are taken in order until the budget is spent, and then no further, so a patch of hundreds of files costs the budget and not a check of each. Each file is judged against the repository that holds it, as the `Write` of that file alone would be, so a patch made from a folder above several checkouts is answered for each; the repository is looked up once per directory, so a patch of many files in one directory costs one lookup.
-    static func answer(toEach payloads: [[String: Any]], output: CommandOutput = .standard, marks: ReuseNudgeMarks = .standard(), timeBudget: TimeInterval = ReuseNudge.timeBudget) {
-        answer(toEach: payloads, output: output, marks: marks, timeBudget: timeBudget) { payload, root, left in
+    static func answer(toEach payloads: [[String: Any]], output: CommandOutput = .standard, marks: HookMarks = .standard(), timeBudget: TimeInterval = defaultTimeBudget) {
+        answer(toEach: payloads, output: output, timeBudget: timeBudget) { payload, root, left in
             parseBlock(for: payload, root: root, marks: marks, timeBudget: left)
         }
     }
@@ -120,7 +121,6 @@ struct PostToolUseCommand: ParsableCommand {
     static func answer(
         toEach payloads: [[String: Any]],
         output: CommandOutput,
-        marks: ReuseNudgeMarks,
         timeBudget: TimeInterval,
         lookUp: (_ directory: String) -> String? = CallerRoot.root(forCallerIn:),
         check: (_ payload: [String: Any], _ root: String?, _ left: TimeInterval) -> String?
@@ -132,9 +132,6 @@ struct PostToolUseCommand: ParsableCommand {
             let left = deadline.timeIntervalSinceNow
             guard json == nil, left > 0 else { break }
             json = check(payload, editedSwiftFile(in: payload).flatMap { root(of: $0.file, in: &roots, lookUp: lookUp) }, left)
-        }
-        if json == nil {
-            json = nudge(forEach: payloads, roots: &roots, lookUp: lookUp, marks: marks, deadline: deadline)
         }
         if json == nil {
             for payload in payloads {
@@ -192,7 +189,7 @@ struct PostToolUseCommand: ParsableCommand {
     /// The hook JSON blocking on an edit that left a Swift file unparseable, or `nil` where the file parses or the block has been given.
     ///
     /// Once per context for each content the file is left holding, so the hook can never wedge a session: an edit that leaves the same broken bytes goes through the second time, and only a change to the file can draw a block again. Silent without a `session_id` to record that against, on a file it cannot read, and past `timeBudget`.
-    static func parseBlock(for payload: [String: Any], root: String?, marks: ReuseNudgeMarks, timeBudget: TimeInterval) -> String? {
+    static func parseBlock(for payload: [String: Any], root: String?, marks: HookMarks, timeBudget: TimeInterval) -> String? {
         guard let (file, sessionID) = editedSwiftFile(in: payload) else { return nil }
         let (prior, hunks) = editPrior(in: payload)
         let result = ResultBox<EditParseCheck>()
@@ -296,46 +293,6 @@ struct PostToolUseCommand: ParsableCommand {
         return (hunks.isEmpty ? .unknown : .patch(hunks), hunks)
     }
 
-    /// The hook JSON carrying the one nudge the edits in `payloads` earn, or `nil` where they earn none or `deadline` passes first.
-    ///
-    /// The files are grouped by the repository holding them, in the order each repository first appears, and a file no repository holds is left out. Each group is judged together, in one refresh of its index, and the first file in patch order within it with a nudge this context has not been given already is the one named, so a second declaration in the same edit can still be named once the first has been.
-    static func nudge(
-        forEach payloads: [[String: Any]],
-        roots: inout [String: String?],
-        lookUp: (_ directory: String) -> String?,
-        marks: ReuseNudgeMarks,
-        deadline: Date
-    ) -> String? {
-        var groups: [(root: String, edits: [PatchEdit])] = []
-        for payload in payloads {
-            guard deadline.timeIntervalSinceNow > 0 else { return nil }
-            guard let (file, sessionID) = editedSwiftFile(in: payload), let root = root(of: file, in: &roots, lookUp: lookUp) else { continue }
-            let edit = PatchEdit(payload: payload, file: file, sessionID: sessionID)
-            if let index = groups.firstIndex(where: { $0.root == root }) {
-                groups[index].edits.append(edit)
-            } else {
-                groups.append((root, [edit]))
-            }
-        }
-        for group in groups {
-            let left = deadline.timeIntervalSinceNow
-            guard left > 0 else { return nil }
-            guard ReadOnlyIndex.hasUsableIndex(atRoot: group.root) else { continue }
-            let found = ReuseNudge.findings(forFiles: group.edits.map(\.file), atRoot: group.root, budget: left)
-            for edit in group.edits {
-                let context = AdviceContext.resolve(
-                    sessionID: edit.sessionID,
-                    transcriptPath: edit.payload["transcript_path"] as? String,
-                    agentID: edit.payload["agent_id"] as? String
-                )
-                for nudge in found[edit.file] ?? [] where marks.claim(context: context.key, file: edit.file, declaration: nudge.added.declaration.qualifiedName) {
-                    return HookOutput.postToolUseContext(nudge.line)
-                }
-            }
-        }
-        return nil
-    }
-
     /// The `PostToolUse` payload Claude Code writes to the hook's stdin.
     ///
     /// Guarded by `isatty` so running this by hand returns immediately instead of blocking on a read that will never be satisfied.
@@ -347,14 +304,5 @@ struct PostToolUseCommand: ParsableCommand {
             return [:]
         }
         return payload
-    }
-}
-
-private extension PostToolUseCommand {
-    /// One Swift file a patch edited, with the payload that names it and the session it ran in.
-    struct PatchEdit {
-        let payload: [String: Any]
-        let file: String
-        let sessionID: String
     }
 }

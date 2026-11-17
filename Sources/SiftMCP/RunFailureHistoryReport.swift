@@ -7,7 +7,7 @@ import SiftCore
 
 /// Renders ``RunFailureHistory`` as the answer `swift-sure flakes` prints — the counts, the population they are over, and the runs that could not contribute to either.
 ///
-/// Reading and scoping `run.jsonl` belong to ``RunScan`` and the tallying to ``RunFailureHistory``; this is the text face over them, exactly as ``UsageReport`` is over ``UsageScan``, and it counts nothing for itself.
+/// Reading and scoping `run.jsonl` belong to ``RunScan`` and the tallying to ``RunFailureHistory``; this is the text face over them, and it counts nothing for itself.
 ///
 /// **Every number here is printed with the population it is over, and the report says out loud what it does not know.** Two lines exist for nothing else: the runs that recorded nothing about their failures, which are unknown and not zero, and the sentence saying these are counts rather than a diagnosis. Neither is decoration — a fraction with no denominator beside it and a listing with no caveat under it are how a measurement becomes a verdict on the way to being read.
 public struct RunFailureHistoryReport {
@@ -198,7 +198,7 @@ private extension RunFailureHistoryReport {
         return lines
     }
 
-    /// The two root refusals, in the wording `usage` already uses — said of one log here, because `flakes` reads one.
+    /// The two root refusals, in the wording `report` already uses — said of one log here, because `flakes` reads one.
     ///
     /// The candidates are spelled the way the rest of the report spells a root: pseudonymised unless the reader asked for the real thing. A refusal is still a report, and one that printed absolute paths would be the only part of it to do so — a report promising to be safe to share, carrying every repository on the machine and the username above them.
     static func message(for problem: UsageScan.Problem, redactor: Redactor?) -> String {

@@ -100,7 +100,7 @@ struct RunCommandTests {
 
     /// A wrapped run files one line, and every field on it comes from the run that just happened.
     ///
-    /// The log is handed in rather than reached for: the shared per-user log follows the process's `HOME`, which one test cannot move without moving it for every suite running beside it. What would go unasserted is not decoration — the kind decides which section of `usage` counts this run, the exit code decides `nonzeroExits`, the line pair is the whole suppression figure, and the root is what `--root` scopes by.
+    /// The log is handed in rather than reached for: the shared per-user log follows the process's `HOME`, which one test cannot move without moving it for every suite running beside it. What would go unasserted is not decoration — the kind decides which section of `report` counts this run, the exit code decides `nonzeroExits`, the line pair is the whole suppression figure, and the root is what `--root` scopes by.
     @Test
     func aWrappedRunFilesOneLineCarryingItsOwnKindExitLinesAndRoot() throws {
         let directory = try TemporaryDirectory.make("run-command")

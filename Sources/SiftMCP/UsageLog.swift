@@ -28,7 +28,7 @@ public struct UsageLog: Sendable {
 
     /// `~/.swift-sure/usage.jsonl`, or the file `SWIFT_SURE_USAGE_LOG` names.
     ///
-    /// Narrow for the reason `SWIFT_SURE_SERVER_LOG` is (``ServerLifecycleLog``): taking a session over in place is only observable from outside a running server, through real tool calls, and the test that makes them must not append to the record a person reads to decide whether the tool earns its keep. Every face honours it, writers and readers alike — the server, the hook, the CLI and `usage`, `report` and `servers` — through this one function, so a reader's "missing or empty" names the file it read and a redirected log is never reported absent for being read at the real path.
+    /// Narrow for the reason `SWIFT_SURE_SERVER_LOG` is (``ServerLifecycleLog``): taking a session over in place is only observable from outside a running server, through real tool calls, and the test that makes them must not append to the record a person reads to decide whether the tool earns its keep. Every face honours it, writers and readers alike — the server, the hook, the CLI and `report` and `servers` — through this one function, so a reader's "missing or empty" names the file it read and a redirected log is never reported absent for being read at the real path.
     public static func standardFileURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
         if let path = EnvironmentVariable.usageLog.value(in: environment), !path.isEmpty {
             return URL(fileURLWithPath: path)
@@ -38,7 +38,7 @@ public struct UsageLog: Sendable {
 
     /// The log the advice hook records an in-place answer in, or `nil` where no conversation was handed that answer.
     ///
-    /// Claude Code names the session's transcript in every hook payload, and that file exists by the time a tool is called. A payload naming none, or one that is not on disk, was piped in by hand to probe the hook, so a line for it in the shared log would be a saving that `usage` counts and no context had. A probe that points `SWIFT_SURE_USAGE_LOG` elsewhere has chosen where its lines go, and gets them there.
+    /// Claude Code names the session's transcript in every hook payload, and that file exists by the time a tool is called. A payload naming none, or one that is not on disk, was piped in by hand to probe the hook, so a line for it in the shared log would be a saving that `report` counts and no context had. A probe that points `SWIFT_SURE_USAGE_LOG` elsewhere has chosen where its lines go, and gets them there.
     public static func forHookAnswer(
         transcriptPath: String?,
         environment: [String: String] = ProcessInfo.processInfo.environment,

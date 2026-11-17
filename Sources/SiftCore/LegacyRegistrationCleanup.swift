@@ -2,6 +2,7 @@
 // Copyright © Agulhas Labs
 //
 
+import Fieldwork
 import Foundation
 
 /// The install's cleanup of what an earlier release registered under its own name: its user-scope MCP server and its agent rule, each taken out only once the current name's is in place.
@@ -42,18 +43,10 @@ public struct LegacyRegistrationCleanup {
                 lines.append("rule: \(rule.path) an earlier release installed was left, since \(currentRule.lastPathComponent) is not installed; run: \(current.binary) install")
                 continue
             }
-            do {
-                switch try SiftUninstall.removeRule(at: rule) {
-                case let .removed(line):
-                    lines.append(line)
-                    removed = true
-                case let .left(note):
-                    lines.append(note)
-                case nil:
-                    break
-                }
-            } catch {
-                lines.append("rule: not removed — \(rule.path): \(error.localizedDescription)")
+            let outcome = SiftClaudeSetup.rule.uninstall(destination: rule)
+            lines += outcome.lines + outcome.failures
+            if !outcome.written.isEmpty {
+                removed = true
             }
         }
         return (lines, removed)
@@ -81,6 +74,10 @@ public struct LegacyRegistrationCleanup {
                 lines.append("rule: \(rule.path) an earlier release installed would be left, since \(currentRule.lastPathComponent) would not be installed")
             } else if type == .typeSymbolicLink {
                 lines.append("rule: \(rule.path) is a symlink — would be left as is")
+            } else if case .directory = PathKind.of(rule) {
+                lines.append("rule: would not remove \(rule.path) — not a plain file")
+            } else if case .other = PathKind.of(rule) {
+                lines.append("rule: would not remove \(rule.path) — not a plain file")
             } else {
                 lines.append("rule: would remove \(rule.path), which an earlier release installed")
             }

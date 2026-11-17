@@ -206,7 +206,7 @@ struct InstallCommand: ParsableCommand {
                     report.lines.forEach(capture.output.emit)
                     return report
                 case .codex:
-                    return try CodexInstallStep.run(binary: binary, environment: environment, directory: codexDirectory, runner: codex ?? CodexCLI(environment: environment), output: capture.output, mode: index ? .index : .run)
+                    return try SiftCodexInstallStep.run(binary: binary, environment: environment, directory: codexDirectory, runner: codex ?? CodexCLI(environment: environment), output: capture.output, mode: index ? .index : .run)
                 }
             } catch let exit as ExitCode {
                 throw InstallStepStopped(status: exit.rawValue)

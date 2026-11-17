@@ -48,7 +48,7 @@ struct ReportCommandTests {
         #expect(!command.noOpen)
     }
 
-    /// A window this vocabulary does not know is refused before any transcript is read, in the same words `usage` and `audit` refuse it.
+    /// A window this vocabulary does not know is refused before any transcript is read, in the same words `report` and `audit` refuse it.
     @Test
     func anUnknownWindowIsRefused() throws {
         let command = try ReportCommand.parse(["--since", "last tuesday", "--no-open"])

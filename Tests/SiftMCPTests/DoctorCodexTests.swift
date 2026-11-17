@@ -20,7 +20,7 @@ struct DoctorCodexTests {
         #expect(run.status == 0, "\(run.printed)")
         let lines = run.printed.split(separator: "\n").map(String.init)
         #expect(lines.first?.hasPrefix("doctor: passed — 0 of 9 checks failed; not detected: Claude Code, Cursor") == true, "\(run.printed)")
-        let named = CodexHooksFile.hooks.map { "codex hook \($0.event): pass" }
+        let named = SiftCodexSetup.hooksFile.hooks.map { "codex hook \($0.event): pass" }
             + ["codex hooks: pass", "codex trust: pass", "codex server: pass", "codex binary: pass", "codex version: pass", "codex mcp server: pass"]
         for name in named {
             #expect(lines.count { $0.hasPrefix(name + " — ") } == 1, "\(name) in \(run.printed)")
@@ -191,7 +191,7 @@ struct DoctorCodexTests {
         if hooks {
             let foreign: [String: Any] = ["hooks": ["PreToolUse": [["matcher": "Bash", "hooks": [["type": "command", "command": "/usr/bin/true"]]]]]]
             let seed = foreignFirst ? try JSONSerialization.data(withJSONObject: foreign) : nil
-            try CodexHooksFile.apply(to: seed, binaryWord: ShellWord.quoted(binary)).data.write(to: file)
+            try SiftCodexSetup.hooksFile.apply(to: seed, binaryWord: ShellWord.quoted(binary)).data.write(to: file)
         }
         if let trusted, hooks {
             // The key is written with the path resolved, so the doctor's canonical comparison is what matches it.

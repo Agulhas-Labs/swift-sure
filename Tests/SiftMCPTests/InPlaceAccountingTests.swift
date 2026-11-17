@@ -7,7 +7,7 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// A lookup the advice hook answered in a refusal's place is the index serving it, on every surface that counts lookups — the scan and its tally, `audit`, the status line and `usage` — and never a refusal routed around, and never cold.
+/// A lookup the advice hook answered in a refusal's place is the index serving it, on every surface that counts lookups — the scan and its tally, `audit`, the status line and `report` — and never a refusal routed around, and never cold.
 ///
 /// Every line here is shaped as the harness writes it (``TranscriptTurns``): a result carries its call's id, its content and the error flag, and nothing naming the tool.
 @Suite(.temporaryDirectories)
@@ -356,7 +356,7 @@ struct InPlaceAccountingTests {
         #expect(tally.total == 1)
     }
 
-    /// `usage` reads the hook's line as the call it was, with its saving: a digest that stood in for its source.
+    /// `report` reads the hook's line as the call it was, with its saving: a digest that stood in for its source.
     @Test
     func usageCountsItAsACallWithItsSaving() throws {
         let log = try TemporaryDirectory.make("inplace-usage").appendingPathComponent("inplace-usage.jsonl")
@@ -372,23 +372,6 @@ struct InPlaceAccountingTests {
         #expect(scan.entries.first?.session == "s1")
         #expect(scan.entries.first?.agent == "a1")
         #expect(scan.savings?.total.saved == 20000)
-    }
-
-    /// The `usage` report labels an intercepted read's saving as gross, and names the audit as where those reads are counted.
-    @Test
-    func usageLabelsTheInPlaceSavingGross() throws {
-        let log = try TemporaryDirectory.make("inplace-usage").appendingPathComponent("inplace-gross.jsonl")
-        defer { try? FileManager.default.removeItem(at: log) }
-        UsageLog(fileURL: log).record(
-            tool: "digest", target: "Sources/App/Depot.swift", root: "/repo", milliseconds: 80, succeeded: true,
-            answer: AnswerBytes(served: 3000, source: 23000), session: "s1", via: "hook", intercepted: "file", readBytes: 23000
-        )
-
-        let report = UsageReport.render(fileURL: log)
-
-        #expect(report.contains("~5.0k tokens saved on 1 intercepted read"))
-        #expect(report.contains("the figure above is gross: an answer whose file was then read whole anyway is taken back only by a re-run or whole read "
-                + "the hook let through; swift-sure audit counts those reads"))
     }
 
     /// A compound line's answer is remembered under exactly the lookups it served, as the hook's ledger records it: the name grep it dropped is not among them, and the read after the first is.

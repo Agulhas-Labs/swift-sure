@@ -89,23 +89,4 @@ struct BacktickedReferenceTests {
 
         #expect(identifiers == ["DepotStoreTests/settles()", "GizmoTests/testExample()", "GadgetTests/testOne()"], "\(identifiers.sorted())")
     }
-
-    /// The fingerprint recognises an XCTest method whose `test` prefix is written inside backticks.
-    @Test
-    func theFingerprintRecognisesABacktickedXCTestMethod() {
-        let fingerprints = FingerprintScanner.fingerprints(
-            in: """
-            import XCTest
-
-            final class GizmoTests: XCTestCase {
-                func `testExample`() {
-                    XCTAssertTrue(drain())
-                }
-            }
-            """,
-            path: "WidgetTests/Pump.swift"
-        )
-
-        #expect(fingerprints.first { $0.declaration.qualifiedName == "GizmoTests.testExample()" }?.isTest == true, "\(fingerprints.map(\.declaration.qualifiedName))")
-    }
 }

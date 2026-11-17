@@ -18,10 +18,10 @@ Two commands, both read-only and local, meant to be pasted into a Claude session
 
 ```sh
 swift-sure audit --since today     # the share, and every lookup that went around the index, named
-swift-sure usage --since today     # what was called, how fast, and what failed
+swift-sure report --since today    # what was called, how fast, and what it saved
 ```
 
-`audit` answers "was this worth having"; `usage` is the call log behind it. Both are **pseudonymised
+`audit` answers "was this worth having"; `report` is the call log behind it. Both are **pseudonymised
 by default** (names become stable salted pseudonyms, counts stay), so a report is safe to paste anywhere;
 `--unredact` prints the real names.
 
@@ -264,7 +264,7 @@ Not supported on Codex, and the install says so: `swift-sure audit`, a Swift-sco
 `AGENTS.md` is machine-wide, so none is written), the subagent primer, and the post-edit note for a file
 `apply_patch` moves (no payload of a move has been captured; one it adds or updates is checked). A lookup the
 Codex CLI runs inside its sandbox is not counted in the usage log: the `workspace-write` sandbox cannot write
-`~/.swift-sure`, and the CLI says nothing about it, so `swift-sure usage` and `swift-sure report` undercount Codex use.
+`~/.swift-sure`, and the CLI says nothing about it, so `swift-sure report` undercounts Codex use.
 
 **Codex support is experimental** until a live test is finished.
 

@@ -31,8 +31,8 @@ import Testing
         }
 
         #expect(verdicts.0 == ReplayVerdict(token: "allowed", rule: ReplayVerdict.logged("locatedWindow")))
-        // With no answer before it the window is a lookup, which the fixture's small file leaves unanswered.
-        #expect(verdicts.1 == ReplayVerdict(token: "allowed", rule: "notSmaller"))
+        // With no answer before it the window is a lookup, which the fixture's small file leaves unanswered: it spares less than its expected re-run, so it is let through as not worth the turn.
+        #expect(verdicts.1 == ReplayVerdict(token: "allowed", rule: "notWorthTheTurn"))
         // The context's own call located it, so the audit scores the window as the scan does, not as located by
         // an answer the hook gave in place.
         #expect(!answered.locatedOnlyByAnswers(root.appendingPathComponent("Sources/App/Depot.swift").path, payload: window))
@@ -58,7 +58,7 @@ import Testing
             return replay.verdict(payload: window, cwd: root.path, at: nil, decides: true)
         }
 
-        // The window is judged as it is with no answer before it, not let through as located.
-        #expect(verdict == ReplayVerdict(token: "allowed", rule: "notSmaller"))
+        // The window is judged as it is with no answer before it (not worth the turn on this small file), not let through as located.
+        #expect(verdict == ReplayVerdict(token: "allowed", rule: "notWorthTheTurn"))
     }
 }

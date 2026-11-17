@@ -131,7 +131,7 @@ struct TranscriptWindowTests {
         #expect(Self.lookups([line], since: Self.instant("2026-08-02T00:00:00Z")) == [.cold(file: "/repo/A.swift", missed: nil)])
     }
 
-    /// `usage` resolves in UTC because the log's day key is UTC.
+    /// `report` resolves in UTC because the log's day key is UTC.
     ///
     /// `audit` filters on instants and answers a person asking about *their* today, so it resolves locally — sharing one resolution would put the boundary at 01:00 local on UTC+1 and silently drop the first hour of every day.
     @Test

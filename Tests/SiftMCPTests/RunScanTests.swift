@@ -6,7 +6,7 @@ import Foundation
 @testable import SiftMCP
 import Testing
 
-/// Covers the wrapped-run log's scan and the section `usage` renders from it — including the line that must never move: the headline call count means index lookups, and a run is not one.
+/// Covers the wrapped-run log's scan — including the line that must never move: the headline call count means index lookups, and a run is not one.
 @Suite(.temporaryDirectories)
 struct RunScanTests {
     // MARK: Fixtures
@@ -162,11 +162,17 @@ struct RunScanTests {
         #expect(scan.malformed == 2)
     }
 
-    // MARK: The `usage` section
+    // MARK: The run section of the `report` page
 
-    /// The run section exists, states its own subject, and does not touch the headline.
-    ///
-    /// The `N calls` in `usage — F failures, N calls` means MCP index lookups and is the number every adoption claim rests on. A run is not a lookup — that is the entire reason it keeps its own file — so the count above must be unchanged by the runs below it.
+    private static func page(usage: URL, runs: URL?, since: String? = nil) throws -> ReportData {
+        try ReportData.assemble(
+            logURL: usage, runLogURL: runs, projectsDirectory: TemporaryDirectory.make("run-scan-projects"),
+            roots: [], since: since, root: nil, now: ISO8601DateFormatter().date(from: "2026-08-19T12:00:00Z") ?? Date(),
+            timeZone: TimeZone(identifier: "UTC") ?? .current, moduleHealth: { _ in nil }
+        )
+    }
+
+    /// The run section carries its own figures and leaves the call count alone: a run is not an index lookup.
     @Test
     func theRunSectionIsRenderedSeparatelyAndLeavesTheCallCountAlone() throws {
         let usage = try Self.writeUsageLog([Self.usageEntry(), Self.usageEntry()])
@@ -176,56 +182,41 @@ struct RunScanTests {
             Self.run(kind: "unfiltered", exit: 0),
         ])
 
-        let report = UsageReport.render(fileURL: usage, runFileURL: runs)
+        let data = try Self.page(usage: usage, runs: runs)
+        let summary = try #require(data.runs)
 
-        #expect(report.contains("usage — 0 failures, 2 calls"))
-        #expect(report.contains("runs (swift-sure run — wrapped commands, not index calls):"))
-        #expect(report.contains("3 runs, 2026-08-18 → 2026-08-18, 1 nonzero exit"))
-        #expect(report.contains("     2  swift test"))
-        #expect(report.contains("     1  unfiltered"))
-        #expect(report.contains("run showed 2% of the output it wrapped (measured over 2 of 3 runs)"))
-        #expect(report.contains("log: \(runs.path)"))
+        #expect(data.calls == 2)
+        #expect(summary.runs == 3)
+        #expect(summary.days == ["2026-08-18"])
+        #expect(summary.nonzeroExits == 1)
+        #expect(summary.filteredRuns == 2)
+        #expect(summary.shown == 30)
+        #expect(summary.total == 2000)
+        #expect(summary.percentText == "2%")
     }
 
-    /// No runs means no section, not a section reporting zero — a standing zero reads as a feature failing on a machine that has simply not used it.
+    /// No runs in the window means no run summary, not a summary reporting zero.
     @Test
     func nothingIsRenderedWhenTheWindowHoldsNoRuns() throws {
         let usage = try Self.writeUsageLog([Self.usageEntry()])
         let runs = try Self.writeLog([Self.run(kind: "swift test", timestamp: "2026-08-01T10:00:00Z")])
 
-        let inWindow = UsageReport.render(fileURL: usage, runFileURL: runs, since: "2026-08-15")
-
-        #expect(!inWindow.contains("runs (swift-sure run"))
-
-        // And with no run log pointed at at all, which is how every existing caller renders.
-        #expect(!UsageReport.render(fileURL: usage).contains("runs (swift-sure run"))
+        #expect(try Self.page(usage: usage, runs: runs, since: "2026-08-15").runs == nil)
+        // And with no run log pointed at at all.
+        #expect(try Self.page(usage: usage, runs: nil).runs == nil)
     }
 
     /// A machine that wraps its builds but has not queried the index still sees its runs.
-    ///
-    /// The usage log's empty state is an early exit, so a section appended only on the success path would tell a machine that has only started wrapping its builds there was nothing to report while its own file filled up.
     @Test
     func theRunSectionSurvivesAnEmptyUsageLog() throws {
-        let usage = try TemporaryDirectory.make("usage-none")
-            .appendingPathComponent("usage-none.jsonl")
+        let usage = try TemporaryDirectory.make("usage-none").appendingPathComponent("usage-none.jsonl")
         let runs = try Self.writeLog([Self.run(kind: "swift test", shown: 4, total: 200)])
 
-        let report = UsageReport.render(fileURL: usage, runFileURL: runs)
+        let data = try Self.page(usage: usage, runs: runs)
 
-        #expect(report.contains("no usage recorded yet"))
-        #expect(report.contains("runs (swift-sure run — wrapped commands, not index calls):"))
-        #expect(report.contains("1 run, 2026-08-18 → 2026-08-18, 0 nonzero exits"))
-    }
-
-    /// A window with runs but no filtered ones states the count and stops there, rather than reporting 0% of 0 lines.
-    @Test
-    func anUnfilteredOnlyWindowStatesNoSuppressionSentence() throws {
-        let usage = try Self.writeUsageLog([Self.usageEntry()])
-        let runs = try Self.writeLog([Self.run(kind: "unfiltered", exit: 127)])
-
-        let report = UsageReport.render(fileURL: usage, runFileURL: runs)
-
-        #expect(report.contains("1 run, 2026-08-18 → 2026-08-18, 1 nonzero exit"))
-        #expect(!report.contains("of the output it wrapped"))
+        #expect(data.calls == 0)
+        #expect(data.logNote == "no usage recorded yet — the log is missing or empty")
+        #expect(data.runs?.runs == 1)
+        #expect(data.runs?.nonzeroExits == 0)
     }
 }

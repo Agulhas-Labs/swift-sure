@@ -123,35 +123,4 @@ struct HelpTopicBodies {
         `\(ProductName.current.binary) test --help` has every flag.
         """
     }
-
-    static var buildOutputBody: String {
-        """
-        **It builds, clean, unlike `\(ProductName.current.binary) test --analyse`.** It deletes `.build/\(ProductName.current.binary)-timing`, runs \
-        `swift build --build-system native` into it with the compiler's two timers passed on the \
-        command line, and reads what they printed; the manifest is never edited and your own `.build` \
-        products are untouched. `--build-system native` is deprecated by SwiftPM, but on Swift 6.4 it \
-        is the only one that prints the timings one per line, so a successful build that printed none \
-        is refused, never read as nothing being slow — a future toolchain that drops it entirely will \
-        need a different flag here.
-
-        **The header is the build it ran** — `✔ \(ProductName.current.binary) build --analyse — clean build, 42.3s, 1,204 timing \
-        lines over 87 files`. Under it, the slowest function bodies, then the slowest expressions, each \
-        `file:line · ms · enclosing declaration`, with `(×N)` where one site was timed N times (a stored \
-        property's initializer is checked in every frontend job that needs it; its synthesized accessors \
-        are separate bodies at one place; batch mode is off, since a batch job's output is printed once per file of the batch). An expression row names its shape too, when it is one of three named at the site from the same parse — `long literal chain` (three or more `+` over literals), \
-        `untyped mixed collection literal` (an array or dictionary literal with no type annotation on its binding and elements of more than one literal kind), or `ternary chain` (a ternary whose then or else branch is itself a ternary). Then the files holding the most body time, and the totals: \
-        `bodies 12.4s of which the 10 listed are 61% · expressions 3.1s, listed 74%`. **A body's time \
-        includes its expressions', so the two totals are never added.** Time spent in dependencies is \
-        counted on a line of its own, function bodies and expressions outside any body apart, and never ranked. \
-        So is time in a macro expansion's generated `@__swiftmacro_…` buffer, which names no file of the package: \
-        its own `macro expansions:` line, bodies and expressions apart. A `deinit` row is named \
-        `Type.deinit`, also for a class declared inside a function. `swift build` does not compile test targets, so \
-        unless `--build-tests` was passed, and the package declares one, a line says the ranking covers the compiled targets only. The last line names the raw log under \
-        `\(ProductName.current.directoryName)/runs/`.
-
-        **SwiftPM only.** A tree with an Xcode project and no `Package.swift` is refused in one line; \
-        `--root` names a package directory. A failed build is answered as `\(ProductName.current.binary) run` answers one, and \
-        exits with the build's own code. `--top N` sets how many rows each list keeps (default 10).
-        """
-    }
 }

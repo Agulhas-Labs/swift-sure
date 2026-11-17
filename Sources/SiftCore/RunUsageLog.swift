@@ -9,7 +9,7 @@ import Foundation
 ///
 /// **Its own file, deliberately.** `usage.jsonl` means *index lookups*, whichever face served them, and every consumer inherits that meaning: the usage headline's call count, the savings sentence's "over N of M calls" denominator, the audit. A wrapped build is not a lookup, so writing a run there would silently restate all three numbers rather than adding one.
 ///
-/// **What it is for** is the half a CLI wrapper otherwise leaves invisible: without it, a session that took every `run` suggestion looks exactly like one that ignored them. `swift-sure usage` reports this log in a section of its own, which makes run adoption a measured number instead of an assumption.
+/// **What it is for** is the half a CLI wrapper otherwise leaves invisible: without it, a session that took every `run` suggestion looks exactly like one that ignored them. `swift-sure report` reports this log in a section of its own, which makes run adoption a measured number instead of an assumption.
 ///
 /// Not to be confused with ``RunLog``, which is one run's raw transcript inside the repository being built. This is the durable per-user tally across every repository, and holds no output at all.
 public struct RunUsageLog: Sendable {
@@ -33,9 +33,9 @@ public struct RunUsageLog: Sendable {
 
     /// The shared per-user log, beside the usage log it deliberately is not part of.
     ///
-    /// Named here rather than spelled out at each of the four places that reach for it — the writer, the advice ledger, `usage` and `report` — so the file cannot end up meaning one path to the thing that writes it and another to the things that read it.
+    /// Named here rather than spelled out at each of the four places that reach for it — the writer, the advice ledger and `report` — so the file cannot end up meaning one path to the thing that writes it and another to the things that read it.
     ///
-    /// `SWIFT_SURE_RUN_LOG` names another file, on `SWIFT_SURE_SERVER_LOG`'s terms: what `run --without` does across a signal is only observable by driving the binary from outside, and a test doing that must not append runs of a throwaway repository to the record `flakes` and `usage` read.
+    /// `SWIFT_SURE_RUN_LOG` names another file, on `SWIFT_SURE_SERVER_LOG`'s terms: what `run --without` does across a signal is only observable by driving the binary from outside, and a test doing that must not append runs of a throwaway repository to the record `flakes` and `report` read.
     public static var standardFileURL: URL {
         standardFileURL(environment: ProcessInfo.processInfo.environment)
     }
@@ -55,7 +55,7 @@ public struct RunUsageLog: Sendable {
     ///
     /// `shown` and `total` are the pair, not `shown` and `suppressed`: two independently measured numbers leave the derived one no room to disagree with them, and `total` is what an aggregate over many runs has to sum, since summing ratios would let a five-line run weigh as much as a five-thousand-line one. A passthrough records neither, because nothing was filtered and a zero there would read as a run that suppressed nothing.
     ///
-    /// **`shown` is what the answer actually printed** — ``Answer/lines``, counted on the text served to the caller. A count the filter accumulated while parsing is not the same thing once the failures are served as a shape: 1,302 counted against 23 printed on the failing capture, which would understate the saving `usage` and the report page draw from this file.
+    /// **`shown` is what the answer actually printed** — ``Answer/lines``, counted on the text served to the caller. A count the filter accumulated while parsing is not the same thing once the failures are served as a shape: 1,302 counted against 23 printed on the failing capture, which would understate the saving the report page draws from this file.
     ///
     /// **``Answer/failedTests`` is what failed.** Every other field says that *something* went wrong and none of them say what, so without it the log could see hundreds of runs and dozens of nonzero exits and still not answer "has this failed before?" — the one question a per-user history spanning every repository is uniquely placed to answer. The names are the identity worth keeping: a test that fails intermittently rarely fails the same way twice, so the normalised message signature ``RunFailureSignature`` computes beside them groups *messages* and would answer a different question. `nil` where the run is in no position to say, which is a third state and not a zero — see ``RunOutcome/reportedTestFailures``.
     ///

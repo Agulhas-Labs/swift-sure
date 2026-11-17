@@ -491,7 +491,7 @@ tree: Orchard  head: a1b2c3d  dirty: 3  parse_errors: 1  semantic: stale since l
 
 **`index` is the exception, and it is deliberate**: it writes an index, so which
 repository it adopted is said before any work starts, and the header follows the work it measures. The
-reports — `usage`, `audit`, `run`, `servers`, `flakes` and `report` — describe logs, runs and processes
+reports — `audit`, `run`, `servers`, `flakes` and `report` — describe logs, runs and processes
 rather than one tree's index, and open with first lines of their own.
 
 **`tree:` leads, because it is the subject the rest of the line makes claims about**: a header that does
@@ -1300,7 +1300,7 @@ freshness header and no `--root` — the agent rule (`SwiftSure.md`) says `swift
 and points here rather than repeating the depth. A name that matches a registered subcommand instead of a
 topic falls through to that subcommand's own usage. The commands that serve, wire and measure the MCP
 face — `mcp`, `session-start`, `pre-tool-use`, `install-hook`, `uninstall-hook`, `uninstall`,
-`usage`, `audit` and `servers` — are §4's. Configuration is one committed file at the repository root,
+`report`, `audit` and `servers` — are §4's. Configuration is one committed file at the repository root,
 `.swift-sure.json` — directory allowlist, exclusion patterns, module path-prefix map, explicit index-store path,
 extra linter executable names — beside the git-excluded `.swift-sure/` cache. Everything works with no config
 file, and **a key the binary does not model is read past, never rejected**.
@@ -1692,7 +1692,7 @@ declaration the store leaves unnamed is named by what it is and whose, `modify a
 protocol requirement's hits are headed "implementations", since the relation covers witnesses as well as
 class overrides; emptiness is one summary line.
 
-`--files` is the files-only form of that sweep (`where X --files`, `files: true` on the MCP tool; it implies `--refs`), for the question "which files contain X", where the per-site rows are most of the answer's size and none of what is asked. **The invariant:** no file the full `--refs` answer names, on any of its pages, is missing from its files: declaration and extension files, every reference row's file, every name-matched row's file (a type's uses by written name, a member's or caller's name-matched sites and the ones written with no call, a property wrapper's `@T` attribute sites, an undeclared initializer's sites), every `not code` row's file, the `file names:` entries, and the files a `not in the build` or `new since last build, not in the store, mention the name:` line names. One render of the sweep's first page carries a `WhereFilesCollector`, and each section records its whole list into it before any cap or page cuts the list; no answer text is read back. Where `--refs` truncates a list without paging it (a type's uses by written name past 40 files, `truncated: N more files — grep for the name to list them`, or past 30 lines in a file, `+N more`; a name-matched block past its call-site cap), `--files` lists more files than `--refs` shows, so `--refs`'s files are a subset of `--files`'s, and the extra ones reconcile against the section totals `--refs` prints. One row per file, sorted by path: `  <path> (<code lines>, declares, not code <N>)`, where the code count is the distinct lines the `--refs` block counts, `declares` marks a file holding a declaration or extension of the symbol, a file listed only under `file names:` reads `(file name)`, and a file changed since the last build keeps its `(file changed since last build)` mark. The heading `files naming <qualified> (<N> files: <a> with code sites, <b> with not-code mentions[, …]):` keeps what the `--refs` heading says of drift and incompleteness (changed since last build, macro-generated lines not listed, `$flag` siblings, `by written name` where a name-matched section listed a file, and `N more files holding the name not scanned` where a mentions scan counted files it did not read), so the view never reads as complete where the sweep would not. Dropped: the declarations section (only where the query resolves to one owner; several owners keep it, it is their narrowing), the `used by` line, the per-site rows and the `not code` rows. Kept: the tree header and every line that says the answer is degraded or incomplete (`UNAVAILABLE`, the mode line, `references:`, the `new since last build` line). Paging: one row per file, `WhereFilesCollector.filesListCap` (100) per page, with the sweep's `truncated: N more files — pass offset K to continue` marker and the same offset. A `--syntactic` sweep takes the same view: its name-matched lists record into the collector as the store's do. Where the `--refs` answer names no file or is no sweep (a bare name answered with its owners' declarations, `--at`, no store and no stand-in, UNAVAILABLE), `--files` returns exactly what `--refs` returns. The hook's in-place answers (`standsInForSearch`) are untouched. (#791)
+`--files` is the files-only form of that sweep (`where X --files`, `files: true` on the MCP tool; it implies `--refs`), for the question "which files contain X", where the per-site rows are most of the answer's size and none of what is asked. **The invariant:** no file the full `--refs` answer names, on any of its pages, is missing from its files, except one deleted since the last build (the next paragraph's fold): declaration and extension files, every reference row's file, every name-matched row's file (a type's uses by written name, a member's or caller's name-matched sites and the ones written with no call, a property wrapper's `@T` attribute sites, an undeclared initializer's sites), every `not code` row's file, the `file names:` entries, and the files a `not in the build` or `new since last build, not in the store, mention the name:` line names. One render of the sweep's first page carries a `WhereFilesCollector`, and each section records its whole list into it before any cap or page cuts the list; no answer text is read back. Where `--refs` truncates a list without paging it (a type's uses by written name past 40 files, `truncated: N more files — grep for the name to list them`, or past 30 lines in a file, `+N more`; a name-matched block past its call-site cap), `--files` lists more files than `--refs` shows, so `--refs`'s files are a subset of `--files`'s, and the extra ones reconcile against the section totals `--refs` prints. One row per file, sorted by path: `  <path> (<code lines>, declares, not code <N>)`, where the code count is the distinct lines the `--refs` block counts, `declares` marks a file holding a declaration or extension of the symbol, a file listed only under `file names:` reads `(file name)`, and a file changed since the last build keeps its `(file changed since last build)` mark. A file deleted since the last build is never a row, since `--files` lists files to open or edit and a deleted file is never an answer: one line after the rows, and after any `truncated:` line, on every page, counts them, `  + N files deleted since the last build also named it (`--refs` lists them)` (`+ 1 file deleted … `), and paging, the `truncated:` offset and the heading's file, code-site and mention counts and drift details cover the listed files only (#1072). The heading `files naming <qualified> (<N> files: <a> with code sites, <b> with not-code mentions[, …]):` keeps what the `--refs` heading says of drift and incompleteness (changed since last build, macro-generated lines not listed, `$flag` siblings, `by written name` where a name-matched section listed a file, and `N more files holding the name not scanned` where a mentions scan counted files it did not read), so the view never reads as complete where the sweep would not. Dropped: the declarations section (only where the query resolves to one owner; several owners keep it, it is their narrowing), the `used by` line, the per-site rows and the `not code` rows. Kept: the tree header and every line that says the answer is degraded or incomplete (`UNAVAILABLE`, the mode line, `references:`, the `new since last build` line). Paging: one row per file, `WhereFilesCollector.filesListCap` (100) per page, with the sweep's `truncated: N more files — pass offset K to continue` marker and the same offset. A `--syntactic` sweep takes the same view: its name-matched lists record into the collector as the store's do. Where the `--refs` answer names no file or is no sweep (a bare name answered with its owners' declarations, `--at`, no store and no stand-in, UNAVAILABLE), `--files` returns exactly what `--refs` returns. The hook's in-place answers (`standsInForSearch`) are untouched. (#791)
 
 `--decl` is the declarations-only form of `where` (`where X --decl`, `decl: true` on the MCP tool), for the question "where is X declared", where everything after the declarations block is most of the answer's size and none of what is asked. A protocol's plain answer on the benchmark corpus ran 4,878 characters (its declarations, every use, its extension, 18 conformers and the file accounting) where a grep for `protocol X` answers in about 50 tokens, and the lookup cost 34% more than grep at medium effort, 36% at high. A throwaway build of this view took it from about 2,700 tokens to about 270 (−2,141 and −2,243 per run, paired from one checkout), and agents passed the flag in 12 of 12 runs from the primer's bullet alone (#823). **It never opens or asks the index store**: every line it prints comes from the syntactic index, so its header is the one `digest` prints, with no `semantic:` field (a field that cannot vary measures nothing), and no line about the store follows it (no degraded note, stores note, project hint or store pointer); a store that is warming, failing or missing changes nothing in it, and the CLI pays no store open. An `--at` answer keeps its own header. **The view**, in order: that header; the lines under it that qualify the syntactic index (`index: in memory`, an `--at` answer's parsed-files line, and the parse-error banner and floor note, since a file the parser could not finish can hide a declaration); the declarations block as a plain `where` prints it (the heading, the rows with an extension's member count and marks, the compact form's `signatures:` line), **each row followed by its source where the declaration is small** (below); for a `T.init` query, the `declared with no init of their own (K):` block, its heading, rows and provenance lines without its call sites; and one line naming what it left out, `` `where <query>` without --decl covers its uses, extensions, conformers, callers and overrides. `` The renderer stops there; no answer text is read back or cut. **A small declaration's source follows its row.** A definition lookup should take one call, and the 022c bench transcripts show it taking two: on a 17-line enum, `--decl` was followed by a ranged Read in 3 of 3 runs while the grep arm's single `-A 40` answered, and on a 4-line function one run Read lines 110-119 for the body and another hedged that it had not opened the file to check which line held the `func` keyword; each Read costs a request, its result and the path-scoped rule's load (about 650 tokens net). So a declaration row whose own extent (its `start-end`) is at most `inlinedDeclarationLineCap` (30) lines is followed by exactly that range of its source, numbered as Read numbers lines (the number right-aligned to 6, a tab, the line; no `>` mark), and the doc comment above the range is not included (the row keeps its doc summary). Rows are taken in printed order while the answer's inlined total stays at most `inlinedAnswerLineCap` (40) lines; a row that would pass it gets no source and neither does any row after it, so the answer never shows a gap. Only that overflow ends inlining: a row over 30 lines, an extension row, and a row whose file cannot be read or ends before the row does (a stale row) are skipped, and the rows after them go on. The compact form (more than 5 declarations) inlines nothing. An `--at <rev>` answer inlines that revision's text. The plain `where` and the hook's in-place answers are unchanged. **A block cut by its cap** keeps its `truncated: N more declarations` line and points on from it, since `--offset` does not page it: where the plain answer's tail would name rows its extensions block lists, the line ends `— where <query> lists` and that tail's clauses (`truncated: 60 more declarations — where Gizmo lists 40 of them under extensions of Gizmo`). **A bare name several unrelated owners declare** prints the same plain block, not the per-owner form: the per-owner form stands in for the use listings, `--decl` lists none, and each row's module-qualified name resolves as a query of its own. **An initializer the type does not declare** keeps its declarations and its provenance sentence and leaves out its call sites; the sentence drops its clause about them (`which the calls below reach`, `the calls below reach …`), and the pointer line follows. **Answers that never reach the declarations block** (a miss, `could not resolve the path`, the nearest symbols, a `deinit`'s answer) keep their bodies under the view's header, with no store pointer and no pointer line: each already is the declaration answer, or its absence. **Beside other flags:** `--at <rev>` answers the same view of that revision, since "was X declared at base?" is a declaration question. `--refs` and `--files` are refused beside it, on the CLI as `--decl answers where <query> is declared, and --refs and --files every place it is written: pass one.`, and on the MCP tool, only where either is `true`, as `where's decl: answers where <query> is declared, and refs: and files: every place it is written: drop one.` An `--offset` has nothing to page and is named unused after the pointer line, as in any answer with no store and no paged list; `--syntactic` still answers from the source in memory. **Left as they are:** the hook's in-place answers (`standsInForSearch`) never take the view; the hook's suggestion for a declaration-shaped search still names a plain `where X`, and a CLI call carrying a flag still does not count as following one (`IndexSuggestion.callsMade`), a follow-up of its own (#825); `LoggedLookup` and the usage log record no flags, so adoption is read from transcripts, where `audit --verbs` gives `where --decl` its own row (#824). **Where it is named:** the MCP parameter's description is `Only where it is declared.`, and the tool's description is unchanged; the primer's `where` bullet reads `definition (--decl for only that), callers, conformers, overrides`, the wording measured; the agent rule's `where` row reads `` `--decl` for only that `` beside its `--files` clause, unmeasured.
 
@@ -2936,7 +2936,42 @@ totals naming where it is declared and up to five suites that reach it, nearest 
 from the declaration), `--filter` spelled, with `+N more`; only a suite naming it is said to reference it, and the
 rest are said to reach it through other code: a `--filter` names a suite, not the source type a change touched.
 It is left out when the name is undeclared or nothing references it, when the checkout has no index (never built
-for this), and when the lookup outlasts its 2 s budget; it reads the stored index as it stands (never freshened or written, so the note may be stale but is never slow); it never changes the refusal, its first line or the exit code. Exit **5**: the run's build failed before any test process started (nonzero exit, no test opened,
+for this), and when the lookup outlasts its 2 s budget; it reads the stored index as it stands (never freshened or written, so the note may be stale but is never slow); it never changes the refusal, its first line or the exit code. **A filtered run on a changed tree names the
+suites reaching the change that it left out** (#1067). Measured on 25 Oct (`plugin-route-2-1066`), 16 of 19 failed
+runs of a "run the tests that cover X" task ran one `--filter`, read its three failures as the whole set, and missed
+two more in a suite the filter did not select; nothing in the answer said a filter had left anything out. So where a
+`swift test` carries a `--filter` (`RunTestSelector`; `--skip` alone does not count), ran at least one test (not
+exit 4 or 5, which answer for themselves), and the working tree has uncommitted indexable `.swift` files
+(`affected`'s own input, `git status`, staged, unstaged and untracked), the answer adds one line under the totals,
+beside the refused-filter hint's place:
+`  filtered: the working tree changes ShellWord.swift; 1 suite reaching it did not run — run swift test --filter ShellWordTests --filter InstallHookQuotedPathTests (swift-sure affected lists every suite)`,
+indented like the hint and inventory lines so it never reads as a token beside `totals:`. The suites come from
+`affected`'s walk at its default depth, seeded from every declaration in each dirty file (not the diff's changed
+lines, since the stored rows of a dirty file are stale exactly where those lines fall), each spelled as `--filter`
+takes it, nearest first, at most five named (the hint's `listedSuites`) with `+N more`; the command repeats the
+run's own `--filter`s and adds the named suites, so it is whole as written even when more are left unnamed, and more
+than one changed file reads `changes ShellWord.swift and N more files`. **"Did not run" needs positive evidence, on
+the terms `unmatchedFilters` uses:** the run was not `--parallel`, it has the Swift Testing event stream for any
+Swift Testing test it ran, and every XCTest it printed carries its module; otherwise the line is left out, never
+guessed. A reached suite counts as run only when every test the index declares in it reported; one that ran in
+part is named with its share, `ShellWordTests (2 of 9 ran)` (the line then reads `N suites reaching it did not run in full: ShellWordTests (2 of 9 ran) — run …`), since a function-level filter leaves out the rest of a
+suite the same way a suite filter leaves out a module. It is never judged by matching the pattern against suite
+names: SwiftPM's regex match on `Target.Suite/function()` is the only authority on what a filter selects. The walk
+runs after the test process ends, as the hint's does, under the same 2 s budget, so it reads a store this run's build
+has finished writing; like the hint it reads the stored index as it stands (never freshened or written), falls back
+to written names where the semantic store does not open, and is left out when the checkout has no SwiftSure index,
+when the budget runs out, when no suite reaches the change, and when every reaching suite ran in full. It never
+changes the totals line, the verdict, the exit code or what the run records. `xcodebuild -only-testing` takes the
+same line once its runs report suites per bundle (not in this change). **Measured before and after it is built.**
+Before: count how many of the 16 failed runs had `.swift-sure/index.db` when their filtered run ended (the corpus has
+no compiler index store, `corpus_indexed: false`, so there the walk is by written names); if most had none, the line
+cannot fire there and the design goes back for review. After: the `report-shell-word-failures` and
+`report-result-bundle-line-failures` plugin-route session at `--paths 6 --repeats 2` against `plugin-route-2-1066`,
+passing at **at least 8/12 on report-shell-word-failures in each arm** (2/12 and 3/12 there) with
+report-result-bundle-line-failures no lower than its 10/12; plus an iterate-style control, a swift-format test-fix
+task run with a deliberate `--filter` on a tree with several dirty files, whose cost must show no detectable
+difference, since there the line is noise.
+Exit **5**: the run's build failed before any test process started (nonzero exit, no test opened,
 started or failed, a compiler error at a file and line, the linker's own, or a compiler crash), so it
 answers `✘ … did not build — no test ran`; passed through it is `swift test`'s 1 or `xcodebuild`'s 65, the codes of a failed
 test, and a gate would read a compile error as its proof. Neither is a code either tool uses (1; 65 and the
@@ -2960,7 +2995,7 @@ the raw log whole**, because a short "no errors" over a nonzero exit is the one 
 give, and a summary line is a verdict rather than an explanation; a compiler crash *is* an explanation,
 answered compactly (pass, function, `Error!` line) and never by the raw log. No line of any answer, the
 raw log served whole included, runs past the line cap (`RunFailureCensus.listingBudget`, 8 KB): a longer
-line is cut, and its marker names the log that keeps it whole. **Lossy with a receipt**: the raw output
+line is cut, and its marker names the log that keeps it whole. **"Changed" in a failure's classification is the dirty tree, plus, on a feature branch, what its commits changed since the default branch**, matched by filename: a clean worktree of a branch that committed its work still has changed files, and the label then names that base (`in a changed file since main`, `N in changed files since main (matched by name)`); on the default branch, or where no branch range resolves, it is the dirty tree alone and the wording is unchanged. **Lossy with a receipt**: the raw output
 streams to a per-run file under `.swift-sure/runs/`, and the answer names it and states "N lines in, M out", M
 measured on the rendered answer — one file per run, since parallel sessions are the norm, renamed at close
 so pruning cannot unlink a log still being written. The newest five runs are kept, a sharded `swift-sure test`'s build, enumeration and shard logs counting as one run; a selected run that did not
@@ -3101,7 +3136,7 @@ with one line counting the rest. A second product's block with different symbols
 **A test process that dies is a crash, never a pass** (#447). Under `swift test`, SwiftPM's `error: Process '…' exited
 with unexpected signal code N` is claimed out of the errors and read with the runtime's `File.swift:N: Fatal error: …`
 (or `Precondition failed`, `Assertion failed`) line as `RunTestCrash`: the verdict is failed, the headline says
-`test process crashed`, the totals word is `crashed`, the answer quotes the trap, names the tests started and never
+`test process crashed`, the totals word is `crashed`, the answer quotes the trap (identical trap lines collapse to one, suffixed ` (×N)` for a count above one), names the tests started and never
 ended, and counts the selected tests that never started (XCTest's echoed `-XCTest` list, Swift Testing's event-stream
 declarations). Trap text with no signal line is no crash, and neither is a signal line in a run that exited 0 (a
 process that died fails `swift test`, so there it is a test's printed text). Such a run names no failure list for
@@ -3117,7 +3152,7 @@ that calls `exit(N)` or takes a `SIGKILL`. Where `swift test` exited 1 to 255 (b
 (a Swift Testing run with no summary, or an XCTest process that never ended its outermost suite) and a test in it
 started and never finished, the crash carries `unsignalledExit` and the answer reads `test process ended without a
 result (no signal line; swift test exited N); started and never finished: …`, an N above 128 also named as the signal the shell reports (`exited 137 = signal 9`), under the same headline, totals word and failed
-verdict. It quotes no trap line, since a trap ends its process on a signal SwiftPM reports, and counts no selected
+verdict. It quotes the trap lines that fall inside the stretch of a test that started and never ended, chosen as the signal path chooses them (a trap-shaped line printed inside a test that went on to finish, or followed by any test ending in the same process's output, is that test's text and is not quoted: a real trap ends its process, so nothing reports after it), above the `test process ended without a result` line, and counts no selected
 tests that never started. An exit of 130 or 143 is `swift test` itself interrupted or terminated, and is not read this way.
 A trap belongs to the crash only where it follows a crashed test's start inside the same process's output (the
 processes counted by their `Test Suite 'All tests'`/`'Selected tests' started` and `Test run started.` lines); trap
@@ -4769,81 +4804,6 @@ last attempt, so a later iteration that stopped part-way leaves the tests it nev
 earlier iteration's ending. Nothing in the log tells that from a retry that re-ran only what failed, so the
 answer says the asymmetry is there rather than resolving it silently.
 
-### `build --analyse [--top N]` — which code is slow to compile
-
-The compiler already answers the question, one line per function body and per type-checked expression,
-under `-Xfrontend -debug-time-function-bodies` and `-Xfrontend -debug-time-expression-type-checking`.
-Nobody reads it, because it means editing a manifest, building clean and digging through a noisy log.
-This command builds a SwiftPM package clean into a scratch path of its own inside the tree's gitignored
-`.build/` (`--scratch-path .build/sift-timing`, so the developer's own products are untouched), passes
-the two flags on the command line (the manifest is never edited), and answers with the ranked residue.
-Unlike `test --analyse`, which builds nothing, this one *builds*. SwiftPM only for now: an `xcodebuild`
-project is refused in one line. Left for later: a threshold mode, `xcodebuild`, `-stats-output-dir`.
-
-**The line shapes the parser rests on, measured** (Swift 6.4, swiftlang-6.4.0.34.1, macOS 27.0; the
-capture is `Tests/SiftCoreTests/Fixtures/RunOutput/swift-build-debug-time.txt`):
-
-```
-3.22ms	/Users/dev/Widget/Sources/Widget/Slow.swift:5:19
-7.42ms	/Users/dev/Widget/Sources/Widget/Slow.swift:4:10	instance method Widget.(file).Ledger.total()@/Users/dev/Widget/Sources/Widget/Slow.swift:4:10
-```
-
-An expression is `<ms>ms`, a tab, and `<absolute path>:<line>:<column>` at the expression's first byte.
-A function body adds a tab and the compiler's description of the declaration, `<kind> <Module>.…@<location>`,
-and its location is the declaration's name. Three more facts from the same capture shape the analysis:
-
-- **A body's time includes its expressions'.** `total()` took 7.42 ms, and the literal chain inside it
-  3.22 ms of that. The two totals are therefore stated side by side and never added.
-- **One site can be timed more than once.** The stored property `rates` has its initializer checked in
-  each of the three frontend jobs that needed its type (emitting the module, and once per file), and its
-  synthesized getter, setter and `_modify` accessor are three body lines at one location. Lines are
-  folded by site into one row with a count; for a body, the site is its declaration.
-- **A batch job's output is printed once per file of the batch.** The native build system prints the whole output of a batch frontend job once for each file of that batch, byte-identical: under each file heading, and also back to back with no heading between the copies. So the build passes `-disable-batch-mode`, giving each file a frontend job of its own whose output is printed once (measured on a 265-file package: 211,290 timing lines with batch mode, 50,592 without, and the clean build no slower). The output is still read as blocks of consecutive timing lines and a block identical to one already read is dropped whole; single lines are never deduplicated, since the same site timed in different jobs counts each time.
-- **Closures are not timed on their own**: a closure's time is inside the expression and body holding it.
-
-**The default build system prints none of these lines on a successful build**, and under `-v` prints them
-glued to the end of an echoed command, where no line reader can find their start. `--build-system native`
-prints them one per line, so that is what the build runs; a build that succeeds and prints no timing
-line at all is refused as such rather than answered as "nothing is slow". `--build-system native` is
-deprecated by SwiftPM, but on Swift 6.4 it is the only build system that prints these lines at all, so a
-future toolchain that removes it will need a different flag here.
-
-**Expression shapes are read off an operator-folded tree.** `SwiftOperators` groups a parsed expression by
-real precedence before a shape is judged, so a long chain of `+` is told apart from SwiftSyntax's raw,
-left-associative parse.
-
-**Declarations come from a fresh parse of each listed file**, by the parser the index uses, for the reason
-`run`'s failure sites give: the build just compiled the bytes on disk, and a stored line range is the one
-thing about a just-edited file that can be out of date. Only files holding a listed row are parsed. Sites
-outside the package's own sources — dependencies under its `.build/` — are counted in a line of their own
-and never ranked. That line states the bodies and the expressions in no body apart, never an expression
-inside a body twice: a fresh parse of the dependency file says which an expression is, and where the file cannot
-be read it counts only when it printed no body line. A nested local function's body is left out as it is from
-the totals. A line in a macro expansion's generated buffer is printed with a bare `@__swiftmacro_….swift` for
-its path, which resolved against the working directory reads as a file at the package's root, so it is
-recognised by that name first and counted on a `macro expansions:` line of its own, bodies and expressions
-apart, never ranked (#503). The buffer is not attributed to the file that expanded it: the output names that
-file only inside the mangled buffer name, and only for a freestanding macro (an attached one's names its
-declaration), and the expanding expression already has a timing line of its own in the source file. A line
-inside a `deinit` is named `Type.deinit`, found
-from the same parse, because the index records no declaration for a `deinit` and the enclosing one is the type.
-
-**The command.** `swift-sure build --analyse [--top N] [--root <package>]` (`BuildCommand`) refuses a root
-with no `Package.swift` in one line — naming the SwiftPM-only scope where an `.xcodeproj` or
-`.xcworkspace` stands there instead — then *deletes* `.build/sift-timing` rather than asking
-`swift package clean`, so a second run into the same scratch path is as clean as the first, and runs the
-build through `RunLauncher`, so its transcript is kept under `.swift-sure/runs/` like any `swift-sure run`. A failed
-build is answered by `RunReportRenderer`, as `swift-sure run` answers it, and exits with the build's code; a
-green one with no timing line is refused. The answer (`BuildTimingRenderer`) opens on the build it ran —
-`✔ swift-sure build --analyse — clean build, 42.3s, 1,204 timing lines over 87 files` — then the slowest N
-bodies and the slowest N expressions, each `file:line · N ms · <enclosing declaration> (×count)`, the N
-files holding the most body time, the totals line (`bodies 12.4s of which the 10 listed are 61% ·
-expressions 3.1s, listed 74%`, the two never added), a line for time outside the package where there was
-any, a line saying the ranking covers the compiled targets only where the build left out test targets the
-manifest declares (`swift build` does not compile them; `--build-tests` adds them to the build, and the line
-is then absent, as it is for a package with no test target), and the receipt naming the raw log. The help topic is `build-output`, since a topic named for a
-subcommand would hide that subcommand's own usage.
-
 ### `flakes`
 
 For every test that has **both failed and passed** across the recorded runs: how many named it, how many
@@ -4913,8 +4873,8 @@ inside a repository therefore carries `repo`: the first 16 hex digits of SHA-256
 `root` the line already records, and no failure text. `flakes --root` takes the runs in the directory it
 names and beneath it, then every run whose `repo` matches one of theirs or the named root's own, wherever
 it ran. A line without `repo` — every one written before the field existed — is scoped by path alone, as it
-always was. Only `flakes` widens: `usage` and `report` scope `usage.jsonl` and `run.jsonl` with one resolved
-argument, and a lookup line carries no `repo`, so widening their runs would put two populations under one
+always was. Only `flakes` widens: `report` scopes `usage.jsonl` and `run.jsonl` with one resolved
+argument, and a lookup line carries no `repo`, so widening its runs would put two populations under one
 header.
 
 ### `affected [--from <rev> [--to <rev>]] [--depth N] [--reached <name>]...`
@@ -5634,8 +5594,7 @@ user who wants the build and test side alone.
 **Registration is a merge done in the binary, not a shell script.** `install-hook` writes the
 `SessionStart`, `SubagentStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop` and `SubagentStop` entries, and the
 allow rules it was told or asked to add, into `~/.claude/settings.json`, and `uninstall-hook` removes
-exactly those. SwiftSure draws nothing that is always on screen: the figures are in `swift-sure report`, `swift-sure audit`
-and `swift-sure usage`. **A legacy status line or band is removed on install and on uninstall**: a `statusLine`
+exactly those. SwiftSure draws nothing that is always on screen: the figures are in `swift-sure report` and `swift-sure audit`. **A legacy status line or band is removed on install and on uninstall**: a `statusLine`
 running `sift statusline` is taken out of the slot (one running anything else is left, unmentioned), and
 the `sift-band@sift` plugin with its local `sift` marketplace is taken out through `claude plugin` where the
 settings name them, never when `--settings` names another file, and a missing or failing `claude` only
@@ -5679,7 +5638,12 @@ opening a file and closes by naming the CLI as the answer where the MCP tools ar
 minimum that does that, under a byte budget** (`SessionPrimerBudgetTests`): it is paid in full by every
 session and subagent that starts in Swift, whether or not a lookup follows, so the habits are named in four
 lines and the reasons behind them are left to the rule, which arrives with the first `.swift` file, and to
-the tool descriptions. A paired benchmark measured the fixed start at +2,452 tokens on the first call (tool
+the tool descriptions. **The run line names `swift test` literally and says bare, never piped** (#1066): the
+rule loads only at a `.swift` file and test-running sessions reach `swift test` before touching one, so the
+primer is the only steer before the first run. With the line written as `run -- <build or test>`, the installer
+route piped 8 of 16 raw `swift test` runs into `grep | head` (0.1.8, naming `swift test`: 1 of 16), and a
+parameterised test's repeated `✘` lines filled the `head` and hid the next failure (1/12 right, against 10/12).
+A paired benchmark measured the fixed start at +2,452 tokens on the first call (tool
 list about 1.4k, primer about 1.1k, the rule nothing until a Swift file is touched). `SessionStart`
 injects stdout directly while `SubagentStart` reads a JSON envelope, so the primer is wrapped for one and
 plain for the other. **At `SubagentStart`, when the session's server is proven not to be running
@@ -5907,7 +5871,7 @@ running the `post-tool-use` subcommand, which reads `hook_event_name`. A failure
 call's output: on Claude Code the `error` string after its `Exit code <n>` line stands for `tool_response`'s
 text, on Cursor `error_message` for `tool_output`'s `output`. From it come the diagnostics note, the piped-build
 note, and on Cursor the rewrite notice (taken from the ticket on either event); the edit answers (the parse
-block, the reuse nudge, the digest miss) are left to `PostToolUse`, since a failed edit wrote nothing. **Cursor
+block, the digest miss) are left to `PostToolUse`, since a failed edit wrote nothing. **Cursor
 gains the diagnostics note for `Shell` on both events**, which it never had (its post-tool path read only a
 `Write`'s payload, and answered the rewrite notice or the edit, never both): a `Shell` payload is read as
 Claude Code's `Bash` one, `tool_output`'s `output` or `error_message` standing for the response text and the
@@ -5919,7 +5883,11 @@ again, as for any change of the events; `SiftCursorSetup.hooks` gains `postToolU
 Cursor check names an older `hooks.json` as missing that event, with the same remedy. **Seen and not acted on:** a Cursor call that runs to
 its timeout returns `postToolUse` with an empty `output` and `exitCode` 0 while the command goes on in a
 background terminal (`~/.cursor/projects/<workspace>/terminals/<n>.txt`) the agent reads later; it shows no
-failure, so it gets no note.
+failure, so it gets no note. **The located block quotes the file as it is at hook time**, so a site that belongs to a
+`swift-sure run` answer (the first `raw: … · <path>.log` line after it) whose file changed after that log was last
+written (the later of the file's mtime and ctime, `FileChangeStat`, past the log's modification date) carries one line
+under its heading, `  <File>.swift changed after this diagnostic; the lines below are the file as it is now`; a site
+with no such log (a bare `swift build` or `xcodebuild`) carries none.
 
 The same offer covers SwiftSure's four read-only lookups (#610). Claude Code delivers the MCP tools to a subagent as
 names only, and over the week measured to 5 October 150 of 399 sift-using subagent contexts spent a `ToolSearch`
@@ -5963,19 +5931,15 @@ hook reads for the run rewrite (`WrappedRunPermission.allowsLookups`: the four a
 no mode is consulted, since SessionStart and SubagentStart payloads carry no `permission_mode`) and only then tells a context whose SwiftSure tools are deferred or missing to
 call the CLI rather than load them; otherwise it keeps the sentence that only says the CLI answers the same.
 
-**`post-tool-use` is the nudge on the other side of the same edit — delivery after the fact, not at a
+**`post-tool-use` is the check on the other side of the same edit — delivery after the fact, not at a
 miss.** It is matched to the three tools that can put new Swift text on disk, and fires once a write or an
-edit has already landed, when there is nothing left to intercept. It reads the declarations the edit added
-against the index's view of the file from before the edit, compares each one's shape against the rest of its module (the comparison the removed `similar` command ran), and where the best hit clears its threshold, says so once — one line of
-`additionalContext`, never a denial, since a tool call that already ran cannot be refused. Once per session,
-per file, per declaration: a body edited twice in one session is not nudged twice about the same resemblance,
-and a session that already knows is not reminded. A test function — one carrying `@Test`, or a `test…` instance method of a type inheriting `XCTestCase` — is never nudged toward another test function, since sibling tests share their callees by construction and there is nothing to act on; the best hit that is not a test still can be, and a helper in a test file is compared as any helper is. The nudge never blocks and it is silent on anything short of that
-threshold, on a file outside an indexed repository, on an overrun of its own one-second budget, or on any
+edit has already landed, when there is nothing left to intercept. It never denies, since a tool call that
+already ran cannot be refused, and it is silent on an overrun of its own one-second budget or on any
 error — the same standing invariant as the other two hooks, that nothing here can make a tool call
 unavailable, extended to a hook that cannot refuse in the first place. Its state lives beside the advice
 hook's own, under the same directory an override can move.
 
-**Before the nudge, `post-tool-use` checks that the edit left a file that parses — validation on what an
+**`post-tool-use` checks that the edit left a file that parses — validation on what an
 agent writes, as the refusal is on what it reads.** The edited `.swift` file is parsed with the same
 parser and the same error reading the index uses (`FileParser`), so the hook and the `parse_errors` count
 never disagree. Where the parse has errors the hook prints a `PostToolUse` block, `{"decision":"block",
@@ -5985,12 +5949,10 @@ each error as `Path.swift:line:col message`, repository-relative, five at most a
 by saying the edit left the file unparseable; in an indexed repository it adds what that costs, which is
 not a stale answer but a thin one — a reindex stores what the parser recovered from the broken file and
 flags it, so answers about it may be missing declarations until it parses again. **It cannot wedge a
-session**: a block is marked, like a nudge, by context, file and a hash of the content, so the same broken
+session**: a block is marked by context, file and a hash of the content, so the same broken
 bytes are blocked once and an edit that leaves them unchanged goes through; only new content can draw
 another. Silent on a clean parse, a non-Swift path, a file it cannot read as UTF-8, a payload with no
-file path or no `session_id` to mark against, and past the hook's one-second budget, which the parse
-and the nudge share. The block wins over the nudge, which is dropped rather than folded into the reason:
-no nudge is drawn from a file that does not parse, and fixing it is the one thing to do next. Syntax
+file path or no `session_id` to mark against, and past the hook's one-second budget. Syntax
 only — a type error needs a build, which no hook runs.
 
 **Only the errors an edit added are reported**, so a file broken on purpose, such as a parser fixture, is
@@ -6598,15 +6560,17 @@ as they reach the single-file window, where every file it names is there to read
 and each window picks the same lines of the files joined as of the first alone. A window reaching past the first
 file (`tail`, a `head` longer than it) stays `notAnswerable`.
 
-**A narrower window the `Read` tool asks for (an `offset`/`limit`) is answered only where its answer spares
-more than the identical re-run is expected to cost** (#627). A reader naming a range often wants those lines,
+**A narrower window the `Read` tool asks for (an `offset`/`limit`), or an explicit `sed -n` window, is answered
+only where its answer spares more than the identical re-run is expected to cost** (#627). A reader naming a range often wants those lines,
 and under the window-saving floor an answer may leave them out. Measured from 6 to 12 October 2026, 11 of 23
 answered `Read` windows (48%) were followed by the identical `Read`, against 10 of 67 `sed -n` windows (15%),
-so the rule prices the `Read` form alone (`WholeReadWorth.readWindowReRunShare`, 0.48) and `sed -n` windows
-keep the window rules alone. n = 23, so the share is a direction, not a precise constant. With W the tokens the
+so each form is priced by its own share: `WholeReadWorth.readWindowReRunShare`, 0.48, for `Read`, and
+`WholeReadWorth.sedWindowReRunShare`, 0.15, for `sed -n` (one window, or several on one file in one compound
+line). n = 23 and 67, so the shares are a direction, not precise constants. With W the tokens the
 window prints, D the answer's and the turn priced as above, the answer is kept only where
 
-    W − D  >  0.48 · (W + 0.016 · C)
+    W − D  >  0.48 · (W + 0.016 · C)        (Read)
+    W − D  >  0.15 · (W + 0.016 · C)        (sed -n)
 
 The left side is what the answer spares; the right side the expected re-run, which prints the window and pays
 a turn (0.1 · C / (1.25 + 0.1 · 50) = 0.016 · C). Rearranged, the saving W − D must exceed 0.48 / 0.52 ≈ 0.92
@@ -6614,7 +6578,9 @@ times D plus the turn. The turn is 320, 720 and 1,920 tokens at C = 20,000, 45,0
 D = 500 tokens (2 KB) must save more than about 757, 1,126 and 2,234 tokens (3.0, 4.5 and 8.9 KB); with D
 negligible, 295, 665 and 1,772 tokens (1.2, 2.7 and 7.1 KB). At the floor's least saving, 1,024 tokens, the
 answer may be at most about 789 tokens (3.2 KB) at C = 20,000 and 389 (1.6 KB) at 45,000, and at 120,000 no
-answer saving only the floor is kept. A `Read` window printing at least three quarters of the file is weighed
+answer saving only the floor is kept. For `sed -n` the saving W − D must exceed 0.15 / 0.85 ≈ 0.18 times
+D plus the turn: with D negligible a window is let through where W ≤ 0.176 · turn, that is about 56, 127
+and 338 tokens at C = 20,000, 45,000 and 120,000 (the turn being 320, 720 and 1,920 tokens). A `Read` or `sed -n` window printing at least three quarters of the file is weighed
 by the whole-read rule above instead. W and D are the answer's own: the bytes of the lines the window prints
 and the bytes served. The let-through is logged as `notWorthTheTurn` too: the suppression line carries the
 call's `tool_use_id`, whose input in the transcript says whether it was a whole read or a window, so the two
@@ -6623,14 +6589,13 @@ stay separable without a reason of their own.
 **Where the size bound alone settles it, `notWorthTheTurn` is decided before the answer is built** (#621).
 No answer is smaller than nothing, so a read that would not be worth the turn even with D = 0 is not worth it
 with any answer: a whole read, or `Read` windows printing at least three quarters of the file, where
-(1 − 0.34) · F ≤ 0.47 · R + 0.85 · turn, and a narrower `Read` window where W ≤ 0.48 · (W + turn). Such a read
+(1 − 0.34) · F ≤ 0.47 · R + 0.85 · turn, and a narrower `Read` window where W ≤ 0.48 · (W + turn), or `sed -n` window where W ≤ 0.15 · (W + turn). Such a read
 is let through as `notWorthTheTurn` without opening an engine, refreshing the store or building the answer
 (`WorthBeforeAnswer`), which spared the hook most of a small whole read's cost (a median of 153 ms against 20 ms
 for a Read that is no lookup, measured before the change). **Precedence:** everything decided before the
 build still decides first: the shape match, not answerable, outside sources, the repository and the back-off,
 a compound line whose other statements run, a conflicted window, a grep whose groups do not balance in its own dialect (`patternInvalid`: its identical re-run would fail, #786), a fallback whose file is not there, Markdown,
-`cat a b` and every line of several reads, and shell windows (`sed -n`, `head`), which are never weighed before
-their answer. The bound outranks only the reasons decided while the answer is built: `parseError`,
+`cat a b` and every line of several reads. The bound outranks only the reasons decided while the answer is built: `parseError`,
 `notSmaller`, `linesNotShown`, `overSize`, `notExact` for an unindexed file, `treeNotWritable`, `failed` and
 `overTime` (so a small file no longer arms the back-off by overrunning its cold start). One case is withheld
 early that the late path did not withhold: a `Read` window covering at least three quarters of a small file whose
@@ -6711,9 +6676,9 @@ a note on the answer.
 **It is the index serving the lookup, and every surface counts it so.** The ledger notes it as an index
 call, which keeps the advice coming to a context that takes it. The hook writes the usage line the server
 would have written for each call (session and agent, what was served, every byte of the refusal charged to
-some call, and the source it stood in for), marked `via: hook`; those lines are what `usage` and the status
+some call, and the source it stood in for), marked `via: hook`; those lines are what `report` and the status
 line price the saving from, and what excuses a later whole read of the digested file (`DigestedFiles`).
-`usage` leaves them out of its latency percentiles, saying so: an answer in place is timed from a fresh
+`report` leaves them out of its latency percentiles, saying so: an answer in place is timed from a fresh
 process with the engine opened inside it. The transcript scan recognises the refusal by its first line: the
 lookup the call was counted as is taken back, it is counted `indexed` — never a refusal routed around and
 never cold — and what each call located is credited as an index call's answer is, so a ranged read afterwards
@@ -6723,7 +6688,7 @@ where a whole read of the answered file (a `Read` with no range, or a shell line
 identical re-run of the answered call follows within five tool calls in that context
 (`AnswerThenRead.window`), counted from the first call of the turn after the answer's own, `audit` prints the
 miss rate by answer shape (outline, digest, window) and no saving of its own; a ranged read or a different window
-afterwards is the loop working and is no miss. `usage` prices the saving from the log, which sees a read anyway only
+afterwards is the loop working and is no miss. `report` prices the saving from the log, which sees a read anyway only
 where the hook let it through (a `readAnyway` line, below), so its figure is gross, as it is on every face:
 `audit` and the report page count the whole reads after a digest beside it and subtract nothing more. **The voluntary share is the release metric**, and `audit` prints it
 under `indexed`: the indexed lookups the hook did not answer, over the indexed and the cold ones, with its
@@ -7220,9 +7185,9 @@ shut out of the index before it costs anything is `AgentAllowlist`**, read by `s
 an absent `tools:` inherits every tool and is correct, `tools: "*"` is correct, and an explicit list this
 server is missing from is a defect.
 
-**A saving is priced only where its counterfactual was observed.** `usage`, the report page and `audit` each print
+**A saving is priced only where its counterfactual was observed.** the report page and `audit` each print
 it as `~2.5k tokens saved on 2 intercepted reads (file or window asked for − answer served)`
-(`TokenEstimate.savedLabel`, `TokenEstimate.baseline`, one wording for all three). Two shapes are priced, both read by
+(`TokenEstimate.savedLabel`, `TokenEstimate.baseline`, one wording for both). Two shapes are priced, both read by
 the advice hook, which saw the command: an intercepted whole-file read (`intercepted: file`, priced on `readBytes`, the
 bytes of the file's first 2,000 lines the hook measured, which is what one `Read` returns, less what the answer served)
 and an intercepted window (`intercepted: window`, its own bytes). Every other call — a grep the hook answered, every
@@ -7235,14 +7200,14 @@ names, the file, and the reading's re-run key as `AnswerThenRead` computes it fo
 context, decoded as empty from a ledger written before the field). When the hook later lets a call of that context
 through (`PreToolUseCommand.decided`, any `allowed` verdict) that re-runs one of those readings or reads its file whole,
 it takes the entry off the ledger and writes a `readAnyway` line naming the id and target (`HookUsage`), and
-`UsageScan` leaves that answer unpriced, so `usage`, the report page and `audit` (all drawn from `UsageScan`) agree;
-the headline names them in its unpriced clause (`…; 1 read anyway, 4 other calls unpriced`). A window of the answered
+`UsageScan` leaves that answer unpriced, so the report page and `audit` (both drawn from `UsageScan`) agree;
+the saving sentence names them in its unpriced clause (`…; 1 read anyway, 4 other calls unpriced`). A window of the answered
 file is the loop working and takes nothing back, and a read the hook never judges is not seen here: the transcripts
 alone hold it, and `audit` counts it. Tokens are bytes over four, a fixed ratio, never the model's tokenizer. **The saving is stated gross, and says so.** A file read whole after its digest —
 by `Read`, or by a shell `cat`, `cat -n` or every-line `awk` of it, the whole reads the hook answers in place
 (`ShellReadAfterDigest`) — stays in the share's denominator as a miss, `read whole after its digest`. Its digest's
 saving is not subtracted from the figure: `audit` and the report page print one plain line beside it counting those
-reads, the share's own `read whole` count (`TokenEstimate.readAnyway`), and price none of them; `usage` reads the log
+reads, the share's own `read whole` count (`TokenEstimate.readAnyway`), and price none of them; the report page reads the log
 alone, so it says its figure is gross and points at `swift-sure audit` for the count. **Why gross:** netting meant joining
 each digest a transcript records to the usage-log line that priced it, by session, face, target and the second it
 was written, and that join is fragile — three review rounds each found it overclaiming or underclaiming in a new
@@ -7307,15 +7272,15 @@ transcript classifier, the scan's byte pre-filter, the hook's check that a conte
 root amendment. A call the scanner fails to recognise is read as no call at all, which under-reports the
 tool (§6) and files the context as holding no tools.
 
-**`usage` and `audit` are how all of the above is judged, and they read different halves of it.** `usage`
-summarises the two per-user logs — calls by tool, root and day, latency, top targets, wrapped runs in a
-section of their own — and can say how often the tool was used but never how often it should have been.
-**The two headers count in one set of terms.** Each names its sessions as `N sessions (+M subagents)`
+**`report` and `audit` are how all of the above is judged, and they read different halves of it.** `report`
+summarises the per-user logs — calls by tool, root and day, latency, top targets, wrapped runs — and can say
+how often the tool was used but never how often it should have been.
+**The two count in one set of terms.** Each names its sessions as `N sessions (+M subagents)`
 (`SessionCount`), a parent and its subagents being one session and the subagents named beside it, never folded
-in: a trial read `usage`'s "13 calls by 2 subagents" against `audit`'s "1 session" as two tools disagreeing about
-what they scanned. `usage` counts *calls*, one per answer SwiftSure logged, failures and Markdown outlines included,
-and says so on its `counted:` line; its subagents are the callers a hook named, a floor. `audit` counts *Swift
-lookups* by any route and names in its header how many SwiftSure served, the figure comparable to `usage`'s calls;
+in: a trial read a "13 calls by 2 subagents" against `audit`'s "1 session" as two tools disagreeing about
+what they scanned. `report` counts *calls*, one per answer SwiftSure logged, failures and Markdown outlines
+included; its subagents are the callers a hook named, a floor. `audit` counts *Swift
+lookups* by any route and names in its header how many SwiftSure served, the figure comparable to `report`'s calls;
 the two still differ by the failures and outlines `audit` counts apart, the compound answers that log one line
 per call, and the calls made outside any transcript.
 `audit` reads the transcripts, which hold both sides, and names the misses: first touches of a Swift file

@@ -17,7 +17,7 @@ struct AuditFindings {
     let totals: TranscriptTally
     let sessions: Int
 
-    /// The subagent contexts among the scans, so the header names them beside their sessions as `usage` does.
+    /// The subagent contexts among the scans, so the header names them beside their sessions as `report` does.
     let subagents: Int
 
     init(scans: [TranscriptAudit.Scan]) {

@@ -129,7 +129,7 @@ struct CodexRunModeTests {
         environment["PATH"] = "/usr/bin:/bin"
         let directory = AgentPaths.codexDirectory(environment: environment)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try CodexHooksFile.install(into: nil, binaryWord: ShellWord.quoted(binary), mode: .run).data.write(to: directory.appendingPathComponent(CodexHooksFile.fileName))
+        try SiftCodexSetup.mergeHooks(into: nil, binaryWord: ShellWord.quoted(binary), mode: .run).data.write(to: directory.appendingPathComponent(CodexHooksFile.fileName))
         let recorded = RecordedOutput()
         var command = try DoctorCommand.parse([])
         command.output = recorded.output
@@ -171,7 +171,7 @@ struct CodexRunModeTests {
         #expect(run.status == 0, "\(run.printed)")
         #expect(!machine.codex.calls.contains { $0.arguments.starts(with: ["mcp", "add"]) })
         let hooks = try Data(contentsOf: machine.home.appendingPathComponent(".codex/hooks.json"))
-        #expect(CodexHooksFile.mode(of: hooks) == .run)
+        #expect(SiftCodexSetup.mode(of: hooks) == .run)
     }
 
     @Test

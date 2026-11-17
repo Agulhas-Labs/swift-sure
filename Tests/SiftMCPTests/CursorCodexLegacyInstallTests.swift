@@ -36,7 +36,7 @@ struct CursorCodexLegacyInstallTests {
     }
 
     private static var legacyCodexHooks: String {
-        let entries = CodexHooksFile.hooks.map { #""\#($0.event)":[{"matcher":"*","hooks":[{"type":"command","command":"\#(oldBinary) \#($0.subcommand)"}]}]"# }
+        let entries = SiftCodexSetup.hooksFile.hooks.map { #""\#($0.event)":[{"matcher":"*","hooks":[{"type":"command","command":"\#(oldBinary) \#($0.subcommand)"}]}]"# }
         return #"{"hooks":{\#(entries.joined(separator: ","))}}"#
     }
 
@@ -195,8 +195,8 @@ extension CursorCodexLegacyInstallTests {
             }
         }
 
-        var home: CodexInstall.Home {
-            CodexInstall.Home(directory: codexHome, source: "--codex-dir")
+        var home: AgentPaths.CodexHome {
+            AgentPaths.CodexHome(directory: codexHome, source: "--codex-dir")
         }
 
         func install() throws -> InstallCommandHarness.Run {

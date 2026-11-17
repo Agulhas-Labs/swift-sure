@@ -152,26 +152,21 @@ struct RedactorTests {
         return rest[..<end].joined(separator: "\n")
     }
 
-    /// The usage report's roots, targets and failure reasons are all pseudonymised; the counts, days and latencies stay.
+    /// The roots, targets and failure reasons a usage log holds are all pseudonymised, and each token says which kind it stands for.
     @Test
-    func aRedactedUsageReportNamesNoRootTargetOrReason() throws {
-        let log = try TemporaryDirectory.make("usage")
-            .appendingPathComponent("usage.jsonl")
-        defer { try? FileManager.default.removeItem(at: log) }
-        let entries = [
-            #"{"ts":"2026-08-13T10:00:00Z","tool":"digest","target":"ParcelGateway","root":"/work/SecretRepo","ms":12,"ok":true}"#,
-            #"{"ts":"2026-08-13T10:01:00Z","tool":"where","target":"ParcelGateway","root":"/work/SecretRepo","ms":9,"ok":false,"err":"no symbol named ParcelGateway"}"#,
-        ]
-        try (entries.joined(separator: "\n") + "\n").write(to: log, atomically: true, encoding: .utf8)
+    func aRedactedNameCarriesNoRootTargetOrReason() {
+        let redactor = Redactor(salt: Self.salt)
 
-        let report = UsageReport.render(fileURL: log, redactor: Redactor(salt: Self.salt))
+        let root = redactor.root("/work/SecretRepo")
+        let target = redactor.target("ParcelGateway")
+        let reason = redactor.reason("no symbol named ParcelGateway")
 
-        #expect(!report.contains("ParcelGateway"))
-        #expect(!report.contains("SecretRepo"))
-        #expect(report.contains("repo-"))
-        #expect(report.contains("target-"))
-        #expect(report.contains("reason-"))
-        #expect(report.contains("by tool:"))
-        #expect(report.contains("2026-08-13"))
+        #expect(root.contains("repo-"))
+        #expect(target.contains("target-"))
+        #expect(reason.contains("reason-"))
+        for rendered in [root, target, reason] {
+            #expect(!rendered.contains("SecretRepo"))
+            #expect(!rendered.contains("ParcelGateway"))
+        }
     }
 }

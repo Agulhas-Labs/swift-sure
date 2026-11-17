@@ -114,7 +114,7 @@ struct BundleInstallHintsTests {
     func aDryRunSaysAnInstalledRuleIsLeftAsInstalled() throws {
         let machine = try Self.bundleless(ruleInstalled: true)
         let run = try machine.run(["--dry-run"])
-        let reason = "no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)"
+        let reason = "no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)"
 
         #expect(run.lines.contains("Claude Code rule: left as installed — \(reason)"), "\(run.printed)")
         #expect(run.printed.contains("left as installed \(AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: machine.environment).path) (the agent rule) — \(reason)"), "\(run.printed)")
@@ -125,11 +125,11 @@ struct BundleInstallHintsTests {
     func aDryRunSaysAMissingRuleWouldBeSkipped() throws {
         let machine = try Self.bundleless(ruleInstalled: false)
         let run = try machine.run(["--dry-run"])
-        let reason = "no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)"
+        let reason = "no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)"
 
         #expect(run.lines.contains("Claude Code rule: would be skipped — \(reason)"), "\(run.printed)")
         #expect(run.printed.contains("would be skipped \(AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: machine.environment).path) (the agent rule) — \(reason)"), "\(run.printed)")
-        #expect(reason.hasSuffix("(install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)"))
+        #expect(reason.hasSuffix("(install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)"))
     }
 
     @Test
@@ -138,7 +138,7 @@ struct BundleInstallHintsTests {
         let rule = AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: machine.environment)
         let run = try machine.run(["--yes"])
 
-        #expect(run.printed.contains("rule: left as installed — no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)"), "\(run.printed)")
+        #expect(run.printed.contains("rule: left as installed — no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)"), "\(run.printed)")
         #expect(try String(contentsOf: rule, encoding: .utf8) == "# installed by install.sh\n")
     }
 
@@ -147,7 +147,7 @@ struct BundleInstallHintsTests {
         let machine = try Self.bundleless(ruleInstalled: false)
         let run = try machine.run(["--yes"])
 
-        #expect(run.printed.contains("rule: skipped — no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)"), "\(run.printed)")
+        #expect(run.printed.contains("rule: skipped — no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)"), "\(run.printed)")
         #expect(PathKind.of(AgentPaths.claudeRule(named: FieldworkTool.sift.installedRuleName, environment: machine.environment)) == .absent)
     }
 }

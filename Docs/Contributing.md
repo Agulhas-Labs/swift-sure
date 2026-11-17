@@ -50,7 +50,7 @@ never `pkill` by pattern (Design.md, *Server lifecycle*).
 
 **Probing `swift-sure run` by hand, set `SWIFT_SURE_RUN_LOG` to a scratch file, or run it under a scratch `HOME`** —
 every per-user path follows `CFFIXED_USER_HOME`, then `HOME` (`AgentPaths.userHome`), so a probe given
-neither lands in the real `~/.swift-sure/run.jsonl` that `usage` and `flakes` read.
+neither lands in the real `~/.swift-sure/run.jsonl` that `report` and `flakes` read.
 
 ## The permit list
 

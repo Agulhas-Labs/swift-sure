@@ -8,7 +8,7 @@ import Foundation
 ///
 /// The question the log is actually asked is "did anything use this today", so typing a date to answer it is friction the command should absorb: `today`, `yesterday` and `<N>d` all resolve here, and an explicit `YYYY-MM-DD` passes through.
 ///
-/// The grammar is parsed once and rendered twice, because the two commands legitimately differ on *time zone* and on nothing else. Duplicating the ladder would let a fix to one leave `usage --since` and `audit --since` disagreeing about what `2d` means, which is the class of drift this file exists to prevent.
+/// The grammar is parsed once and rendered twice, because the two commands legitimately differ on *time zone* and on nothing else. Duplicating the ladder would let a fix to one leave `report --since` and `audit --since` disagreeing about what `2d` means, which is the class of drift this file exists to prevent.
 public struct UsageWindow {
     /// The inclusive first day (`YYYY-MM-DD`) for `text`, or `nil` when it is not a window this understands.
     ///
@@ -26,7 +26,7 @@ public struct UsageWindow {
 
     /// The instant a window begins: midnight **local** on its first day, or `nil` when `text` is not a window this understands.
     ///
-    /// Local where `firstDay` is UTC, and the divergence is deliberate. `usage` filters on the log's own UTC day key; `audit` filters on timestamps, absolute instants with no day key involved, and someone asking what happened *today* means their own today. Sharing one resolution would put the boundary at 01:00 local on UTC+1 and silently drop the first hour of every day.
+    /// Local where `firstDay` is UTC, and the divergence is deliberate. `report` filters on the log's own UTC day key; `audit` filters on timestamps, absolute instants with no day key involved, and someone asking what happened *today* means their own today. Sharing one resolution would put the boundary at 01:00 local on UTC+1 and silently drop the first hour of every day.
     public static func start(from text: String, now: Date, timeZone: TimeZone = .current) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

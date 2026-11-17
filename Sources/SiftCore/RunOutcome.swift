@@ -196,7 +196,7 @@ public extension RunOutcome {
         guard let repositoryRoot else {
             return .unavailable("not a git repository")
         }
-        return .inWorkingTree(at: repositoryRoot)
+        return .onBranch(at: repositoryRoot)
     }
 
     /// Whether this run's failures have the shape of an empty in-process accessibility tree — the same detector a filtered answer's device notes consult, asked directly so the raw-log fallback can still say what an unreachable answer would have.

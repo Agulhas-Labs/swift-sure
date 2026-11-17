@@ -113,8 +113,20 @@ public extension RunFailureCensus {
     enum ChangedFileCount: Sendable, Equatable {
         /// The count, matched by filename rather than by path.
         case count(Int)
+        /// The same count where the changed files include what the branch's commits changed since `base`, the default branch's name.
+        case countSinceBase(Int, base: String)
         /// Why the signal was unavailable, in git's own words — never to be read as zero.
         case unavailable(String)
+
+        /// The count whichever case carries it; `nil` where the signal is unavailable, which is never zero.
+        var changedCount: Int? {
+            switch self {
+            case let .count(count), let .countSinceBase(count, _):
+                count
+            case .unavailable:
+                nil
+            }
+        }
     }
 }
 
@@ -138,7 +150,7 @@ public extension RunFailureCensus {
             occurrences[signature, default: []].append(position)
             if let path = path(failure) {
                 files.insert(path)
-                if case let .basenames(basenames) = changedFiles, basenames.contains(name(of: path)) {
+                if let basenames = changedFiles.names, basenames.contains(name(of: path)) {
                     changed += 1
                 }
             }
@@ -190,6 +202,8 @@ public extension RunFailureCensus {
         switch inChangedFiles {
         case let .count(changed):
             claim = changed > 0 ? "in a changed file" : "not in a changed file"
+        case let .countSinceBase(changed, base):
+            claim = "\(changed > 0 ? "in" : "not in") a changed file since \(base)"
         case let .unavailable(reason):
             guard reason != RunChangedFiles.notConsultedReason else {
                 return ""
@@ -512,6 +526,8 @@ private extension RunFailureCensus {
         switch inChangedFiles {
         case let .count(count):
             "\(count) in changed files (matched by name)"
+        case let .countSinceBase(count, base):
+            "\(count) in changed files since \(base) (matched by name)"
         case let .unavailable(reason):
             "changed files unknown — \(reason)"
         }
@@ -530,6 +546,8 @@ private extension RunFailureCensus {
         switch changedFiles {
         case .basenames:
             .count(changed)
+        case let .sinceBase(_, base):
+            .countSinceBase(changed, base: base)
         case let .unavailable(reason):
             .unavailable(reason)
         }

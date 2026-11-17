@@ -131,7 +131,7 @@ version (a version other than this binary's is said, never a failure); each hook
 agent's shape in a scratch directory, exits 0 and prints nothing or only what the agent reads; and the registered
 MCP server starts and lists every tool. A registration missing says which `swift-sure install --agent …` to run.
 A `--run-only` Claude Code install (hooks, no server) reads healthy: the hooks, the binary and each hook are checked, and
-one line, `index: off (installed with --run-only)`, says the server is not registered on purpose. A broken binary or hook still fails.
+one line, `index: off (installed with --run-only)`, says the server is not registered on purpose. A broken binary or hook still fails, and so does a file holding both modes' entries (`index: fail — both modes registered`, and `status` says the same; re-run `swift-sure install`).
 
 - **Claude Code**: the hooks in `settings.json` (a registration that is not the one this version writes, such as
   a matcher an upgrade changed, fails the hooks check, as `swift-sure status` says of it), the user-scope server in `~/.claude.json`, each hook fed Claude
@@ -365,8 +365,7 @@ edited without one (an error is taken for a rewritten old one only within the sa
 fixing one error and adding another of the same kind in another hunk, that is more than six unchanged lines
 from the fix, is blocked). A
 clean parse prints nothing; so do a file it cannot read and an overrun of its one-second budget. This
-checks syntax only: a type error still needs a build. Otherwise the hook stays quiet unless the edit
-added a function shaped like one that already exists, which it names in one line.
+checks syntax only: a type error still needs a build.
 
 ### Before stopping
 
@@ -529,8 +528,6 @@ printing only file names (`grep -l`, a Grep in its default mode), a
 fixed-string search (`-F`, `fgrep`) for anything but a name, a merge's conflict markers (`<<<<<<<`,
 `=======`, `>>>>>>>`), a tree no index holds such as `.build/`. `swift-sure help refusals` has the full accounting.
 
-A `post-tool-use` line may name an existing declaration your new one resembles.
-
 #### Which tool, and when
 
 - **An unfamiliar repo, cold** — `digest .`, the repo overview; `digest <Module>` then opens the module
@@ -573,8 +570,6 @@ A `post-tool-use` line may name an existing declaration your new one resembles.
   `swift-sure help test-output` reads the answer, and §12 (*Sharding a simulator suite*) has the other flags.
 - **"Is anything not being run?"** — `swift-sure test --analyse` reads the index and `.xctestplan` files, builds
   nothing, and names the residue (an unplanned test target, a switched-off test, a dead exclusion).
-- **"Which code is slow to compile?"** — `swift-sure build --analyse` from Bash; `swift-sure help build-output`. It lists
-  the ten slowest bodies, expressions and files; `--top N` lists N of each instead, for a longer tail.
 - **Proving a test fails without your change** — `swift-sure run --without Sources -- swift test --filter …` in
   one call, never a hand-rolled revert; it leaves the tree as it found it. A committed fix takes `--since <base>`
   beside `--without`. A fix that is a new file or adds API a test names can only "not build" set aside: use
@@ -651,7 +646,7 @@ the root it picked, sits on the line under it. The header never claims more than
 `strings` read the working tree live, so theirs names the tree and says so (`source: live`: nothing stored,
 so nothing to go stale) instead of carrying the freshness fields below. `swift-sure index` says which
 repository it picked before it starts work, and puts the header after it; the
-reports (`usage`, `audit`, `run`, `servers`, `flakes`, `report`) open with lines of their own. `swift-sure
+reports (`audit`, `run`, `servers`, `flakes`, `report`) open with lines of their own. `swift-sure
 uninstall` describes no tree, so it opens with its verdict instead.
 
 In a checkout you cannot write — a vendored package, a read-only mount, another user's tree — nothing is
@@ -948,7 +943,7 @@ Worth knowing before pointing it at a codebase that isn't yours:
 | `transcript-tallies.json` | a cache of per-transcript tallies, so `audit` and `report` rescan only what changed |
 | `lookups-declined` | a marker that you declined the lookup allow rules, so the next lookups question defaults to no |
 | `advice/backoff/` | per-session records the hook uses to back off answering in place |
-| `advice/reuse/<hash>` | a marker per reuse nudge already given, so it is not repeated |
+| `advice/reuse/<hash>` | a marker per parse block or stop-gate answer already given, so it is not repeated |
 | `advice/cursor-rewrites/` | a notice per build the Cursor hook rewrote, so the rewrite is told to the agent once |
 | `replay/<uuid>/` | scratch space of one `swift-sure audit --replay`, removed when it ends |
 | `*.lock` | lock files beside the ledgers above, so parallel sessions do not interleave writes |
@@ -992,12 +987,11 @@ Worth knowing before pointing it at a codebase that isn't yours:
 |---|---|
 | `swift-sure index [--full]` | Build or refresh the index |
 | `swift-sure status` | Freshness, counts, module map, index-store discovery; names any agent definition whose `tools:` allowlist shuts these tools out |
-| `swift-sure help [<topic>]` | Reference for rare moments, in eight topics: `run-output` (reading a red `run` block, what `flakes` counts), `answers` (the parse-error banners, semantic staleness, root resolution), `queries` (per-tool depth), `refusals` (the hook's accounting rules), `test-output` (reading `swift-sure test`), `worktree-index` (a store in a linked worktree), `build-output` (reading `build --analyse`) and `affected-limits` (what `affected` cannot see); a name that is a subcommand instead prints that subcommand's usage; omit the topic to list them |
+| `swift-sure help [<topic>]` | Reference for rare moments, in seven topics: `run-output` (reading a red `run` block, what `flakes` counts), `answers` (the parse-error banners, semantic staleness, root resolution), `queries` (per-tool depth), `refusals` (the hook's accounting rules), `test-output` (reading `swift-sure test`), `worktree-index` (a store in a linked worktree) and `affected-limits` (what `affected` cannot see); a name that is a subcommand instead prints that subcommand's usage; omit the topic to list them |
 | `swift-sure digest <target>… [--all] [--signatures-only, or --signaturesOnly] [--offset N] [--at <rev>]` | Declaration surface of a type, file, or module, one member's source given `Type.member`, or a `File.swift:12-40` line range; several targets each answer in one call. A `.md` path answers with its heading outline and line ranges, read live. `--at` answers as of a commit, branch or tag from a syntactic parse of that revision read through git (never the index or the working tree; a module, `.` or `.md` is refused) |
 | `swift-sure where <symbol> [--syntactic] [--refs] [--files] [--decl] [--offset N] [--at <rev>]` | Resolve a symbol: declarations, extensions, conformers, callers (a property's reads and writes, an enum case's uses), overrides, and a type's uses counted on one line; `--refs` adds every reference site, paged with `--offset`; `--files` (implying `--refs`) lists only the files the sweep names, one row each; `--decl` answers only where it is declared (`decl: true` on the MCP tool), from the syntactic index alone, under `digest`'s header, and is refused beside `--refs` or `--files`; `--at` answers as of a revision, declarations from that revision's files and call sites by name only. Where the index store does not answer a function's callers, the call sites matched by name come as their count and the first five, where the MCP tool lists up to 40 |
 | `swift-sure search <query> [--offset N] [--count]` | Find declarations by structural shape — `kind:func attr:Test calls:Task !has:await`; `--count` prints the totals and a per-module breakdown, no listing; past 120 matches the rest come as names by file when they fit about 8 kB, else a `truncated:` cursor |
 | `swift-sure strings <query>` | Trace display text to its localization key (or a key to its text) across `.xcstrings`/`.strings` catalogs, with literal Swift call sites, and to the Swift string literals that hold the text |
-| `swift-sure build [--analyse] [--top N] [--build-tests]` | Build a SwiftPM package clean and rank the code slowest to type-check; `--build-tests` includes the test targets in the build and the ranking |
 | `swift-sure test --scheme S --device D [--os V] [--plan P]… [--all-plans] [--only T]… [--skip T]… [--shards N] [--shard-timeout S] [--stock] [--animations] [--project P \| --workspace W] -- <xcodebuild arguments>` | Run a scheme's tests across several simulators at once, creating and deleting the simulators it uses. `--only`/`--skip` take `Target`, `Target/Class` or `Target/Class/test` and repeat; `--shards` defaults to what the host can run at once; `--shard-timeout` is the floor under a shard's wall-clock ceiling, 3600 seconds by default and refused below 30 (a shard silent for 300 seconds, or three times its longest predicted test where that is longer, is ended whatever it says); shards boot slim, with the runtime's disabled services switched off and read back after the boot, wherever the runtime has a service profile and the project's declarations are accounted for, and `--stock` boots every shard stock instead (refused beside `--sweep` and `--analyse` and in a SwiftPM package); the app under UI test runs with UIKit animations off through a library inserted into a copy of the `.xctestrun` (SwiftUI animations still run; the answer says so), and `--animations` keeps them on for the whole run (refused where `--stock` is) |
 | `swift-sure test [--shards N] [--shard-timeout S] [--root <dir>]` | In a SwiftPM package, with no `--scheme` and no `--device`: split the package's `swift test` by suite across `N` processes (default: what the host can run at once) and answer with the same reconciliation (a green run proves the tree for `swift-sure run --proved -- swift test`); `--root` runs the whole command as if started in that directory (its package, build, shards and run record are that checkout's) without a `cd`, and refuses a path that is not a directory; `--os`, `--plan`, `--only`, `--skip`, `--project`, `--workspace`, `--stock`, `--animations` and arguments after `--` are refused |
 | `swift-sure test --analyse [--plan P] [--against <log>]` | How many tests are supposed to run, from the index and the test plans — declared, in a plan, never run, conditional — building, booting and running nothing; `--against` reconciles a finished run's output (the file `swift test` wrote, or a log under `.swift-sure/runs/`) against that inventory: tests missing or reported twice |
@@ -1009,7 +1003,6 @@ Worth knowing before pointing it at a codebase that isn't yours:
 | `swift-sure run --without-line <file:line> -- <tests>` | The same proof for a fix that cannot build without its own change: comment out that one line, run, put it back, run again |
 | `swift-sure run --restore` | Put back a set-aside whose run was killed along with its watcher, checked by content hash |
 | `swift-sure affected [--from R [--to R]] [--depth N] [--reached NAME]... [--suites]` | Which tests reference what a diff changed, with the `-only-testing:` and `--filter` arguments — it reports, it never runs and never decides what to skip |
-| `swift-sure usage [--since W] [--root R] [--unredact] [--all-roots] [--include-scratch] [--file P] [--run-file P]` | Summarise the index usage log — calls by tool, root and day, latency, top targets; `--all-roots` lists every root rather than the top five; `--file`/`--run-file` read other copies of `usage.jsonl` and `run.jsonl` |
 | `swift-sure flakes [<name>] [--since W] [--root R] [--unredact] [--file P]` | For every test that has both failed and passed across wrapped runs: how many named it, out of how many, and when one last did; `<name>` answers instead for the tests whose recorded name contains it (`.` and `/` alike, at most 10 printed by real name), counting every test recorded failing, including one that failed in every run; `--file` reads another copy of `run.jsonl`; inside a git work tree `--root` defaults to that repository, and `--root /` is every repository |
 | `swift-sure audit [--since W] [--until W] [--all] [--transcript P] [--projects D] [--unredact] [--include-scratch] [--progress] [--verbs] [--replay [--sample N] [--shapes P] [--against <binary>]] [--scan-diff --against <binary> [--all-windows]] [--summary \| --share \| --by day\|week]` | Audit transcripts for Swift lookups that went around the index, named file by file; `--until` bounds the window above, `--projects` reads another transcript directory. `--replay`, `--against`, `--scan-diff`, `--summary`, `--share` and `--by` are described under **Auditing the misses**; `--verbs` prints in their place one row per kind of answer SwiftSure gave (`where`, `where --refs`, `digest (file)`, `run`…), the costliest first: its calls, median and 90th-percentile answer in characters, its price in tokens and share of the window's, and the share of its calls followed by a `read` of a file the answer names, a `grep` of its target, `swift-sure` again, `other` or `none`; it names nothing in the tree and is refused beside those views |
 | `swift-sure report --deploys` | List each install of the bundle's binary, one line each, newest last: time, build (commit or source tree), version, tree state, size; read from `~/.swift-sure/deploys.jsonl`, which `install.sh` appends to |
@@ -1055,26 +1048,25 @@ records you read; an empty value is unset. `CODEX_HOME` is Codex's own (§4).
 
 ### Reading the usage log
 
-The log is **per-user, not per-repo** — `~/.swift-sure/usage.jsonl` — so `usage` reports every repository from
-wherever you run it, with a `by root` breakdown. Narrow it:
+The log is **per-user, not per-repo** — `~/.swift-sure/usage.jsonl` — so `swift-sure report` covers every
+repository from wherever you run it. Narrow it:
 
 ```sh
-swift-sure usage --since today                     # today, yesterday, 7d, or YYYY-MM-DD
-swift-sure usage --since 7d --root Orchard/app   # a unique trailing path fragment is enough
+swift-sure report --since today                     # today, yesterday, 7d, or YYYY-MM-DD
+swift-sure report --since 7d --root Orchard/app     # a unique trailing path fragment is enough
 ```
 
-Both filters are named in the header, so a scoped count can't be misread as a global one. A `--root` that
-matches nothing says so and lists the roots the log holds. The `by root` section lists the five busiest
-roots; `--all-roots` lists every one. `--file <path>` reads another copy of `usage.jsonl` (a log copied from
-another machine, or a saved one to compare against), and `--run-file <path>` another copy of `run.jsonl`,
-which feeds the section of wrapped runs; `SWIFT_SURE_USAGE_LOG` changes the default for the first (§11, environment
-variables).
+Both filters are named on the page, so a scoped count can't be misread as a global one. A `--root` that
+matches nothing says so and lists the roots the log holds. `--file <path>` reads another copy of
+`usage.jsonl` (a log copied from another machine, or a saved one to compare against), and `--run-file <path>`
+another copy of `run.jsonl`, which feeds the wrapped runs; `SWIFT_SURE_USAGE_LOG` changes the default for the
+first (§11, environment variables).
 
 **Scratch roots are not counted.** A call whose repository root lies under the system temporary directory
 (`/tmp`, `/private/tmp`, `/var/folders`, `$TMPDIR`), under `~/Library/Caches`, or inside any `.build/`
 directory is a probe, not use: it is left out of every figure and table, and one line says how many were
 (`N calls against scratch roots (temporary, cache or .build directories) not counted`). `--include-scratch`
-restores the old totals. `swift-sure report` applies the same rule to calls, with the line above, and `swift-sure audit` to sessions, by the working
+restores the old totals. `swift-sure audit` applies the same rule to sessions, by the working
 directory a transcript records, with `N sessions against scratch roots (…) not counted` (its `--replay` leaves them out
 too); both take the same `--include-scratch`. `swift-sure audit --transcript` audits the transcript it names whatever it recorded. A repository merely named `build` is real.
 
@@ -1120,13 +1112,12 @@ recorded before the log kept a repository key are scoped by their directory alon
 
 ### Seeing what SwiftSure did
 
-SwiftSure draws nothing in Claude Code itself. Three commands show what it did:
+SwiftSure draws nothing in Claude Code itself. Two commands show what it did:
 
 - `swift-sure report` writes an HTML page: the conditions, the index's share of the Swift lookups, the estimated savings and the failures.
 - `swift-sure audit` names the lookups that went around the index (below).
-- `swift-sure usage` counts calls by tool, root and day.
 
-The share is how often the agent *reached for* the index, not how well the index did. **It is not a success rate**: the rest are lookups that went somewhere else (a whole-file `Read`, a `grep`, a `cat`), and a call that failed is counted on its own. A file read whole after its digest stays in the share as a miss. The denominator is **every Swift lookup in a session that was a genuine choice between the index and something else**. A saving is priced only where its counterfactual was observed: a read the advice hook intercepted and answered in place, the file or window asked for less what the answer served. Every other call is counted and never priced, and `report`, `usage` and `audit` state what the figure was priced on.
+The share is how often the agent *reached for* the index, not how well the index did. **It is not a success rate**: the rest are lookups that went somewhere else (a whole-file `Read`, a `grep`, a `cat`), and a call that failed is counted on its own. A file read whole after its digest stays in the share as a miss. The denominator is **every Swift lookup in a session that was a genuine choice between the index and something else**. A saving is priced only where its counterfactual was observed: a read the advice hook intercepted and answered in place, the file or window asked for less what the answer served. Every other call is counted and never priced, and `report` and `audit` state what the figure was priced on.
 
 What counts against the share — a lookup that went around the index — is narrower than "every Swift
 read". Seven kinds are tracked apart from the misses; six are excluded from the share and one stays in
@@ -1193,7 +1184,7 @@ cold lookups, worst first:
       RecordStore.swift, WorkQueueTests.swift, ListingTests.swift, +9 more
 ```
 
-`--since` is resolved in **local** time, unlike `usage --since`, which follows the log's own UTC day key.
+`--since` is resolved in **local** time, unlike `report --since`, which follows the log's own UTC day key.
 It bounds the *lookups* counted rather than the transcripts opened, so a session that began yesterday
 contributes only today's half.
 
@@ -1252,8 +1243,8 @@ Five flags turn the audit on the hook itself, for whoever is changing it:
 
 `swift-sure report` renders the same material as a page you can glance at. It writes one self-contained HTML
 file (inline stylesheet, hand-drawn SVG bars, no script, no network) to `~/.swift-sure/report.html` (or
-`--out`), prints the path, and opens it unless you pass `--no-open`. `--since` and `--root` are
-`usage`'s exactly; the window defaults to `7d`. What leads the page is the short list of conditions only
+`--out`), prints the path, and opens it unless you pass `--no-open`. `--since` and `--root` take
+the same values as `audit`'s; the window defaults to `7d`. What leads the page is the short list of conditions only
 you can clear, each naming the repository, the fact and the command (nothing renders when nothing is
 wrong). Below come index share with a bar per day, the estimated saving (gross, with its basis and
 baseline, and one line counting the digests whose file a transcript then read whole), failures by reason with their
@@ -1262,7 +1253,7 @@ and conditions by the repository each call was made against, the share by the di
 was recorded in. Scratch roots are left out here too, calls and sessions alike, with the same one-line
 note and the same `--include-scratch` to count them. `--file`, `--run-file` and `--projects` read other copies
 of the usage log, the run log and the transcript directory (the defaults are `~/.swift-sure/usage.jsonl`,
-`~/.swift-sure/run.jsonl` and `~/.claude/projects`), as `usage` and `audit` do, so a page can be built from data
+`~/.swift-sure/run.jsonl` and `~/.claude/projects`), as `audit` does, so a page can be built from data
 copied off another machine.
 
 **The core loop** is digest-then-ranged-read. A digest gives you the shape plus exact line ranges:
@@ -1317,7 +1308,8 @@ project files are not read, and the answer says so when it finds nothing.
 
 When the question is only which files, `where <symbol> --files` (`files: true` on the MCP tool) lists the
 files the sweep names, one row each, sorted by path: the code lines, `declares` where the symbol is
-declared or extended, and the not-code mentions. The set is exactly the one `--refs` names, in a fraction
+declared or extended, and the not-code mentions. The set is the one `--refs` names, less the files deleted
+since the last build, which a closing line counts instead of listing (`--refs` lists them), in a fraction
 of the length; the heading keeps whatever the sweep says is incomplete.
 
 ```
@@ -1334,7 +1326,7 @@ prints the declarations block and nothing else: no uses, extensions, conformers,
 no word about the index store, which it never opens, so its header is `digest`'s, with no `semantic:` field.
 Its last line names what it left out and the query that covers it. `--refs` and `--files` are refused beside it.
 
-## 12. Builds and tests — `swift-sure run`, `swift-sure test`, `swift-sure build`
+## 12. Builds and tests — `swift-sure run`, `swift-sure test`
 
 The index covers one half of what a session spends context on: reading code. The other half is what
 the toolchain says back. A single `xcodebuild test` prints eight hundred lines of plan, invocation and
@@ -1407,6 +1399,10 @@ Six things worth knowing before you wire it into a script:
   filters`, judged against the tests the run's event stream and console name. It is judged only with two
   or more `--filter`s, only where the run shows a test matched by name (an XCTest name the console prints
   without its module leaves it unjudged), and never under `--parallel`. A log merely silent about its tests keeps its exit, but is never recorded as proved.
+  A `swift test --filter` run that ran a test on a tree with uncommitted `.swift` changes adds one indented
+  `filtered:` line under the totals naming up to five suites that reach the change and did not run (a suite that ran in part
+  with its share, `Suite (2 of 9 ran)`), and the `--filter` command that runs them; it is left out without an index, under
+  `--parallel`, or where the run cannot say which tests it ran, and never changes the totals, the verdict or the exit code.
   An unfiltered `swift test` of a package whose manifest declares test targets, that exits 0 with every
   closing count at 0, answers the same way: `✘ swift test — nothing ran: no test executed, though the package
   declares N test targets`, exit 4, an `inventory:` line naming the declared tests that never reported
@@ -1458,7 +1454,7 @@ Six things worth knowing before you wire it into a script:
 - **stderr is merged into stdout**, the way `2>&1` does, so the log is ordered as the tool wrote it.
 - **Each run files one line in `~/.swift-sure/run.jsonl`** — kind, exit code, lines shown and total,
   repository and duration — kept separate from `usage.jsonl`, which counts index lookups and nothing
-  else; `swift-sure usage` reports the runs in a section of their own, and a log that cannot be
+  else; `swift-sure report` shows the runs beside them, and a log that cannot be
   written costs one note on stderr and nothing else.
 
 ### Proving a test fails without your change — `--without`
@@ -1586,12 +1582,6 @@ A package's suites are split evenly by test count: its tests run beside each oth
   test can keep them by setting `SWIFT_SURE_ANIMATIONS=on` in its `launchEnvironment`).
 - **Cleaning up.** `swift-sure test --sweep` deletes the simulators that this checkout's earlier runs left behind
   and are no longer running, and runs nothing; use it after a run was killed.
-
-### Slow type-checking — `swift-sure build --analyse`
-
-`swift-sure build --analyse` builds a SwiftPM package clean with the compiler's timers on and ranks the slowest
-function bodies, expressions and files to type-check. `--top N` sets how many of each it lists (default 10);
-`--build-tests` includes the test targets. `swift-sure help build-output` reads the answer.
 
 ## 13. License
 

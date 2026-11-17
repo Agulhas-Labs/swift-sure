@@ -15,6 +15,8 @@ import Foundation
 public enum RunChangedFiles: Sendable, Equatable {
     /// The basename of every path git reported — empty when the tree matches `HEAD` and holds no new file.
     case basenames(Set<String>)
+    /// The same list on a feature branch: the dirty tree's names plus those of the files the branch's commits changed since its merge-base with the default branch, named `base`.
+    case sinceBase(Set<String>, base: String)
     /// Why no list could be read, in git's own words.
     case unavailable(String)
 }
@@ -56,6 +58,33 @@ public extension RunChangedFiles {
         return of(entries.map(\.path).filter { !reverted.contains($0) })
     }
 
+    /// ``inWorkingTree(at:within:)`` widened, on a feature branch, by what the branch's own commits changed.
+    ///
+    /// A clean worktree of a branch that has just committed its work would otherwise answer "nothing changed" and label every failure in that work as outside it. The result is `.sinceBase` only where a branch range exists: the default branch resolves, its merge-base with `HEAD` resolves and is not `HEAD` itself. On the default branch, with no default branch, or when git fails to answer the range read, the answer is the working tree's alone.
+    static func onBranch(at directory: URL, within budget: TimeInterval = RunChangedFiles.budget) -> RunChangedFiles {
+        let deadline = DispatchTime.now() + budget
+        let dirty = inWorkingTree(at: directory, within: budget)
+        guard case let .basenames(names) = dirty,
+              let root = GitContext.discoverRoot(from: directory)
+        else {
+            return dirty
+        }
+        let context = GitContext(repoRoot: root)
+        guard let head = try? context.head(),
+              let defaultBranch = context.defaultBranch(),
+              let base = context.mergeBase(defaultBranch.ref, head),
+              base != head,
+              let raw = run(["diff", "--name-only", "-z", "-M", base, head], in: root, until: deadline),
+              raw.status == 0,
+              case let .basenames(committed) = of(
+                  raw.streams.output.split(separator: 0).compactMap { String(bytes: $0, encoding: .utf8) }
+              )
+        else {
+            return dirty
+        }
+        return .sinceBase(names.union(committed), base: defaultBranch.name)
+    }
+
     /// The same value built from paths already in hand, reduced to basenames the same way.
     static func of(_ paths: some Sequence<String>) -> RunChangedFiles {
         var basenames: Set<String> = []
@@ -70,6 +99,16 @@ public extension RunChangedFiles {
 }
 
 extension RunChangedFiles {
+    /// The names this value lists, whichever case carries them; `nil` where the signal is unavailable.
+    var names: Set<String>? {
+        switch self {
+        case let .basenames(names), let .sinceBase(names, _):
+            names
+        case .unavailable:
+            nil
+        }
+    }
+
     /// No repository (``ProcessEnvironment/withoutGit(from:)``) and `GIT_OPTIONAL_LOCKS=0`, so a read never takes `index.lock` to write a stat-cache refresh back.
     static func readEnvironment() -> [String: String] {
         var environment = ProcessEnvironment.withoutGit()

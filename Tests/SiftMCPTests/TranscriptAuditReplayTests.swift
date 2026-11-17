@@ -598,7 +598,7 @@ extension TranscriptAuditReplayTests {
         let root = try await InPlaceAnswerTests.indexedRepository()
 
         let hook = try HookReplay(directory: TemporaryDirectory.make("hook-replay"), timeBudget: InPlaceAnswerTests.roomy)
-        let verdict = await Self.verdict(of: "sed -n '100,119p' Sources/App/Depot.swift", cwd: root.path, hook: hook)
+        let verdict = await Self.verdict(of: "awk 'NR>=100 && NR<=119' Sources/App/Depot.swift", cwd: root.path, hook: hook)
 
         #expect(verdict?.rule == InPlaceAnswerer.Withholding.notSmaller.rawValue, "\(String(describing: verdict))")
     }

@@ -8,7 +8,7 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// Calls made against probe and scratch roots are not use: `usage` and `report` leave them out, say how many, and `--include-scratch` brings them back.
+/// Calls made against probe and scratch roots are not use: `report` leaves them out, say how many, and `--include-scratch` brings them back.
 @Suite(.temporaryDirectories)
 struct ScratchRootCallsTests {
     private static let tools = ["digest", "where", "search"]
@@ -28,39 +28,6 @@ struct ScratchRootCallsTests {
             usage.record(tool: tools[index % tools.count], target: "Probe", root: root, milliseconds: 5, succeeded: true, answer: AnswerBytes(served: 100, source: 1000), session: "s")
         }
         return log
-    }
-
-    @Test
-    func scratchCallsAreLeftOutOfTheTotalsAndNoted() throws {
-        let log = try Self.log(in: TemporaryDirectory.make("scratch-usage"))
-
-        let report = UsageReport.render(fileURL: log)
-
-        #expect(report.contains("3 calls"))
-        #expect(report.contains("5 calls against scratch roots (temporary, cache or .build directories) not counted"))
-        #expect(!report.contains("probe"))
-        #expect(report.contains("/work/Depot"))
-    }
-
-    @Test
-    func includeScratchRestoresTodaysTotals() throws {
-        let log = try Self.log(in: TemporaryDirectory.make("scratch-include"))
-
-        let report = UsageReport.render(fileURL: log, includeScratch: true)
-
-        #expect(report.contains("8 calls"))
-        #expect(!report.contains("against scratch roots"))
-        #expect(report.contains("/tmp/probe"))
-    }
-
-    @Test
-    func aRepositoryNamedBuildIsReal() throws {
-        let log = try Self.log(in: TemporaryDirectory.make("scratch-build"), realRoot: "/work/build")
-
-        let report = UsageReport.render(fileURL: log)
-
-        #expect(report.contains("3 calls"))
-        #expect(report.contains("/work/build"))
     }
 
     @Test
@@ -116,5 +83,39 @@ struct ScratchRootCallsTests {
         #expect(!ScratchRoot.contains("/work/build"))
         #expect(!ScratchRoot.contains("/work/tmpfoo"))
         #expect(!ScratchRoot.contains("/work/Depot/.builder"))
+    }
+
+    @Test
+    func scratchCallsAreLeftOutOfTheTotalsAndNoted() throws {
+        let log = try Self.log(in: TemporaryDirectory.make("scratch-scan"))
+
+        let scan = try UsageScan.load(fileURL: log, includeScratch: false).get()
+
+        #expect(scan.entries.count == 3)
+        #expect(scan.scratchCalls == 5)
+        #expect(scan.scratchNote == "5 calls against scratch roots (temporary, cache or .build directories) not counted")
+        #expect(Set(scan.entries.map(\.root)) == ["/work/Depot"])
+    }
+
+    @Test
+    func includeScratchRestoresTodaysTotals() throws {
+        let log = try Self.log(in: TemporaryDirectory.make("scratch-scan-include"))
+
+        let scan = try UsageScan.load(fileURL: log, includeScratch: true).get()
+
+        #expect(scan.entries.count == 8)
+        #expect(scan.scratchCalls == 0)
+        #expect(scan.scratchNote == nil)
+        #expect(scan.entries.contains { $0.root == "/tmp/probe" })
+    }
+
+    @Test
+    func aRepositoryNamedBuildIsReal() throws {
+        let log = try Self.log(in: TemporaryDirectory.make("scratch-scan-build"), realRoot: "/work/build")
+
+        let scan = try UsageScan.load(fileURL: log, includeScratch: false).get()
+
+        #expect(scan.entries.count == 3)
+        #expect(Set(scan.entries.map(\.root)) == ["/work/build"])
     }
 }

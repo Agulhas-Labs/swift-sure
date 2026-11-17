@@ -165,7 +165,7 @@ public struct SessionPrimer {
         - `digest <Type>` (or a file): member line ranges, then a ranged Read; `Type.member`s: their source; a cited line: `digest File.swift:120`
         - `where <Symbol>` instead of grepping: definition (`--decl`: definition only), callers, conformers, overrides
         - `search` for code by shape, `strings "<text>"` for UI text
-        - Bash: `\(ProductName.current.binary) run -- <build or test>`: failures, log `\(ProductName.current.directoryName)/runs/`
+        - Bash: `\(ProductName.current.binary) run -- swift test` (or a build), bare, never piped: failures, log `\(ProductName.current.directoryName)/runs/`
         """
     }
 

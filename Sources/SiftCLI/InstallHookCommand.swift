@@ -148,8 +148,8 @@ struct InstallHookCommand: ParsableCommand {
             return result.outcome.changed || legacy.changed
         }
         if agent == .codex {
-            let home = CodexInstall.home(flag: codexDirectory, environment: environment)
-            return try CodexHookInstaller.install(home: home, binary: binary, runner: codex ?? CodexCLI(environment: environment), output: output, mode: index ? .index : .run).changed
+            let home = AgentPaths.codexHome(flag: codexDirectory, environment: environment)
+            return try SiftCodexHookInstaller.install(home: home, binary: binary, runner: codex ?? CodexCLI(environment: environment), output: output, mode: index ? .index : .run).changed
         }
         let settingsURL = settings.map { URL(fileURLWithPath: $0) } ?? AgentPaths.claudeSettings(environment: environment)
         // `--command` overrides the primer's command only. The `PreToolUse` hook runs a different

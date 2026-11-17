@@ -75,8 +75,8 @@ struct SiftClaudeSetupTests {
         #expect(rule.shippedFileName == "SwiftSure.md")
         #expect(rule.shareDirectory == "swift-sure")
         #expect(rule.loadsOn == "**/*.swift")
-        #expect(rule.noSourceReason(exists: false) == "no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)")
-        #expect(rule.noSourceReason(exists: true) == "no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or npm copies the SwiftSure.md they ship)")
+        #expect(rule.noSourceReason(exists: false) == "no SwiftSure.md ships with this binary (install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)")
+        #expect(rule.noSourceReason(exists: true) == "no SwiftSure.md ships beside this binary to refresh it from (install.sh writes it; `swift-sure install` from Homebrew or the release bundle copies the SwiftSure.md they ship)")
     }
 
     /// The benchmark marks an arm-B run invalid for any hook event outside its list, so a registered event missing from it throws out every run that fires it.

@@ -30,7 +30,7 @@ struct RefusalsThatBuyNothingTests {
         #expect(ledger.decide(session: "s", command: "grep -rn Depot Sources", offering: ["where Depot"]) == .allow)
         // And the call it has *not* made is still worth interrupting for, in the same context and on the
         // strength of the same evidence: what is remembered is the call, never the symbol's neighbourhood.
-        #expect(ledger.decide(session: "s", command: "grep -rn SimilarHit Sources", offering: ["where SimilarHit"]) == .advise)
+        #expect(ledger.decide(session: "s", command: "grep -rn Gizmo Sources", offering: ["where Gizmo"]) == .advise)
     }
 
     /// A different call standing on a name already looked up is news, and treating the symbol as the unit would lose exactly the case the hook is for: digest to locate, then ask who calls it.
@@ -54,8 +54,8 @@ struct RefusalsThatBuyNothingTests {
 
         #expect(ledger.decide(
             session: "s",
-            command: "grep -rn 'Depot|SimilarHit' Sources",
-            offering: ["where Depot", "where SimilarHit"]
+            command: "grep -rn 'Depot|Gizmo' Sources",
+            offering: ["where Depot", "where Gizmo"]
         ) == .advise)
     }
 
@@ -105,7 +105,7 @@ struct RefusalsThatBuyNothingTests {
 
         // The same context, a lookup the hook answers with a call it has not made: refused as ever.
         let fresh = try #require(PreToolUseCommand.lookup(
-            command: #"grep -rn "SimilarHit" Sources"#,
+            command: #"grep -rn "Gizmo" Sources"#,
             payload: [:],
             in: FileManager.default.currentDirectoryPath,
             noting: noted,

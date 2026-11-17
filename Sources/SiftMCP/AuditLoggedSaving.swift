@@ -10,7 +10,7 @@ struct AuditLoggedSaving {
     ///
     /// Gross because it is: the log prices each answer when it is served and never sees what the context read next, and a join between a transcript's call and its log line was tried and could not be shown right (Docs/Design.md). The whole reads after a digest are counted beside it instead, never priced.
     ///
-    /// `includeScratch` is as it is for `usage`: with it `false` the calls against scratch roots are not in the saving.
+    /// `includeScratch` is as it is for `report`: with it `false` the calls against scratch roots are not in the saving.
     ///
     /// `transcript` is the one session transcript an audit was narrowed to: the saving is then that session's own calls, matched on the log's `session` field by the transcript's file name, never the whole log under a figure the audit labels as its own.
     static func of(_ fileURL: URL, since: Date?, until: Date?, root: String?, transcript: String? = nil, includeScratch: Bool = true) -> UsageScan? {

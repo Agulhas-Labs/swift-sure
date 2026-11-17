@@ -23,7 +23,7 @@ $ swift-sure session-start --cwd ~/code/Shelf
 - `digest <Type>` (or a file): member line ranges, then a ranged Read; `Type.member`s: their source; a cited line: `digest File.swift:120`
 - `where <Symbol>` instead of grepping: definition (`--decl`: definition only), callers, conformers, overrides
 - `search` for code by shape, `strings "<text>"` for UI text
-- Bash: `swift-sure run -- <build or test>`: failures, log `.swift-sure/runs/`
+- Bash: `swift-sure run -- swift test` (or a build), bare, never piped: failures, log `.swift-sure/runs/`
 
 This repo is indexed (`~/code/Shelf`); no `root:` argument needed.
 
@@ -109,8 +109,7 @@ The edit left Sources/Stacks/Book.swift unparseable; fix it before going on. …
 ```
 
 This checks syntax only; a type error still needs a build. The same content is blocked once per session.
-When the edit added a function shaped like one that already exists, the hook names the existing one in a
-single line. A clean edit with no resemblance prints nothing.
+A clean edit prints nothing.
 
 The `Stop` and `SubagentStop` hooks send a context back once to build before it stops, when it edited Swift or another
 build input (a build setting, a plist, a C source) since its last green `swift-sure run` build.
@@ -122,7 +121,7 @@ Run `swift-sure report` for the index's share of the Swift lookups, the estimate
 
 ### Turn the advice off
 
-Set `SWIFT_SURE_NO_ADVICE=1` in the environment of the session. The refusals and the reuse nudge stop, with no
+Set `SWIFT_SURE_NO_ADVICE=1` in the environment of the session. The refusals and the notes stop, with no
 change to `settings.json`. Fed the `swift test` call above with it set, the hook prints nothing and exits 0.
 
 To take the hooks out, `swift-sure uninstall-hook` removes them (and a legacy sift status line), and `swift-sure uninstall` removes

@@ -24,8 +24,9 @@ struct DoctorClaudeRunMode {
     func checks() -> [DoctorCheck] {
         let doctor = DoctorClaude(environment: environment, probe: probe, hooks: SiftClaudeSetup.runHooks, server: SiftClaudeSetup.server, expectedTools: expectedTools)
         var checks = doctor.checks().filter { $0.name == "hooks" }
-        checks.append(.pass(.claude, "index", "off (installed with --run-only)"))
-        let registered = Self.registeredCommands(in: try? Data(contentsOf: AgentPaths.claudeSettings(environment: environment)))
+        let settings = try? Data(contentsOf: AgentPaths.claudeSettings(environment: environment))
+        checks.append(SiftClaudeSetup.registersBothModes(settings) ? .fail(.claude, "index", "both modes registered; re-run \(ProductName.current.binary) install (with or without --run-only)") : .pass(.claude, "index", "off (installed with --run-only)"))
+        let registered = Self.registeredCommands(in: settings)
         guard let first = registered.first else { return checks }
         let run = DoctorRun(agent: .claude, probe: probe, expectedTools: expectedTools)
         checks += run.binaryChecks(Self.binary(of: first.command))

@@ -124,7 +124,7 @@ struct PreToolUseCommand: ParsableCommand {
     ///
     /// The ledger decides first and the answer never overrides it: an answer still denies the command, so it is given only where a refusal would have been, and the identical re-run it promises is allowed on the ledger's record like any other. What it may not do is spend the budget on a call it let through, so the record of a denial is written by ``SiftMCP/AdviceLedger/noteDenial(session:command:)`` at the one outcome that prints one.
     ///
-    /// **An answer is the index serving this context, and is recorded as one.** The ledger notes it as an index call, which is what keeps the advice coming to a context that takes it, and the usage log gets the line the server would have written for the call — this session, this agent, what was served and the source it stood in for — marked as the hook's (`via`). That line is what `usage` and the report page price the saving from, and what excuses a whole read of the file afterwards (`DigestedFiles`).
+    /// **An answer is the index serving this context, and is recorded as one.** The ledger notes it as an index call, which is what keeps the advice coming to a context that takes it, and the usage log gets the line the server would have written for the call — this session, this agent, what was served and the source it stood in for — marked as the hook's (`via`). That line is what the report page prices the saving from, and what excuses a whole read of the file afterwards (`DigestedFiles`).
     ///
     /// One function rather than statements inside `run`, so that what a test exercises is what the hook does.
     static func respond(
@@ -560,7 +560,7 @@ struct PreToolUseCommand: ParsableCommand {
 
     /// Leaves the identity of the context making this call for the server to stamp on the log line.
     ///
-    /// For a call to this server's MCP tools, and for each query subcommand a Bash command runs — the shell half of `takesTheAdvice`, a *different process* that writes its own log line and claims its slip by its own argv, filed under a face no MCP tool has (``SiftMCP/CallAttribution/cliFace``), so neither half can take the other's. Any other `swift-sure` in Bash — `swift-sure run`, `swift-sure usage` — logs no lookup and gets no slip.
+    /// For a call to this server's MCP tools, and for each query subcommand a Bash command runs — the shell half of `takesTheAdvice`, a *different process* that writes its own log line and claims its slip by its own argv, filed under a face no MCP tool has (``SiftMCP/CallAttribution/cliFace``), so neither half can take the other's. Any other `swift-sure` in Bash — `swift-sure run`, `swift-sure report` — logs no lookup and gets no slip.
     ///
     /// The session key is the raw `session_id` and not ``AdviceContext``'s per-agent key, because the server can only look this up by what its own environment tells it, which is the session. The agent is what the slip *carries*, not what it is filed under.
     ///

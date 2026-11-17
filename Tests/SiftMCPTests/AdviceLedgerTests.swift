@@ -44,14 +44,14 @@ struct AdviceLedgerTests {
         #expect(FileManager.default.fileExists(atPath: harness.adviceDirectory.appendingPathComponent("new.json").path))
     }
 
-    /// The `reuse` subdirectory is a file per nudge given and nothing else ever removes them — the same shape of leak the ledger guards against — so the prune sweeps it in the same pass, by mtime rather than by the `.json` extension a session's own state uses.
+    /// The `reuse` subdirectory is a file per answer given and nothing else ever removes them — the same shape of leak the ledger guards against — so the prune sweeps it in the same pass, by mtime rather than by the `.json` extension a session's own state uses.
     @Test
     func aStaleReuseMarkIsPrunedAndAFreshOneKept() throws {
         let harness = try Self.temporary()
         let ledger = harness.ledger
         defer { harness.cleanup() }
         let reuseDirectory = harness.adviceDirectory.appendingPathComponent("reuse", isDirectory: true)
-        let marks = ReuseNudgeMarks(directory: reuseDirectory)
+        let marks = HookMarks(directory: reuseDirectory)
 
         #expect(marks.claim(context: "old", file: "A.swift", declaration: "A.f()"))
         let stale = try #require(FileManager.default.contentsOfDirectory(at: reuseDirectory, includingPropertiesForKeys: nil).first)
@@ -117,7 +117,7 @@ struct AdviceLedgerTests {
             couldAnswer: { _, _ in true }
         ))
         let different = try #require(PreToolUseCommand.lookup(
-            command: #"grep -rn "SimilarHit" Sources"#,
+            command: #"grep -rn "Gizmo" Sources"#,
             payload: [:],
             in: cwd,
             noting: noted,

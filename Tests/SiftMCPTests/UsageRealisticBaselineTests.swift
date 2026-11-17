@@ -7,7 +7,7 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// `usage` and `audit` say what they counted in the same terms: a session with its subagents beside it, and each names what the other counts.
+/// What the scan prices as a saving, and what it leaves unpriced.
 @Suite(.temporaryDirectories)
 struct UsageRealisticBaselineTests {
     /// A usage log of `objects`, one line each, in a fresh temporary directory.
@@ -24,21 +24,6 @@ struct UsageRealisticBaselineTests {
         object["session"] = session
         object["agent"] = agent
         return object
-    }
-
-    @Test
-    func usageNamesTheSessionWithItsSubagentsBesideIt() throws {
-        let file = try Self.writeLog([
-            Self.call("digest"),
-            Self.call("where", agent: "agent-one"),
-            Self.call("search", agent: "agent-two"),
-            Self.call("digest", session: nil),
-        ])
-
-        let report = UsageReport.render(fileURL: file)
-
-        #expect(report.contains("usage — 0 failures, 4 calls, 2026-10-08 → 2026-10-08, from 1 session (+2 subagents) and 1 call naming no session"), "\(report)")
-        #expect(report.contains("swift-sure audit counts the transcripts' Swift lookups by any route instead"), "\(report)")
     }
 
     /// One call the hook answered in place, measured, with what it intercepted where the line records it.
@@ -144,17 +129,6 @@ struct UsageRealisticBaselineTests {
         let answered = try #require(try await InPlaceAnswerTests.answered(#"grep -n 'func \|@Test' Sources/App/Checks.swift"#, in: root))
 
         #expect(answered.calls.map(\.intercepted) == [.other])
-    }
-
-    @Test
-    func aLogOfVoluntaryCallsStatesNoSaving() throws {
-        var digest = Self.call("digest", target: "Sources/App/Depot.swift")
-        digest["outBytes"] = 800
-        digest["srcBytes"] = 9000
-        let file = try Self.writeLog([digest, Self.call("where")])
-
-        #expect(try UsageScan.load(fileURL: file).get().savings == nil)
-        #expect(!UsageReport.render(fileURL: file).contains("tokens saved"))
     }
 
     @Test

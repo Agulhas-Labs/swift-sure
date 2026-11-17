@@ -3,6 +3,7 @@
 //
 
 import CryptoKit
+import Fieldwork
 import Foundation
 
 /// A Swift file an edit left unparseable: the content the edit left and where the parser failed on it.
@@ -34,7 +35,7 @@ public struct EditParseCheck: Sendable {
         else {
             return nil
         }
-        let displayPath = root.flatMap { ReuseNudge.relativePath(of: file, under: $0) } ?? file
+        let displayPath = root.flatMap { relativePath(of: file, under: $0) } ?? file
         var errors = FileParser.errors(inSource: source, path: displayPath)
         guard !errors.isEmpty else { return nil }
         var preexisting = 0
@@ -92,7 +93,7 @@ public struct EditParseCheck: Sendable {
     /// The index need not hold the file yet: a new file that will be indexed is covered, and an ignored one or one under a build directory never is.
     public static func indexCovers(_ file: String, under root: String) -> Bool {
         let rootURL = URL(fileURLWithPath: root)
-        guard let relative = ReuseNudge.relativePath(of: file, under: root),
+        guard let relative = relativePath(of: file, under: root),
               let config = try? SiftConfig.load(repoRoot: rootURL)
         else {
             return false
@@ -105,7 +106,7 @@ public struct EditParseCheck: Sendable {
     ///
     /// The index covers Swift sources only, so this is the rule for what it leaves out: a build setting, a resource, a C source, a package manifest. Unlike ``indexCovers(_:under:)``, it counts an edit made through a symlink, since the build compiles what the link points at.
     public static func buildInputCovers(_ file: String, under root: String) -> Bool {
-        guard let relative = ReuseNudge.relativePath(of: file, under: root), isBuildInput(relative) else {
+        guard let relative = relativePath(of: file, under: root), isBuildInput(relative) else {
             return false
         }
         return !GitContext(repoRoot: URL(fileURLWithPath: root)).ignores(relativePath: relative)
@@ -117,7 +118,7 @@ public struct EditParseCheck: Sendable {
         let enumerator = (try? SiftConfig.load(repoRoot: rootURL)).map { FileEnumerator(repoRoot: rootURL, config: $0) }
         var candidates: [(file: String, relative: String)] = []
         for file in files {
-            guard let relative = ReuseNudge.relativePath(of: file, under: root) else { continue }
+            guard let relative = relativePath(of: file, under: root) else { continue }
             let indexed = enumerator.map { $0.exclusion(of: relative) == nil } ?? false
             if indexed || isBuildInput(relative) {
                 candidates.append((file, relative))
@@ -147,5 +148,13 @@ public struct EditParseCheck: Sendable {
             ? "\(ProductName.current.binary): syntax errors this edit added (the file had \(preexisting) before it):"
             : "\(ProductName.current.binary): syntax errors after this edit:"
         return ([heading] + shown + rest + [ending]).joined(separator: "\n")
+    }
+
+    /// `file` relative to `root`, both canonicalised at the comparison, or `nil` when it lies outside.
+    static func relativePath(of file: String, under root: String) -> String? {
+        let prefix = CanonicalPath.of(root) + "/"
+        let canonical = CanonicalPath.of(file)
+        guard canonical.hasPrefix(prefix) else { return nil }
+        return String(canonical.dropFirst(prefix.count))
     }
 }

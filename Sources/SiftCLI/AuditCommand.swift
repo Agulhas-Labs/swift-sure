@@ -556,7 +556,7 @@ extension AuditCommand {
 extension AuditCommand {
     /// Only the flags and options come off the command line.
     ///
-    /// Spelled out for the reason ``BuildCommand``'s keys are: an output is not something a decoder can produce.
+    /// Spelled out because an output is not something a decoder can produce.
     enum CodingKeys: String, CodingKey {
         case since
         case until

@@ -140,7 +140,7 @@ struct BatchedReadNoteTests {
 
     /// Legs that alone are withheld — a window no answer is smaller than (on worth), and a grep of one file its digest cannot prove (for another reason) — each with the rule it meets alone.
     static let withheldAlone = [
-        ("sed -n 6,9p Sources/App/Depot.swift", "notSmaller"),
+        ("head -n 9 Sources/App/Depot.swift", "notSmaller"),
         (#"grep -n 'static\|case ' Sources/App/Depot.swift"#, "notExact"),
     ]
 

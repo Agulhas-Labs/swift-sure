@@ -66,7 +66,7 @@ extension UninstallAgentBackupTests {
     struct Agents {
         let installed: UninstallCommandTests.Installed
         let cursor: URL
-        let codex: CodexInstall.Home
+        let codex: AgentPaths.CodexHome
         let runner: FakeCodex
 
         var cursorMcp: URL {
@@ -86,10 +86,10 @@ extension UninstallAgentBackupTests {
         let installed = try Fixture.install()
         let cursor = installed.home.appendingPathComponent(".cursor")
         try FileManager.default.createDirectory(at: cursor, withIntermediateDirectories: true)
-        let codex = CodexInstall.Home(directory: installed.home.appendingPathComponent(".codex"), source: "--codex-dir")
+        let codex = AgentPaths.CodexHome(directory: installed.home.appendingPathComponent(".codex"), source: "--codex-dir")
         let runner = FakeCodex()
         _ = try SiftCursorSetup.install.install(directory: cursor, binary: "/bin/swift-sure", binaryWord: "/bin/swift-sure")
-        _ = try CodexInstall.install(home: codex, binary: "/bin/swift-sure", binaryWord: "/bin/swift-sure", runner: runner)
+        _ = try SiftCodexSetup.install(home: codex, binary: "/bin/swift-sure", binaryWord: "/bin/swift-sure", runner: runner)
         return Agents(installed: installed, cursor: cursor, codex: codex, runner: runner)
     }
 

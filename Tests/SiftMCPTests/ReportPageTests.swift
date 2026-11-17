@@ -171,22 +171,6 @@ struct ReportPageTests {
 
     // MARK: Savings
 
-    /// The page's savings figure is the one `usage` prints — the same aggregation, not a second one.
-    @Test
-    func savingsMatchTheUsageSummaryForTheSameLog() throws {
-        let directory = try TemporaryDirectory.make("report")
-        let log = try Self.writeLog([
-            Self.entry(tool: "digest", target: "Widget", bytes: (out: 900, source: 9000), intercepted: "window"),
-            Self.entry(tool: "digest", target: "Engine", bytes: (out: 100, source: 1000), intercepted: "window"),
-        ], in: directory)
-
-        let data = Self.assemble(log: log, projects: directory)
-
-        #expect(data.savings?.percent == 10)
-        #expect(UsageReport.render(fileURL: log).contains(data.savings?.sentence ?? "no sentence"))
-        #expect(ReportPage.render(data).contains("on 2 intercepted reads (file or window asked for − answer served)"))
-    }
-
     /// Unpriced calls stay out of the ratio and are counted beside it: a partial aggregate is never printed as a total.
     @Test
     func aMixedLogStatesHowManyCallsItPriced() throws {

@@ -342,6 +342,7 @@ struct RunCommand: ParsableCommand {
         outcome.log?.settle(exitCode: requiredInventoryFailed ? RunInventoryRequirement.exitCode : exitCode, command: arguments, in: workingDirectory)
         let inventory = held.lines
             + UnmatchedFilterHint.lines(after: outcome, selector: selector, repositoryRoot: writesUnder ?? root, budget: hintBudget)
+            + FilteredRunReachHint.lines(after: outcome, selector: selector, repositoryRoot: writesUnder ?? root, budget: hintBudget)
         var answerLines = report(outcome, workingDirectory: workingDirectory, accessibility: accessibility, bundles: bundles, selector: selector, inventory: inventory)
         if let coverageStart {
             let section = coverageSection(checkouts, workingDirectory: workingDirectory, treeBefore: coverageStart.tree, started: coverageStart.date)

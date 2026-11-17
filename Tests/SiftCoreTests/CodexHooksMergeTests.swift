@@ -28,7 +28,7 @@ struct CodexHooksMergeTests {
     }
 
     @Test func anEmptyFileGetsTheThreeEventsInCodexsShapeWithThePlainSubcommands() throws {
-        let change = try CodexHooksFile.apply(to: nil, binaryWord: Self.binary)
+        let change = try SiftCodexSetup.hooksFile.apply(to: nil, binaryWord: Self.binary)
 
         #expect(change.changed)
         let written = try Self.object(change.data)
@@ -44,10 +44,10 @@ struct CodexHooksMergeTests {
 
     @Test func aSecondApplyChangesNothingAndRemovalRestoresTheForeignFileByteForByte() throws {
         let original = try Self.canonical(Self.foreignHooks)
-        let installed = try CodexHooksFile.apply(to: original, binaryWord: Self.binary)
-        let again = try CodexHooksFile.apply(to: installed.data, binaryWord: Self.binary)
-        let removed = try CodexHooksFile.remove(from: installed.data)
-        let removedAgain = try CodexHooksFile.remove(from: removed.data)
+        let installed = try SiftCodexSetup.hooksFile.apply(to: original, binaryWord: Self.binary)
+        let again = try SiftCodexSetup.hooksFile.apply(to: installed.data, binaryWord: Self.binary)
+        let removed = try SiftCodexSetup.hooksFile.remove(from: installed.data)
+        let removedAgain = try SiftCodexSetup.hooksFile.remove(from: removed.data)
 
         #expect(installed.changed)
         #expect(!again.changed)
@@ -59,7 +59,7 @@ struct CodexHooksMergeTests {
     }
 
     @Test func aForeignGroupKeepsItsPlaceAndOursIsAppendedAfterIt() throws {
-        let installed = try CodexHooksFile.apply(to: Data(Self.foreignHooks.utf8), binaryWord: Self.binary)
+        let installed = try SiftCodexSetup.hooksFile.apply(to: Data(Self.foreignHooks.utf8), binaryWord: Self.binary)
         let events = try #require(Self.object(installed.data)["hooks"] as? [String: Any])
         let groups = try #require(events["PreToolUse"] as? [[String: Any]])
 
@@ -72,7 +72,7 @@ struct CodexHooksMergeTests {
 
     @Test func removingOursFromAMixedGroupKeepsTheForeignHandlerAndTheMatcher() throws {
         let mixed = #"{"hooks":{"PreToolUse":[{"hooks":[{"command":"/opt/tools/bin/swift-sure pre-tool-use","type":"command"},{"command":"/usr/local/bin/audit-log.sh","type":"command"}],"matcher":"*"}]}}"#
-        let removed = try CodexHooksFile.remove(from: Data(mixed.utf8))
+        let removed = try SiftCodexSetup.hooksFile.remove(from: Data(mixed.utf8))
         let groups = try #require((Self.object(removed.data)["hooks"] as? [String: Any])?["PreToolUse"] as? [[String: Any]])
 
         #expect(removed.removed == ["PreToolUse — /opt/tools/bin/swift-sure pre-tool-use"])
@@ -83,7 +83,7 @@ struct CodexHooksMergeTests {
 
     @Test func aMovedBinaryIsRepointedInPlaceAndADuplicateDropped() throws {
         let stale = #"{"hooks":{"PreToolUse":[{"hooks":[{"command":"/old/bin/swift-sure pre-tool-use","type":"command"}],"matcher":"*"},{"hooks":[{"command":"/other/bin/swift-sure pre-tool-use","type":"command"}],"matcher":"*"}]}}"#
-        let change = try CodexHooksFile.apply(to: Data(stale.utf8), binaryWord: Self.binary)
+        let change = try SiftCodexSetup.hooksFile.apply(to: Data(stale.utf8), binaryWord: Self.binary)
         let groups = try #require((Self.object(change.data)["hooks"] as? [String: Any])?["PreToolUse"] as? [[String: Any]])
 
         #expect(change.replaced == ["/old/bin/swift-sure pre-tool-use"])
@@ -94,12 +94,12 @@ struct CodexHooksMergeTests {
     @Test func aCursorRegistrationAndALookalikeAreNeverClaimed() throws {
         let others = #"{"hooks":{"PreToolUse":[{"hooks":[{"command":"/opt/tools/bin/swift-sure pre-tool-use --agent cursor","type":"command"},{"command":"/opt/tools/bin/sifter pre-tool-use","type":"command"}]}]}}"#
 
-        #expect(try !CodexHooksFile.remove(from: Data(others.utf8)).changed)
+        #expect(try !SiftCodexSetup.hooksFile.remove(from: Data(others.utf8)).changed)
     }
 
     @Test(arguments: [#"[1,2]"#, #"{"hooks":[]}"#, #"{"hooks":{"PreToolUse":{"hooks":[]}}}"#, #"{"hooks":{"PreToolUse":[{"hooks":{"command":"x"}}]}}"#])
     func aFileOfAnotherShapeIsRefusedNamingCodex(text: String) throws {
-        let error = try #require(throws: CursorConfigJSON.Unmergeable.self) { try CodexHooksFile.apply(to: Data(text.utf8), binaryWord: Self.binary) }
+        let error = try #require(throws: CursorConfigJSON.Unmergeable.self) { try SiftCodexSetup.hooksFile.apply(to: Data(text.utf8), binaryWord: Self.binary) }
 
         #expect(error.harness == "Codex")
         #expect(!error.description.contains("Cursor"))

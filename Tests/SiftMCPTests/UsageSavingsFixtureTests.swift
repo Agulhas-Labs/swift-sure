@@ -29,16 +29,6 @@ struct UsageSavingsFixtureTests {
         #expect(scan.savings == nil)
     }
 
-    /// The summary counts the calls and states no saving, and says nothing of a baseline it did not observe.
-    @Test
-    func theRenderedSummaryStatesNoSavingForThem() throws {
-        let report = try UsageReport.render(fileURL: Self.fixture())
-
-        #expect(!report.contains("tokens saved"))
-        #expect(!report.contains("estimated savings"))
-        #expect(!report.contains("leans high"))
-    }
-
     /// The page reports the same: no saving, and no priced figure to quote.
     @Test
     func thePageStatesNoSavingEither() throws {

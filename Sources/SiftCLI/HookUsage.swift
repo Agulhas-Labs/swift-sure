@@ -20,7 +20,7 @@ struct HookUsage {
 
     /// Records each call of an answer given in place as the server would have recorded it, marked as the hook's and filed under the command's id, and notes in the ledger the reads it stood in for, so a later read of one anyway is matched back to it.
     ///
-    /// A whole file intercepted carries the bytes one `Read` of it returns, which is what `usage` prices its saving against; only a file or a window intercepted is noted in the ledger, being the only answers a read anyway takes a saving back from.
+    /// A whole file intercepted carries the bytes one `Read` of it returns, which is what `report` prices its saving against; only a file or a window intercepted is noted in the ledger, being the only answers a read anyway takes a saving back from.
     func record(_ answered: InPlaceAnswerer.Answered, resolvedNothing: Bool) {
         let call = payload["tool_use_id"] as? String
         for answer in answered.calls {

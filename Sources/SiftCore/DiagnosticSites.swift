@@ -41,10 +41,11 @@ public struct DiagnosticSites {
         let rootURL = URL(fileURLWithPath: root)
         var listing: [String]?
         var lines: [String] = []
+        let logs = runLogs(in: response)
         for site in sites {
             guard deadline.timeIntervalSinceNow > 0 else { break }
             guard let path = repositoryPath(of: site.path, cwd: cwd, root: rootURL, listing: &listing),
-                  let located = locate(site, at: path, under: rootURL, windowed: lines.count < windowedSites)
+                  let located = locate(site, at: path, under: rootURL, windowed: lines.count < windowedSites, logs: logs)
             else {
                 continue
             }
@@ -54,6 +55,27 @@ public struct DiagnosticSites {
         return (["\(ProductName.current.binary): the diagnostics above, located:"] + lines).joined(separator: "\n")
     }
 
+    /// The log path each `raw:` line of `response` names, with where in `response` the line starts.
+    private static func runLogs(in response: String) -> [(offset: Int, path: String)] {
+        guard let pattern = try? NSRegularExpression(pattern: #"^raw: .*? · (.+?\.log)(?: \(|$)"#, options: .anchorsMatchLines) else { return [] }
+        let text = response as NSString
+        return pattern.matches(in: response, range: NSRange(location: 0, length: text.length)).map {
+            (offset: $0.range.location, path: text.substring(with: $0.range(at: 1)))
+        }
+    }
+
+    /// The line saying the file at `path` changed after the run whose log is the first `raw:` line after `site`, or `nil` where there is no such log or the file is not newer than it.
+    private static func changedNote(site: Site, path: String, under root: URL, logs: [(offset: Int, path: String)]) -> String? {
+        guard let log = logs.first(where: { $0.offset > site.offset }),
+              let logged = (try? FileManager.default.attributesOfItem(atPath: log.path.hasPrefix("/") ? log.path : root.appendingPathComponent(log.path).path))?[.modificationDate] as? Date,
+              let changed = FileChangeStat.of(path: root.appendingPathComponent(path).path)?.changed,
+              changed > logged.timeIntervalSince1970
+        else {
+            return nil
+        }
+        return "  \((path as NSString).lastPathComponent) changed after this diagnostic; the lines below are the file as it is now"
+    }
+
     /// The distinct file-and-line sites `response` prints as an error or a warning, first ``siteCap`` in order of appearance.
     static func sites(in response: String) -> [Site] {
         guard let pattern = try? NSRegularExpression(pattern: #"([^\s:'"()]+\.swift):(\d+):\d+: (?:error|warning):"#) else { return [] }
@@ -61,7 +83,7 @@ public struct DiagnosticSites {
         var found: [Site] = []
         pattern.enumerateMatches(in: response, range: NSRange(location: 0, length: text.length)) { match, _, stop in
             guard let match, let line = Int(text.substring(with: match.range(at: 2))), line > 0 else { return }
-            let site = Site(path: text.substring(with: match.range(at: 1)), line: line)
+            let site = Site(path: text.substring(with: match.range(at: 1)), line: line, offset: match.range.location)
             if !found.contains(site) {
                 found.append(site)
             }
@@ -113,8 +135,8 @@ public struct DiagnosticSites {
         return count
     }
 
-    /// The lines locating `site` in the repository file `path` — its heading, then the cited line marked `>` among up to ``windowRadius`` lines either side inside its declaration where `windowed`, or alone — or `nil` where the file is unreadable, the line is past its end or no declaration holds it.
-    private static func locate(_ site: Site, at path: String, under root: URL, windowed: Bool) -> String? {
+    /// The lines locating `site` in the repository file `path` — its heading, a line saying so where the file changed after the run that printed the diagnostic, then the cited line marked `>` among up to ``windowRadius`` lines either side inside its declaration where `windowed`, or alone — or `nil` where the file is unreadable, the line is past its end or no declaration holds it.
+    private static func locate(_ site: Site, at path: String, under root: URL, windowed: Bool, logs: [(offset: Int, path: String)]) -> String? {
         let url = root.appendingPathComponent(path)
         guard let data = FileManager.default.contents(atPath: url.path), let text = String(data: data, encoding: .utf8) else { return nil }
         let source = text.components(separatedBy: "\n")
@@ -134,7 +156,9 @@ public struct DiagnosticSites {
             let label = String(repeating: " ", count: width - String(number).count) + String(number)
             return "  \(number == site.line ? ">" : " ") \(label)| \(code)"
         }
-        return (["  \(path):\(site.line) — in \(declaration.name) :\(range)"] + rows).joined(separator: "\n")
+        let heading = "  \(path):\(site.line) — in \(declaration.name) :\(range)"
+        let changed = changedNote(site: site, path: path, under: root, logs: logs)
+        return ([heading] + (changed.map { [$0] } ?? []) + rows).joined(separator: "\n")
     }
 }
 
@@ -143,5 +167,11 @@ extension DiagnosticSites {
     struct Site: Equatable {
         let path: String
         let line: Int
+        /// Where in the response the diagnostic starts; not part of a site's identity.
+        let offset: Int
+
+        static func == (left: Site, right: Site) -> Bool {
+            left.path == right.path && left.line == right.line
+        }
     }
 }

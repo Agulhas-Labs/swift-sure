@@ -44,6 +44,16 @@ public extension SiftCursorSetup {
         return ours ? .run : .index
     }
 
+    /// Whether the `hooks.json` bytes `data` register both modes' `preToolUse` hook: the run-only one and the full set's plain one.
+    static func registersBothModes(_ data: Data?) -> Bool {
+        guard mode(of: data) == .run, let hook = hooks.hooks.first(where: { $0.event == "preToolUse" }) else { return false }
+        let file = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+        let entries = (file?["hooks"] as? [String: Any])?[hook.event] as? [[String: Any]] ?? []
+        return entries.compactMap { $0["command"] as? String }.contains { command in
+            FieldworkTool.recognised.contains { $0.runs(command, subcommand: hooks.registeredSubcommand(for: hook)) }
+        }
+    }
+
     /// What an install of one mode does to the two files, composed in memory: the other mode's hooks taken out, this mode's applied, and in run mode the server taken out.
     struct Merge {
         /// What happened to the `mcp.json` server.

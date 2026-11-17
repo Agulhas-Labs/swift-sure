@@ -72,7 +72,7 @@ struct UsageReadAnywayTests {
         }
     }
 
-    /// The identical re-run of an answered read goes through, and the hook writes the line that takes the answer's saving back, so `usage` prices nothing.
+    /// The identical re-run of an answered read goes through, and the hook writes the line that takes the answer's saving back, so `report` prices nothing.
     @Test
     func theReRunOfAnAnsweredReadTakesItsSavingBack() throws {
         let fixture = try AlreadyDigestedReadTests.Fixture()

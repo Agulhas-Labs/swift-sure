@@ -20,9 +20,9 @@ public struct SiftClaudeSetup {
     ///
     /// `PreToolUse` is a different job by a different command. Its matcher names every tool that can read Swift source, because a `PreToolUse` hook without a matcher runs on every tool call. Matchers are anchored, not substring, so the Xcode server's read tools are spelled out. This server's own tools and writes are here to be observed rather than judged: a hook payload names the conversation, which a log line does not.
     ///
-    /// `PostToolUse` is the other side of the same edit, a nudge rather than an answer, and it reads the answer of a `digest` and the output of a `Grep` or `Bash` call too. Its timeout is shorter because it runs after the tool already ran.
+    /// `PostToolUse` is the other side of the same edit, a note or a parse block rather than an answer, and it reads the answer of a `digest` and the output of a `Grep` or `Bash` call too. Its timeout is shorter because it runs after the tool already ran.
     ///
-    /// `Stop` and `SubagentStop` are the end of the same work, a gate rather than a nudge: one command serves both, and neither takes a matcher.
+    /// `Stop` and `SubagentStop` are the end of the same work, a gate rather than a note: one command serves both, and neither takes a matcher.
     public static let events: [HookRegistration.Event] = [
         HookRegistration.Event(name: "SessionStart", subcommand: sessionStartSubcommand, matchers: sessionStartMatchers, timeout: 5),
         HookRegistration.Event(name: "SubagentStart", subcommand: sessionStartSubcommand, matchers: [], timeout: 5),
@@ -119,6 +119,12 @@ public struct SiftClaudeSetup {
         return HookRegistration(tool: .sift, events: runPreToolUse).fingerprint(of: data).isEmpty ? .index : .run
     }
 
+    /// Whether the settings file `data` registers both modes' `PreToolUse` hook: the run-mode one and the index mode's plain `pre-tool-use`.
+    public static func registersBothModes(_ data: Data?) -> Bool {
+        let indexPreToolUse = events.filter { $0.subcommand == preToolUseSubcommand }
+        return mode(of: data) == .run && !HookRegistration(tool: .sift, events: indexPreToolUse).fingerprint(of: data).isEmpty
+    }
+
     /// The user-scope MCP server as `name`'s binary registers it, for the removal of one an earlier release left.
     public static func server(named name: ProductName) -> ClaudeMcpServer {
         ClaudeMcpServer(tool: FieldworkTool(name: name.binary), arguments: ["mcp"], npmPackage: npmPackage, removal: .userScope)
@@ -138,7 +144,7 @@ public struct SiftClaudeSetup {
     public static let mcp = ClaudeMcpInstall(server: server)
 
     /// The agent rule: the `SwiftSure.md` that ships beside the binary, loaded on Swift files.
-    public static let rule = ClaudeRuleInstall(tool: .sift, shippedFileName: ProductName.current.ruleFileName, shareDirectory: ProductName.current.shareDirectory, loadsOn: "**/*.swift")
+    public static let rule = ClaudeRuleInstall(tool: .sift, shippedFileName: ProductName.current.ruleFileName, shareDirectory: ProductName.current.shareDirectory, loadsOn: "**/*.swift", shippedBy: "Homebrew or the release bundle")
 }
 
 public extension SiftClaudeSetup {
