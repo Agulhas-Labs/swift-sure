@@ -234,7 +234,7 @@ private extension TestRun {
         let answer = ([renderer.render(plans: answers, declared: declared, shards: shards)] + notes).joined(separator: "\n\n")
         _ = state.teardown(children: children, simctl: environment.simctl, overrides: environment.overrides, leases: environment.leases, releasingWatcher: true)
         let failing = plans.first { $0.reconciliation.exitCode != 0 }
-        return Result(answer: answer, exitCode: failing?.reconciliation.exitCode ?? 0, failedTests: plans.contains { $0.reconciliation.reportedTestFailures != nil } ? plans.flatMap { $0.reconciliation.reportedTestFailures ?? [] } : nil)
+        return Result(answer: answer, exitCode: failing?.reconciliation.exitCode ?? 0, failedTests: plans.contains { $0.reconciliation.reportedTestFailures != nil } ? plans.flatMap { $0.reconciliation.reportedTestFailures ?? [] } : nil, failedSuites: plans.reduce(into: [:]) { $0.merge($1.reconciliation.reportedFailedSuites) { first, _ in first } })
     }
 }
 

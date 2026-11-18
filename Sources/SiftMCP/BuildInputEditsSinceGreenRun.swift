@@ -141,6 +141,32 @@ public struct BuildInputEditsSinceGreenRun {
 }
 
 public extension BuildInputEditsSinceGreenRun {
+    /// A `swift-sure run` segment as `<leading assignments as written> <binary as written> run --root <directory> -- <command>`, its other options kept, or `nil` where the segment is not a `swift-sure run`.
+    ///
+    /// A segment with a `--root` of its own is returned as written where that root is `directory`, and is `nil` where it is another, since a second `--root` would not say which one governs.
+    static func rooted(segment: String, at directory: String) -> String? {
+        guard let run = siftRun(ofSegment: segment) else { return nil }
+        let query = ShellQuery(segment)
+        guard let length = query.binarySpellingLength else { return nil }
+        if let root = run.root {
+            return InPlaceShape.resolve(root, against: directory).map(CanonicalPath.of) == CanonicalPath.of(directory) ? segment : nil
+        }
+        let raw = query.rawInvocation
+        var leading = Array(query.rawArguments.prefix(query.rawArguments.count - raw.count))
+        var binary = Array(raw.prefix(length))
+        if leading.isEmpty {
+            binary[0] = String(binary[0].drop(while: { $0 == "(" || $0 == "{" }))
+        } else {
+            leading[0] = String(leading[0].drop(while: { $0 == "(" || $0 == "{" }))
+        }
+        let words = Array(raw.dropFirst(length + 1))
+        let start = max(0, words.count - run.wrapped.count)
+        let options = words[..<start].filter { $0 != "--" }
+        return (leading + binary + ["run", "--root", ShellWord.quoted(directory)] + options + ["--"] + words[start...]).joined(separator: " ")
+    }
+}
+
+public extension BuildInputEditsSinceGreenRun {
     /// What one read of a transcript found.
     struct Scan {
         /// The files edited since its last green run, oldest first and each once.

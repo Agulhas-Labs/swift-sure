@@ -41,7 +41,7 @@ struct StopGateNestedPackageTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("`(cd \(CanonicalPath.of(fixture.repo.path)) && swift-sure run -- swift build --package-path Gizmo)` and"))
+        #expect(reason.contains("`swift-sure run --root \(CanonicalPath.of(fixture.repo.path)) -- swift build --package-path Gizmo` and"))
     }
 
     @Test
@@ -66,7 +66,7 @@ struct StopGateNestedPackageTests {
 
         let root = CanonicalPath.of(fixture.repo.path)
 
-        #expect(reason.contains("`(cd \(root) && swift-sure run -- swift build --package-path Depot && swift-sure run -- swift build --package-path Gizmo)` and"))
+        #expect(reason.contains("`swift-sure run --root \(root) -- swift build --package-path Depot && swift-sure run --root \(root) -- swift build --package-path Gizmo` and"))
     }
 
     @Test

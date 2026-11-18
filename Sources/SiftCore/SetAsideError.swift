@@ -21,16 +21,16 @@ public enum SetAsideError: Error, CustomStringConvertible, Sendable {
     ///
     /// `flag` names the run that found it — `--without` or `--without-line` — so the refusal reads as the caller's own command.
     case unsupported(path: String, reason: String, flag: String)
-    /// Another process holds the set-aside lock for this working tree: who, as it wrote itself down, and whether changes are out of the tree while it does.
-    case busy(holder: SetAsideLock.Holder?, record: SetAsideRecord?)
-    /// A record from a set-aside whose process is gone, and so was never put back.
-    case unrestored(SetAsideRecord)
+    /// Another process holds the set-aside lock for this working tree: who, as it wrote itself down, whether changes are out of the tree while it does, and the name of the state directory the checkout uses.
+    case busy(holder: SetAsideLock.Holder?, record: SetAsideRecord?, stateDirectory: String)
+    /// A record from a set-aside whose process is gone, and so was never put back, and the name of the state directory the checkout uses.
+    case unrestored(SetAsideRecord, stateDirectory: String)
     case unreadableRecord(path: String, reason: String)
     /// A git command the set-aside depends on failed.
     case git(String)
     /// A git command could not take the index lock, for as long as a restore waits for it.
     case indexLocked(String)
-    /// The store under `.swift-sure/` could not be written.
+    /// The store under the state directory could not be written.
     case store(String)
     /// The watcher that restores the tree if this process is killed could not be started, so nothing was set aside.
     case guardUnavailable(String)
@@ -122,10 +122,10 @@ extension SetAsideError {
             nothingSince(pathspecs.joined(separator: " "), since: since, matchesFiles: matchesFiles, leftInPlace: leftInPlace)
         case let .unsupported(path, reason, flag):
             "\(ProductName.current.binary) run \(flag): refusing to set aside \(path) — \(reason). Nothing was touched."
-        case let .busy(holder, record):
-            busy(holder, record: record)
-        case let .unrestored(record):
-            unrestored(record)
+        case let .busy(holder, record, stateDirectory):
+            busy(holder, record: record, stateDirectory: stateDirectory)
+        case let .unrestored(record, stateDirectory):
+            unrestored(record, stateDirectory: stateDirectory)
         case let .unreadableRecord(path, reason):
             "a set-aside record exists at \(path) but could not be read (\(reason)). Nothing has been deleted: the copies it points at are beside it, and `\(ProductName.current.binary) run` and `\(ProductName.current.binary) reset` refuse until the record is dealt with."
         case let .git(message):
@@ -147,7 +147,7 @@ extension SetAsideError {
 
     private func nothingUncommitted(_ named: String, matchesFiles: Bool, leftInPlace: [String], committedSince: String?) -> String {
         guard leftInPlace.isEmpty else {
-            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoryName)/"
+            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoryName(holding: leftInPlace))/"
             return "\(ProductName.current.binary) run --without: the only uncommitted changes under \(named) are in \(paths) — this tool's own directory, which a set-aside never moves — so there is nothing to set aside. Nothing was run."
         }
         guard matchesFiles else {
@@ -162,7 +162,7 @@ extension SetAsideError {
 
     private func nothingSince(_ named: String, since: String, matchesFiles: Bool, leftInPlace: [String]) -> String {
         guard leftInPlace.isEmpty else {
-            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoryName)/"
+            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoryName(holding: leftInPlace))/"
             return "\(ProductName.current.binary) run --without: the only changes under \(named) since \(Self.shown(since)) are in \(paths) — this tool's own directory, which a set-aside never moves — so there is nothing to set aside. Nothing was run."
         }
         guard matchesFiles else {
@@ -183,7 +183,7 @@ extension SetAsideError {
         String(commit.prefix(10))
     }
 
-    private func busy(_ holder: SetAsideLock.Holder?, record: SetAsideRecord?) -> String {
+    private func busy(_ holder: SetAsideLock.Holder?, record: SetAsideRecord?, stateDirectory: String) -> String {
         switch holder?.role {
         case .watcher:
             let owner = record.map { " (pid \($0.owner))" } ?? ""
@@ -191,7 +191,7 @@ extension SetAsideError {
         case .restore:
             return "a `\(ProductName.current.binary) run --restore` (pid \(holder?.pid ?? 0)) is putting set-aside changes back in this working tree. Wait for it to finish, then run this again."
         case .reset:
-            return "a `\(ProductName.current.binary) reset` (pid \(holder?.pid ?? 0)) is deleting this working tree's \(SiftPaths.directoryName)/. Wait for it to finish, then run this again."
+            return "a `\(ProductName.current.binary) reset` (pid \(holder?.pid ?? 0)) is deleting this working tree's \(stateDirectory)/. Wait for it to finish, then run this again."
         case .run where record == nil:
             return "a `\(ProductName.current.binary) run --without` (pid \(holder?.pid ?? 0)) is running its tests again with the changes back in place. Wait for it to finish, then run this again."
         case .run, nil:
@@ -200,11 +200,11 @@ extension SetAsideError {
         }
     }
 
-    private func unrestored(_ record: SetAsideRecord) -> String {
+    private func unrestored(_ record: SetAsideRecord, stateDirectory: String) -> String {
         let paths = record.entries.count == 1 ? "1 path" : "\(record.entries.count) paths"
         return """
         this working tree is missing changes a `\(ProductName.current.binary) run \(record.invocation)` set aside and never put back (pid \(record.owner) is gone).
-          Nothing is lost: \(paths) and their copies are kept under \(SiftPaths.directoryName)/set-aside/.
+          Nothing is lost: \(paths) and their copies are kept under \(stateDirectory)/set-aside/.
           Run `\(ProductName.current.binary) run --restore` to put them back and check them by content hash; until then `\(ProductName.current.binary) run` and `\(ProductName.current.binary) reset` refuse.
         """
     }

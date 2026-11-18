@@ -54,13 +54,15 @@ extension RunReportRenderer {
     public func render(_ report: RunReport, exitCode: Int32, logURL: URL?) -> String {
         let opening = headline(report, exitCode: exitCode)
         var lines: [String] = [opening]
+        let upload = report.verdict?.state == .succeeded && report.verdict?.answersTheInvokedCommand == true ? report.uploadLine : nil
+        lines.append(contentsOf: upload.map { [$0] } ?? [])
         // Only beside the headline that names the crash, which a run that exited 0 never carries.
         if exitCode != 0 {
             lines.append(contentsOf: report.compilerCrash?.lines() ?? [])
             lines.append(contentsOf: report.testCrash?.lines() ?? [])
         }
         lines.append(contentsOf: RunTestCrash.trapLines(report.restarts.flatMap(\.traps)))
-        let crashLines = lines.count - 1
+        let crashLines = lines.count - 1 - (upload == nil ? 0 : 1)
         // The note is owed by what this answer will actually print, not by what the report happened to
         // hold — see ``summaries(of:)`` for the pair that can come apart on that difference.
         // A selector that matched nothing is answered by its headline alone: the tool's own lines (`Build complete!`, a
@@ -445,13 +447,13 @@ extension RunReportRenderer {
             let tests = readable.reduce(0) { $0 + $1.tests }
             let suites = readable.reduce(0) { $0 + $1.suites }
             let failures = readable.reduce(0) { $0 + $1.failures }
-            return "Swift Testing \(pluralized(tests, "test")) in \(pluralized(suites, "suite")) across \(pluralized(lines.count, "bundle"))\(RunFailingTests.swiftTesting(issues: failures, outcomes: outcomes))\(skipNote(skipped, stated: counted, reported: skipsReported))"
+            return "Swift Testing \(pluralized(tests, "test"))\(RunParameterizedCases.note(counts: outcomes.caseCounts, tests: tests, named: outcomes.swiftTestingNames.count)) in \(pluralized(suites, "suite")) across \(pluralized(lines.count, "bundle"))\(RunFailingTests.swiftTesting(issues: failures, outcomes: outcomes))\(skipNote(skipped, stated: counted, reported: skipsReported))"
         }
         let described = tallies.enumerated().map { index, tally -> String in
             guard let tally else {
                 return "tally \(index + 1) unreadable"
             }
-            return "\(pluralized(tally.tests, "test")) in \(pluralized(tally.suites, "suite"))\(lines.count == 1 ? RunFailingTests.swiftTesting(issues: tally.failures, outcomes: outcomes) : RunFailingTests.clause(failing: nil, recorded: tally.failures, unit: "issue"))"
+            return "\(pluralized(tally.tests, "test"))\(lines.count == 1 ? RunParameterizedCases.note(counts: outcomes.caseCounts, tests: tally.tests, named: outcomes.swiftTestingNames.count) : "") in \(pluralized(tally.suites, "suite"))\(lines.count == 1 ? RunFailingTests.swiftTesting(issues: tally.failures, outcomes: outcomes) : RunFailingTests.clause(failing: nil, recorded: tally.failures, unit: "issue"))"
         }.joined(separator: "; ")
         guard lines.count > 1 else {
             return "Swift Testing \(described)\(skipNote(skipped, stated: counted, reported: skipsReported))"

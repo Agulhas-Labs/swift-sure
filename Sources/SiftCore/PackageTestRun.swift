@@ -157,7 +157,8 @@ private extension PackageTestRun {
             reconciled: TestRunResult.Reconciled(isGreen: reconciliation.isGreen, stoppedBySift: outcomes.contains { $0.timedOut }),
             runToken: runToken,
             shards: plan.shards.count,
-            failedTests: reconciliation.reportedTestFailures
+            failedTests: reconciliation.reportedTestFailures,
+            failedSuites: reconciliation.reportedFailedSuites
         )
     }
 

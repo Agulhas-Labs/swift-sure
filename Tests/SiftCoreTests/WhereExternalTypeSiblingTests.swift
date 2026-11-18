@@ -67,7 +67,7 @@ struct WhereExternalTypeSiblingTests {
         let digestOutput = try engine.digest(target: "Dep.write", options: DigestOptions())
 
         for output in [whereOutput, digestOutput] {
-            #expect(output.contains("Dep is declared in \(sibling.path) (per that root's last index) — retry with root=\(sibling.path)"), "\(output)")
+            #expect(output.contains("Dep is declared in \(sibling.path) (per that root's last index) — retry with --root \(sibling.path)"), "\(output)")
         }
     }
 
@@ -84,7 +84,7 @@ struct WhereExternalTypeSiblingTests {
         let digestOutput = try engine.digest(target: "Dep.write", options: DigestOptions())
 
         for output in [whereOutput, digestOutput] {
-            #expect(output.contains("Dep.write is declared in \(sibling.path) (per that root's last index) — retry with root=\(sibling.path)"), "\(output)")
+            #expect(output.contains("Dep.write is declared in \(sibling.path) (per that root's last index) — retry with --root \(sibling.path)"), "\(output)")
         }
     }
 

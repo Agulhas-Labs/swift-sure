@@ -1,0 +1,8 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -exportArchive -archivePath Gizmo.xcarchive -exportOptionsPlist Options.plist -exportPath out
+
+2000-01-01 12:00:00.738 xcodebuild[66090:31541923]  DVTDeviceOperation: Encountered a build number "" that is incompatible with DVTBuildVersion.
+Exported Gizmo to: /Users/dev/Gizmo/out
+
+** EXPORT SUCCEEDED **
+

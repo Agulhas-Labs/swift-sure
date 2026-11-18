@@ -185,7 +185,7 @@ struct RootsRegistryTests {
         let output = try siblings.planless.digest(target: "Depot", options: DigestOptions())
 
         #expect(output.contains("Depot is declared in \(siblings.declaringRoot.path)"))
-        #expect(output.contains("retry with root=\(siblings.declaringRoot.path)"))
+        #expect(output.contains("retry with --root \(siblings.declaringRoot.path)"))
         #expect(output.contains("per that root's last index"))
     }
 
@@ -197,7 +197,7 @@ struct RootsRegistryTests {
         let output = try await siblings.planless.lookup(symbol: "Depot", freshness: freshness, options: WhereOptions(includeSemantic: false))
 
         #expect(output.contains("Depot is declared in \(siblings.declaringRoot.path)"))
-        #expect(output.contains("retry with root=\(siblings.declaringRoot.path)"))
+        #expect(output.contains("retry with --root \(siblings.declaringRoot.path)"))
     }
 
     /// A sibling that only *extends* the name still gets a pointer — but an honest one, since it holds members bolted onto a dependency's type, not the type itself.
@@ -212,7 +212,7 @@ struct RootsRegistryTests {
         let output = try siblings.planless.digest(target: "Lantern", options: DigestOptions())
 
         #expect(output.contains("Lantern is extended in \(extending.path)"))
-        #expect(output.contains("retry with root=\(extending.path)"))
+        #expect(output.contains("retry with --root \(extending.path)"))
         #expect(!output.contains("Lantern is declared in"))
     }
 
@@ -253,7 +253,7 @@ struct RootsRegistryTests {
         let output = try await siblings.planless.lookup(symbol: "Depot.lit", freshness: freshness, options: WhereOptions(includeSemantic: false))
 
         #expect(output.contains("Depot.lit is declared in \(siblings.declaringRoot.path)"))
-        #expect(output.contains("retry with root=\(siblings.declaringRoot.path)"))
+        #expect(output.contains("retry with --root \(siblings.declaringRoot.path)"))
     }
 
     /// The probe walks a real chain across roots, in the right direction, and crosses the module arm.

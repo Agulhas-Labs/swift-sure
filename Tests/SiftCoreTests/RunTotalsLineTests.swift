@@ -490,11 +490,11 @@ struct RunTotalsLineTests {
         let passing = try TestSources.runReport("xcodebuild-test-execute-success", invokedAs: invocation, exitCode: 0)
         let passingAnswer = RunReportRenderer(kind: .xcodebuild, workingDirectory: Self.workingDirectory)
             .render(passing, exitCode: 0, logURL: nil)
-        #expect(try #require(Self.totalsLine(of: passingAnswer)) == "totals: ✔ passed · Swift Testing 2658 tests in 290 suites, 0 skipped")
+        #expect(try #require(Self.totalsLine(of: passingAnswer)) == "totals: ✔ passed · Swift Testing 2658 tests (2881 cases) in 290 suites, 0 skipped")
 
         let failing = try TestSources.runReport("xcodebuild-test-execute-failure-environmental", invokedAs: invocation, exitCode: 65)
         let failingAnswer = RunReportRenderer(kind: .xcodebuild, workingDirectory: Self.workingDirectory)
             .render(failing, exitCode: 65, logURL: nil)
-        #expect(try #require(Self.totalsLine(of: failingAnswer)) == "totals: ✘ failed · Swift Testing 2658 tests in 290 suites, 443 failing (666 issues), 0 skipped")
+        #expect(try #require(Self.totalsLine(of: failingAnswer)) == "totals: ✘ failed · Swift Testing 2658 tests (2881 cases) in 290 suites, 443 failing (666 issues), 0 skipped")
     }
 }

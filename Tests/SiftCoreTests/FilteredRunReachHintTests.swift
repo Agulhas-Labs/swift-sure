@@ -18,7 +18,7 @@ struct FilteredRunReachHintTests {
     }
 
     /// `Widget` is referenced by `WidgetTests` (three tests) and `GadgetTests` (two); the index is built from the committed tree, which `dirty` then edits.
-    private static func checkout(dirty: Bool = true, indexed: Bool = true) async throws -> URL {
+    static func checkout(dirty: Bool = true, indexed: Bool = true) async throws -> URL {
         let root = try TestSources.makeTempRepo()
         try TestSources.write("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"Lib\",\n    targets: [\n        .target(name: \"Lib\"),\n        .testTarget(name: \"LibTests\", dependencies: [\"Lib\"]),\n    ]\n)\n", to: "Package.swift", in: root)
         try TestSources.write("public struct Widget {\n    public init() {}\n}\n", to: "Sources/Lib/Core.swift", in: root)
@@ -160,18 +160,17 @@ struct FilteredRunReachHintTests {
         #expect(!FileManager.default.fileExists(atPath: SiftPaths.cache(in: root).appendingPathComponent(SiftPaths.indexFileName).path))
     }
 
-    /// The index is read as it stands: the dirty file's stored rows are the committed ones, and the index file is exactly as it was.
+    /// The index is brought up to date before the walk: the dirty file's stored rows are read as the file stands now, so the index file is written.
     @Test
-    func aStaleIndexIsReadAsItStandsAndNeverFreshened() async throws {
+    func aStaleIndexIsBroughtUpToDateForTheLine() async throws {
         let root = try await Self.checkout()
         let database = SiftPaths.cache(in: root).appendingPathComponent(SiftPaths.indexFileName)
-        let before = try FileManager.default.attributesOfItem(atPath: database.path)
+        let before = try #require(FileManager.default.attributesOfItem(atPath: database.path)[.modificationDate] as? Date)
         try TestSources.write("public struct Widget {\n    public init() {}\n    public var size = 2\n    public var weight = 3\n}\n", to: "Sources/Lib/Core.swift", in: root)
 
         #expect(try Self.lines(Self.widgetNames, arguments: Self.oneFilter, root: root).count == 1)
-        let after = try FileManager.default.attributesOfItem(atPath: database.path)
-        #expect(after[.modificationDate] as? Date == before[.modificationDate] as? Date)
-        #expect(after[.size] as? Int == before[.size] as? Int)
+        let after = try #require(FileManager.default.attributesOfItem(atPath: database.path)[.modificationDate] as? Date)
+        #expect(after > before)
     }
 
     @Test

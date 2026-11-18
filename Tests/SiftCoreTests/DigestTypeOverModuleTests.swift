@@ -134,11 +134,12 @@ struct DigestTypeOverModuleTests {
     }
 
     @Test
-    func aDirectoryHoldingPartOfAModuleIsStillAMiss() throws {
+    func aDirectoryHoldingPartOfAModuleServesThatFolder() throws {
         let output = try Self.render("Sources/Solo/Sub", partialModule: true)
 
-        #expect(output.contains("no indexed file matches Sources/Solo/Sub"))
-        #expect(!output.contains("top-level declarations"))
+        #expect(output.contains("folder Sub in module Solo — 1 top-level declarations"))
+        #expect(output.contains("Deep"))
+        #expect(!output.contains("Lonely"))
     }
 
     @Test

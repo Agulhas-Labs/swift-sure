@@ -386,7 +386,8 @@ struct RunCommand: ParsableCommand {
             answer: RunUsageLog.Answer(
                 report: outcome.report,
                 lines: answerLines.map { $0 + (asked.rewritten ? 1 : 0) },
-                failedTests: outcome.reportedTestFailures
+                failedTests: outcome.reportedTestFailures,
+                failures: outcome.report?.testFailures ?? []
             ),
             repositoryRoot: outcome.repositoryRoot,
             milliseconds: milliseconds,

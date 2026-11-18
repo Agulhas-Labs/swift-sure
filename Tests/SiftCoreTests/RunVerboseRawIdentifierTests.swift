@@ -26,7 +26,7 @@ struct RunVerboseRawIdentifierTests {
         #expect(report.testFailures.allSatisfy { $0.location?.hasPrefix("GizmoTests.swift:") == true }, sourceLocation: sourceLocation)
         #expect(answer.contains("\"it's param\" with x → 1 — GizmoTests.swift:5:5"), sourceLocation: sourceLocation)
         #expect(!answer.contains("failed with no message of its own"), sourceLocation: sourceLocation)
-        #expect(answer.contains("totals: ✘ failed · Swift Testing 3 tests in 0 suites, 3 failing (4 issues), 0 skipped"), sourceLocation: sourceLocation)
+        #expect(answer.contains("totals: ✘ failed · Swift Testing 3 tests (4 cases) in 0 suites, 3 failing (4 issues), 0 skipped"), sourceLocation: sourceLocation)
     }
 
     /// The two tests a display name and a raw identifier name, each failing once, are named as the plain log names them.

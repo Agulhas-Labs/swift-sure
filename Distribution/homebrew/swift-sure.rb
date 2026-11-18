@@ -2,8 +2,8 @@
 # fills in the version and the checksum of the release it is cutting — never edit those by hand.
 #
 # The URL is built from the artifact being released, not from a filename pattern: `make-dist.sh`
-# stamps a public-commit or source-tree hash into the name it produces, so a pattern here would point at a file that is never
-# uploaded under that name.
+# stamps a public-commit or source-tree hash into the name it produces, so a pattern here would point at a
+# file that is never uploaded under that name.
 #
 # The formula installs the binary, the agent rule and the docs, and stops there. The docs go into one
 # directory with the layout the release bundle has, so the links between them resolve as they do there.

@@ -80,6 +80,20 @@ struct ShardReportedFailuresTests {
         #expect(reconciliation.reportedTestFailures == ["one()", "two()"])
     }
 
+    /// A failed Swift Testing test carries the suite its identifier holds, with no index consulted; a bare name two suites share is left out.
+    @Test func aFailedTestCarriesTheSuiteItsIdentifierHolds() {
+        let one = Self.test("LibTests.AlphaTests/one()")
+        let same = Self.test("LibTests.AlphaTests/same()")
+        let sameElsewhere = Self.test("LibTests.BetaTests/same()")
+        let plan = PackageShardPlanner.plan(tests: [one, same, sameElsewhere], shards: 1) { _ in nil }
+        var outcome = ShardOutcome(outcomes: RunTestOutcomes(), exitCode: 1, wallSeconds: 2, logPath: "log")
+        outcome.eventStream = ShardEventStream.read((Self.failed("LibTests.AlphaTests/one()") + Self.failed("LibTests.AlphaTests/same()") + Self.failed("LibTests.BetaTests/same()")).joined(separator: "\n"))
+
+        let reconciliation = ShardMerge.reconcile(plan: plan, outcomes: [outcome])
+
+        #expect(reconciliation.reportedFailedSuites == ["one()": "AlphaTests"])
+    }
+
     /// Every test ended and none failed: the run speaks, and says nothing failed.
     @Test func aCompleteGreenRunAnswersNoFailures() {
         let one = Self.test("LibTests.AlphaTests/one()")

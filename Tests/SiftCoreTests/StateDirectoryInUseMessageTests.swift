@@ -56,4 +56,61 @@ struct StateDirectoryInUseMessageTests {
 
         #expect(text.contains("(logs .sift/runs/*run-*-r1a2b3c4d"))
     }
+
+    @Test
+    func theStoreNamesTheDirectoryItsCheckoutUses() throws {
+        let root = try legacyCheckout()
+
+        #expect(SetAsideStore(repositoryRoot: root).stateDirectoryName == ".sift")
+    }
+
+    @Test
+    func aRefusalForNothingToSetAsideNamesTheDirectoryTheChangesAreIn() {
+        let uncommitted = SetAsideError.nothingUncommitted(pathspecs: ["Sources/"], matchesFiles: true, leftInPlace: [".sift/a", ".sift/b"], committedSince: nil).description
+        let since = SetAsideError.nothingSince(pathspecs: ["Sources/"], since: "0123456789abcdef", matchesFiles: true, leftInPlace: [".sift/a", ".sift/b"]).description
+
+        #expect(uncommitted.contains("2 paths under .sift/"))
+        #expect(since.contains("2 paths under .sift/"))
+        #expect(!uncommitted.contains(".swift-sure") && !since.contains(".swift-sure"))
+    }
+
+    @Test
+    func aResetRefusalNamesTheDirectoryItIsDeleting() {
+        let holder = SetAsideLock.Holder(pid: 4711, role: .reset)
+
+        let text = SetAsideError.busy(holder: holder, record: nil, stateDirectory: ".sift").description
+
+        #expect(text.contains("deleting this working tree's .sift/."))
+        #expect(!text.contains(".swift-sure"))
+    }
+
+    @Test
+    func anUnrestoredRefusalNamesWhereTheCopiesAreKept() {
+        let record = SetAsideRecord(id: "0123456789", pathspecs: ["Sources/"], directory: "", head: "abc", owner: 4711, entries: [])
+
+        let text = SetAsideError.unrestored(record, stateDirectory: ".sift").description
+
+        #expect(text.contains("kept under .sift/set-aside/."))
+        #expect(!text.contains(".swift-sure"))
+    }
+
+    @Test
+    func theLeftInPlaceLineNamesTheDirectoryTheChangeIsIn() {
+        let record = SetAsideRecord(id: "0123456789", pathspecs: ["Sources/"], directory: "", head: "abc", owner: 4711, entries: [], leftInPlace: [".sift/runs/log"])
+
+        let text = RunWithoutAnswer.leftInPlaceLine(record)
+
+        #expect(text.contains("this tool's own .sift/ directory"))
+        #expect(!text.contains(".swift-sure"))
+    }
+
+    @Test
+    func theSemanticCacheNoteNamesTheCheckoutsDirectory() throws {
+        let root = try legacyCheckout()
+        let refusal = CocoaError(.fileWriteNoPermission)
+
+        let text = SemanticOpenFailure.cause(of: refusal, in: root)
+
+        #expect(text.contains("the semantic cache under .sift/ cannot be written"))
+    }
 }

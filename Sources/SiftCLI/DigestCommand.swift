@@ -35,6 +35,9 @@ struct DigestCommand: AsyncParsableCommand {
         if let message = BlankTargetRefusal.message(tool: "digest", targets: targets) {
             throw ValidationError(message)
         }
+        if let message = RootArgumentRefusal.message(targets: targets) {
+            throw ValidationError(message)
+        }
     }
 
     func run() async throws {

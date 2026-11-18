@@ -205,12 +205,20 @@ struct RevisionQuery {
             subject = "a document"
         } else if target.hasSuffix("/"), moduleNames.contains(SymbolNaming.unbackticked(String(target.dropLast()))) {
             subject = "a module"
-        } else if target.contains("/"), !target.hasSuffix(".swift"), DigestModuleDirectory.module(of: String(target.hasSuffix("/") ? target.dropLast() : target[...]), files: paths.map { (path: $0, module: resolver.module(for: $0)) }) != nil {
-            subject = "a module's directory"
+        } else if target.contains("/"), !target.hasSuffix(".swift"), let directoryModule = DigestModuleDirectory.module(of: directory(of: target), files: files(of: paths)) {
+            subject = DigestModuleDirectory.holdsWholeModule(directoryModule, directory: directory(of: target), files: files(of: paths)) ? "a module's directory" : "a folder in module \(directoryModule)"
         } else {
             return nil
         }
         return Self.refusal(of: target, as: subject, revision: revision)
+    }
+
+    private func files(of paths: [String]) -> [(path: String, module: String)] {
+        paths.map { (path: $0, module: resolver.module(for: $0)) }
+    }
+
+    private func directory(of target: String) -> String {
+        String(target.hasSuffix("/") ? target.dropLast() : target[...])
     }
 
     private static func refusal(of target: String, as subject: String, revision: String) -> String {

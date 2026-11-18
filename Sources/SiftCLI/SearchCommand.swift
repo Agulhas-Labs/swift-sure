@@ -48,6 +48,10 @@ struct SearchCommand: AsyncParsableCommand {
     @Argument(help: "field:value terms, ANDed, negated with a leading !.")
     var query: String
 
+    /// Whatever else was written after the target: refused in `validate()`, after a `root=<path>` among it is named for what it is.
+    @Argument(parsing: .allUnrecognized, help: .hidden)
+    var strays: [String] = []
+
     @Option(help: "Skip this many matches (from a truncated: marker).")
     var offset = 0
 
@@ -55,6 +59,15 @@ struct SearchCommand: AsyncParsableCommand {
     var count = false
 
     @OptionGroup var rootOptions: RootOptions
+
+    func validate() throws {
+        if let message = RootArgumentRefusal.message(targets: [query] + strays) {
+            throw ValidationError(message)
+        }
+        if let stray = strays.first {
+            throw ValidationError("Unexpected argument '\(stray)'")
+        }
+    }
 
     func run() async throws {
         try await LoggedLookup.emit(tool: "search", target: query, in: rootOptions.directory) { try await served() }

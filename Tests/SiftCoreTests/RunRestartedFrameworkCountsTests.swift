@@ -34,8 +34,8 @@ struct RunRestartedFrameworkCountsTests {
     func anXCTestRestartLeavesSwiftTestingUnsplit() throws {
         let totals = try Self.capturedTotals()
 
-        #expect(totals.contains("Swift Testing 7 tests in 2 suites"))
-        #expect(!totals.contains("Swift Testing 7 tests in 2 suites after"))
+        #expect(totals.contains("Swift Testing 7 tests (9 cases) in 2 suites"))
+        #expect(!totals.contains("Swift Testing 7 tests (9 cases) in 2 suites after"))
     }
 
     @Test

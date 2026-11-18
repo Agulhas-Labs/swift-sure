@@ -205,7 +205,7 @@ public extension RunVerdict.Contract {
 
     /// Arguments that put `xcodebuild` somewhere this table has no wording for, whichever action is named beside them.
     ///
-    /// Two shapes, both ending in ``unreadable`` because both close on a line nobody here has measured. The flags are the modes from `-help`'s alternate usage lines — an export, an import, a package resolution, a component download — which replace the build entirely and stamp their own verdict (`** EXPORT SUCCEEDED **` and the like). `installsrc` is the other: an action the manual page lists that was measured to print nothing at all, so a contract naming any wording for it would be a claim about a line that never arrives.
+    /// Two shapes, both ending in ``unreadable`` because both close on a line nobody here has measured, except `-exportArchive`, which ``xcodebuild(_:)`` reads before this table and which stays here only so ``xcodebuildAction(of:)`` names no action for it. The flags are the modes from `-help`'s alternate usage lines — an export, an import, a package resolution, a component download — which replace the build entirely and stamp their own verdict (`** EXPORT SUCCEEDED **` and the like). `installsrc` is the other: an action the manual page lists that was measured to print nothing at all, so a contract naming any wording for it would be a claim about a line that never arrives.
     private static let actionsWithNoWording: Set<String> = [
         "-exportArchive", "-exportNotarizedApp", "-exportLocalizations", "-importLocalizations",
         "-resolvePackageDependencies", "-create-xcframework", "-downloadPlatform", "-downloadAllPlatforms",
@@ -215,10 +215,18 @@ public extension RunVerdict.Contract {
         "installsrc",
     ]
 
+    /// The contract of an `xcodebuild -exportArchive` invocation, the one export mode whose closing line has been measured.
+    static var exportingAnArchive: RunVerdict.Contract {
+        .declares(succeeded: "** EXPORT SUCCEEDED **", failed: "** EXPORT FAILED **")
+    }
+
     /// The contract of an `xcodebuild` invocation — the wording its action stamps, or ``unreadable`` when argv named no action this table can be sure of.
     ///
     /// The reading is ``xcodebuildAction(of:)``'s; all this adds is the wording, because the wording is the only part a verdict needs and the action itself is wanted somewhere else as well.
     private static func xcodebuild(_ arguments: [String]) -> RunVerdict.Contract {
+        if arguments.contains("-exportArchive"), actionsWithNoWording.subtracting(["-exportArchive"]).isDisjoint(with: arguments) {
+            return exportingAnArchive
+        }
         guard let action = xcodebuildAction(of: arguments), let stem = stems[action] else {
             return .unreadable
         }

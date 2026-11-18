@@ -1,0 +1,23 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -exportArchive -archivePath Gizmo.xcarchive -exportOptionsPlist Options.plist -exportPath out
+
+2000-01-01 12:00:00.738 xcodebuild[66090:31541923]  DVTDeviceOperation: Encountered a build number "" that is incompatible with DVTBuildVersion.
+2000-01-01 12:00:01.102 xcodebuild[66090:31541922] [MT] IDEDistribution: Step failed: <IDEDistributionThinningStep: 0x600000000000>: Error Domain=IDEDistributionErrorDomain Code=14 "No applicable devices found."
+2000-01-01 12:00:01.340 xcodebuild[66090:31541922] [MT] IDEDistribution: Using the distribution method app-store-connect
+Exported Gizmo to: /Users/dev/Gizmo/out
+Uploading to App Store Connect
+Validating Gizmo.ipa
+Progress 10%: Validating Gizmo.ipa
+Progress 40%: Validating Gizmo.ipa
+Progress 100%: Validation succeeded.
+Uploading Gizmo.ipa
+Progress 25%: Uploading Gizmo.ipa
+Progress 60%: Uploading Gizmo.ipa
+Progress 100%: Upload succeeded.
+Uploaded Gizmo
+Cleaning up temporary files
+Distribution logs bundle: /tmp/Gizmo_2000-01-01_12-00-00.000.xcdistributionlogs
+2000-01-01 12:00:09.001 xcodebuild[66090:31541922] [MT] IDEDistribution: Finished upload
+
+** EXPORT SUCCEEDED **
+

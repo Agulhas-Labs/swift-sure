@@ -44,7 +44,7 @@ struct StopGatePlatformTests {
     func anIOSPackageWithoutAnXcodebuildIsBlockedWithNoCommand() async throws {
         let reason = try #require(try await block(platforms: "[.iOS(.v17)]", session: false))
 
-        #expect(!reason.contains("swift-sure run -- swift build"))
+        #expect(!reason.contains("-- swift build"))
         #expect(reason.contains("declares iOS and not macOS"))
         #expect(reason.contains("may not build it"))
         #expect(!reason.contains("would not build"))
@@ -55,21 +55,21 @@ struct StopGatePlatformTests {
     func aPackageWithMacOSNamesSwiftBuild() async throws {
         let reason = try #require(try await block(platforms: "[.iOS(.v17), .macOS(.v14)]", session: false))
 
-        #expect(reason.contains("swift-sure run -- swift build"))
+        #expect(reason.contains("-- swift build"))
     }
 
     @Test
     func aPackageWithNoPlatformsNamesSwiftBuild() async throws {
         let reason = try #require(try await block(platforms: nil, session: false))
 
-        #expect(reason.contains("swift-sure run -- swift build"))
+        #expect(reason.contains("-- swift build"))
     }
 
     @Test
     func macCatalystIsNotMacOS() async throws {
         let reason = try #require(try await block(platforms: "[.macCatalyst(.v17), .iOS(.v17)]", session: false))
 
-        #expect(!reason.contains("swift-sure run -- swift build"))
+        #expect(!reason.contains("-- swift build"))
         #expect(reason.contains("and not macOS, so"))
     }
 
@@ -115,7 +115,7 @@ struct StopGatePlatformTests {
         #expect(ManifestPlatforms.declared(in: "let package = Package(name: \"Gizmo\", platforms: \(joined))") == nil)
         let reason = try #require(try await block(platforms: joined, session: false))
 
-        #expect(reason.contains("swift-sure run -- swift build"))
+        #expect(reason.contains("-- swift build"))
     }
 
     @Test
@@ -129,6 +129,6 @@ struct StopGatePlatformTests {
         let transcript = try fixture.transcript([StopGateFixture.edit("t2", path: edited), StopGateFixture.result("t2")])
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("swift-sure run -- swift build"))
+        #expect(reason.contains("-- swift build"))
     }
 }

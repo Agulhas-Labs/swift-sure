@@ -16,7 +16,8 @@
 #        1  the usage is wrong, the version has no section, or the privacy gate failed (no notes are left)
 #
 # This script builds no tarball and publishes nothing; the last lines it prints are the command to run
-# once the tarball from make-dist.sh exists and the tag is pushed.
+# once the tarball from make-dist.sh exists and the tag is pushed, and what the registry workflow then
+# does on its own (upload the .mcpb, publish the registry entry) with the by-hand fallback if it fails.
 set -eu
 
 USAGE="usage: sh Distribution/release-notes.sh [--version X.Y.Z] [output-file]"
@@ -78,3 +79,11 @@ echo "release-notes: $OUT"
 echo
 echo "To publish the release, once the tag is pushed and make-dist.sh has built the tarball:"
 echo "    gh release create v$VERSION -R Agulhas-Labs/swift-sure --verify-tag --title \"SwiftSure $VERSION\" --notes-file $OUT <tarball from make-dist.sh>"
+echo
+echo "Then the Registry workflow takes over, with nothing to upload or publish by hand: on the published release it"
+echo "builds swift-sure-mcp-$VERSION.mcpb from that tarball, uploads it to the release and publishes"
+echo "io.github.Agulhas-Labs/swift-sure $VERSION to the MCP registry. Check it:"
+echo "    gh run list -R Agulhas-Labs/swift-sure --workflow Registry --limit 1"
+echo "If it failed, re-run the failed run's jobs from the Actions tab (a manual run asks for the tag), or do the same by hand from a clone of the public repository at v$VERSION:"
+echo "    sh Distribution/registry-release.sh v$VERSION <work-directory>"
+echo "    cd <work-directory>/out && mcp-publisher login github --token <token with read:org, an org owner's> && mcp-publisher publish"

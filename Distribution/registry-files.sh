@@ -6,8 +6,8 @@
 # Writes <product>-mcp-<version>.mcpb (a zip: manifest.json at its root, the binary at bin/<product> with
 # its executable bit kept) and server.json (the registry entry, carrying the bundle's SHA-256 and the URL
 # the release asset will have). The product word is the binary's own file name, as make-dist.sh names it.
-# It publishes nothing and runs no validator: the upload and `mcp-publisher publish` are a person's steps,
-# after the asset exists at its URL.
+# It publishes nothing and runs no validator: the upload and `mcp-publisher publish` are the release
+# workflow's steps (.github/workflows/registry.yml), or a person's if it fails, after the asset exists at its URL.
 #
 # Refusals go to stderr, so a caller that captures stdout still shows them.
 # Exit codes:  0 both files written   1 refused (bad arguments) or a step failed
@@ -61,8 +61,14 @@ cat > "$STAGE/manifest.json" <<JSON
 JSON
 
 rm -f "$OUT/$ASSET"
+# The same binary gives the same bundle byte for byte, wherever and whenever it is built: server.json
+# carries this file's SHA-256, so a bundle rebuilt later (the release workflow rebuilds it from the
+# published tarball) has to match the one already uploaded. A zip stores each entry's modification time,
+# in the local time zone and to two seconds, so the entries are given one fixed time and zip reads it in UTC.
 # -X leaves out the extra file attributes; the mode (755) stays in the entry itself.
-(cd "$STAGE" && zip -X -q "$OUT/$ASSET" manifest.json "bin/$PRODUCT")
+chmod 644 "$STAGE/manifest.json" # the mode is stored in the entry, so it must not follow the caller's umask
+TZ=UTC touch -t 202001010000 "$STAGE/manifest.json" "$STAGE/bin/$PRODUCT"
+(cd "$STAGE" && TZ=UTC zip -X -q "$OUT/$ASSET" manifest.json "bin/$PRODUCT")
 
 SHA256="$(shasum -a 256 "$OUT/$ASSET" | cut -d' ' -f1)"
 cat > "$OUT/server.json" <<JSON

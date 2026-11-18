@@ -58,6 +58,15 @@ struct ShardedRunFilingTests {
         #expect(entry["invocation"] is String)
     }
 
+    /// The suites the reconciliation held reach the record without an index.
+    @Test func aRedShardedRunFilesTheSuitesOfItsSwiftTestingFailures() async throws {
+        let result = TestRunResult(answer: "✘ 1 failed", exitCode: 1, reconciled: TestRunResult.Reconciled(isGreen: false, stoppedBySift: false), runToken: "1a2b3c4d", shards: 3, failedTests: ["aTest()"], failedSuites: ["aTest()": "DepotTests"])
+        let entry = try await filedLine(of: result, arguments: ["--shards", "3"])
+
+        #expect(entry["failed"] as? [String] == ["aTest()"])
+        #expect(entry["failedSuites"] as? [String: String] == ["aTest()": "DepotTests"])
+    }
+
     @Test func theInvocationTellsTwoCommandLinesApart() async throws {
         let three = try await filedLine(of: Self.red, arguments: ["--shards", "3"])
         let two = try await filedLine(of: Self.red, arguments: ["--shards", "2", "--filter", "X"])

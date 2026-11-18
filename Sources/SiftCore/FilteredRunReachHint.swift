@@ -28,12 +28,13 @@ public struct FilteredRunReachHint: Sendable, Equatable {
         let listed = suites.prefix(Self.listedSuites)
         let rest = suites.count - listed.count
         let partial = listed.filter { $0.ran > 0 }.map(\.described)
-        let noun = suites.count == 1 ? "suite" : "suites"
+        let tests = suites.filter { $0.testName != nil }.count
+        let counted = [(suites.count - tests, "suite"), (tests, "test")].filter { $0.0 > 0 }.map { "\($0.0) \($0.1)\($0.0 == 1 ? "" : "s")" }.joined(separator: " and ")
         let verdict = partial.isEmpty ? "did not run" : "did not run in full: \(partial.joined(separator: ", "))"
         let named = patterns + listed.map(\.filter).filter { !patterns.contains($0) }
         let command = named.map { "--filter " + TestRunRequest.shellQuoted($0) }.joined(separator: " ")
         let more = rest > 0 ? "+\(rest) more; " : ""
-        return "  filtered: the working tree changes \(changed); \(suites.count) \(noun) reaching it \(verdict) — run swift test \(command) (\(more)\(ProductName.current.binary) affected lists every suite)"
+        return "  filtered: the working tree changes \(changed); \(counted) reaching it \(verdict) — run swift test \(command) (\(more)\(ProductName.current.binary) affected lists every suite)"
     }
 
     /// The suites of `reached` the run left out or ran in part, given `ran`, the ids the run ran.
@@ -61,10 +62,10 @@ public struct FilteredRunReachHint: Sendable, Equatable {
                 if compiledOut.contains(suite.filter) {
                     return nil
                 }
-                return reported(suite.filter) ? nil : Suite(filter: suite.filter, ran: 0, declared: 0)
+                return reported(suite.filter) ? nil : Suite(filter: suite.filter, ran: 0, declared: 0, testName: suite.testName)
             }
             let count = names.filter(reported).count
-            return count == names.count ? nil : Suite(filter: suite.filter, ran: count, declared: names.count)
+            return count == names.count ? nil : Suite(filter: suite.filter, ran: count, declared: names.count, testName: suite.testName)
         }
     }
 
@@ -82,11 +83,12 @@ public struct FilteredRunReachHint: Sendable, Equatable {
         guard FileManager.default.fileExists(atPath: database.path) else { return [] }
         let box = HintBox()
         let finished = DispatchSemaphore(value: 0)
-        Task.detached {
+        let lookup = Task.detached {
             do {
                 let engine = try SiftEngine(directory: repositoryRoot)
-                // The index as it stands, never freshened: a note may be stale and must never be slow.
                 engine.openBudget = budget
+                // Brought up to date first, inside the same budget: an index that has not seen the dirty files (after `search` alone it knows none) names no suite.
+                try await engine.ensureFresh()
                 if let (files, reached) = try await engine.suitesReachingWorkingTree() {
                     let inventory = try TestInventory.read(store: engine.store, repositoryRoot: repositoryRoot).tests
                     let hint = FilteredRunReachHint(files: files, patterns: selector.patterns, suites: leftOut(reached, inventory: inventory, ran: ran))
@@ -97,7 +99,10 @@ public struct FilteredRunReachHint: Sendable, Equatable {
             }
             finished.signal()
         }
-        guard finished.wait(timeout: .now() + budget) == .success else { return [] }
+        guard finished.wait(timeout: .now() + budget) == .success else {
+            lookup.cancel()
+            return []
+        }
         return box.value
     }
 }
@@ -111,10 +116,13 @@ extension FilteredRunReachHint {
         let ran: Int
         /// How many tests the index declares in it, `0` where it declares none.
         let declared: Int
+        /// The readable `Target.function()` where the entry is a test declared at file scope, not a suite.
+        var testName: String?
 
-        /// The suite as the line names it: its share too where it ran in part.
+        /// The entry as the line names it: its share too where it ran in part.
         var described: String {
-            ran > 0 ? "\(filter) (\(ran) of \(declared) ran)" : filter
+            let name = testName ?? filter
+            return ran > 0 ? "\(name) (\(ran) of \(declared) ran)" : name
         }
     }
 }

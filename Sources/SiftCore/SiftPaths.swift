@@ -67,6 +67,14 @@ public struct SiftPaths {
         existing(names, under: repoRoot, isDirectory: true) { $0.directoryName }
     }
 
+    /// The name of the state directory that holds `paths`, repository-relative paths this tool left in place: the first of them with a recognised name's directory among its components, else the current name's.
+    ///
+    /// For a message built where no repository root is in scope but the paths it names came from the directory in use.
+    public static func directoryName(holding paths: [String]) -> String {
+        let names = directoryNames()
+        return paths.lazy.compactMap { $0.split(separator: "/").map(String.init).first { names.contains($0) } }.first ?? directoryName
+    }
+
     /// `<repoRoot>/.swift-sure.json` — this repository's configuration file, whether or not it exists.
     ///
     /// Resolved like ``cache(in:names:)``: the first name whose file exists, else the current name's.

@@ -62,12 +62,13 @@ public final class IndexStore: @unchecked Sendable {
         backingFileIdentity = FileIdentity(path: databasePath)
     }
 
-    /// Whether this connection still refers to the file at its own path.
+    /// A store over a connection `ReadOnlyIndex` already opened, at the current schema and `SQLITE_OPEN_READONLY`, so nothing is created, dropped or migrated.
     ///
-    /// SQLite keeps answering from an unlinked inode until it needs the disk, and then fails with `SQLITE_IOERR` forever — so a `.swift-sure/` wiped by a `git clean`, or a worktree removed and recreated at the same path, poisons a cached store permanently. The identity is device + inode rather than mere existence, because a replaced file is as dead to this handle as a deleted one.
-    public var isBackingFileIntact: Bool {
-        guard let backingFileIdentity else { return true }
-        return FileIdentity(path: databasePath) == backingFileIdentity
+    /// For callers whose question is not about this repository's own index and which must leave it as found.
+    init(readOnly database: SQLiteDatabase, databasePath: String) {
+        self.database = database
+        self.databasePath = databasePath
+        backingFileIdentity = FileIdentity(path: databasePath)
     }
 
     // MARK: Meta
@@ -641,5 +642,15 @@ public extension IndexStore {
         try symbolRows(StoreStatement.topLevelSymbolsInModuleClause.sql) { statement in
             statement.bind(1, module)
         }
+    }
+}
+
+public extension IndexStore {
+    /// Whether this connection still refers to the file at its own path.
+    ///
+    /// SQLite keeps answering from an unlinked inode until it needs the disk, and then fails with `SQLITE_IOERR` forever — so a `.swift-sure/` wiped by a `git clean`, or a worktree removed and recreated at the same path, poisons a cached store permanently. The identity is device + inode rather than mere existence, because a replaced file is as dead to this handle as a deleted one.
+    var isBackingFileIntact: Bool {
+        guard let backingFileIdentity else { return true }
+        return FileIdentity(path: databasePath) == backingFileIdentity
     }
 }

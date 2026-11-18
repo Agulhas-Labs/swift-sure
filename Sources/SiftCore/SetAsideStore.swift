@@ -39,9 +39,14 @@ public extension SetAsideStore {
         SiftPaths.cache(in: repositoryRoot).appendingPathComponent("set-aside.watch")
     }
 
+    /// The name of the state directory this checkout uses, for a message that has the store but no path.
+    var stateDirectoryName: String {
+        SiftPaths.cache(in: repositoryRoot).lastPathComponent
+    }
+
     /// The directory as a caller would name it, relative to the repository.
     var shownDirectory: String {
-        "\(SiftPaths.cache(in: repositoryRoot).lastPathComponent)/set-aside/"
+        "\(stateDirectoryName)/set-aside/"
     }
 
     internal var copies: URL {

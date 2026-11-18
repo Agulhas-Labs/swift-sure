@@ -915,7 +915,7 @@ extension RunWithoutAnswer {
     public static func leftInPlaceLine(_ record: SetAsideRecord) -> String {
         let own = record.leftInPlace
         let named = own.prefix(3).joined(separator: ", ") + (own.count > 3 ? " and \(own.count - 3) more" : "")
-        return "  left in place: \(named) — changed, but in this tool's own \(SiftPaths.directoryName)/ directory, which a set-aside never moves"
+        return "  left in place: \(named) — changed, but in this tool's own \(SiftPaths.directoryName(holding: own))/ directory, which a set-aside never moves"
     }
 
     /// The line an answer carries for the processes the run without the change left running, ended before the changes went back — `nil` when none did.

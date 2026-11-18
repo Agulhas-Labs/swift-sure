@@ -116,6 +116,7 @@ public struct RunOutputFilter {
     /// The test process that died on a signal, read under `swift test`'s contract only.
     private var testCrash = RunTestCrash.Reader()
     private var restartReader = RunRestartReader()
+    private var exportUpload = RunExportUpload()
     /// The option and path the launcher inserted into the command to write the run's event stream, exactly as it spells them, which come out of every line this filter reads so that no answer quotes a path that is gone once the run ends.
     var insertedStreamOption: String?
     /// The Swift Testing tests the run's event stream declared, by the name the console prints, under the test target that holds them, or `nil` where no stream was read.
@@ -206,6 +207,7 @@ public extension RunOutputFilter {
 
     /// Reads one line as the run printed it, or one event ``RunArgumentDescription`` joined from the lines its arguments broke across.
     private mutating func read(line: String) {
+        exportUpload.read(line, under: contract)
         let trimmedForMarkers = line.trimmingCharacters(in: .whitespaces)
         if trimmedForMarkers == "Testing cancelled because the build failed." {
             cancelledForBuildFailure = true
@@ -325,9 +327,7 @@ public extension RunOutputFilter {
             closeExpression(open)
         }
         diagnostics.closeLinkerBlock()
-        if let unnotedFailure {
-            closeNote(for: unnotedFailure)
-        }
+        unnotedFailure.map { closeNote(for: $0) }
         if let held = heldBlank {
             heldBlank = nil
             closeNote(for: held.index)
@@ -357,7 +357,8 @@ public extension RunOutputFilter {
             eventStreamNote: eventStreamNote,
             streamedTestIDs: streamedTestIDs,
             testCrash: settledTestCrash(exitCode: exitCode),
-            restarts: restartReader.restarts
+            restarts: restartReader.restarts,
+            uploadLine: exportUpload.line
         )
     }
 

@@ -210,12 +210,12 @@ struct SetAsideTests {
         let record = try SetAside.capture(pathspecs: ["Sources/"], from: root, into: store)
         try Self.setAsideWhole(record, in: store)
 
-        guard case let .unrestored(found)? = SetAsideSession.refusal(for: root) else {
+        guard case let .unrestored(found, _)? = SetAsideSession.refusal(for: root) else {
             Issue.record("a record left behind did not make runs refuse")
             return
         }
         #expect(found.id == record.id)
-        #expect(SetAsideError.unrestored(found).description.contains("swift-sure run --restore"))
+        #expect(SetAsideError.unrestored(found, stateDirectory: ".swift-sure").description.contains("swift-sure run --restore"))
         do {
             _ = try SetAsideSession.begin(pathspecs: ["Sources/"], from: root)
             Issue.record("a second set-aside started over an unrestored record")
@@ -423,13 +423,13 @@ struct SetAsideTests {
         let lock = try #require(try SetAsideLock.take(for: store, as: .watcher))
         defer { lock.release() }
 
-        guard case let .busy(holder, found)? = SetAsideSession.refusal(for: root) else {
+        guard case let .busy(holder, found, _)? = SetAsideSession.refusal(for: root) else {
             Issue.record("a record under a held lock was not refused as busy")
             return
         }
         #expect(holder == SetAsideLock.Holder(pid: getpid(), role: .watcher))
         #expect(found?.id == record.id)
-        let text = SetAsideError.busy(holder: holder, record: found).description
+        let text = SetAsideError.busy(holder: holder, record: found, stateDirectory: ".swift-sure").description
         #expect(text.contains("its watcher (pid \(getpid())) is putting them back now"), "\(text)")
     }
 

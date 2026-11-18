@@ -62,7 +62,7 @@ struct RunSwiftTestingSkipTotalsTests {
             .render(report, exitCode: 1, logURL: nil)
         let line = answer.split(separator: "\n").map(String.init).first { $0.hasPrefix("totals:") }
 
-        #expect(line?.hasSuffix("Swift Testing 7 tests in 2 suites, 1 skipped") == true, "\(line ?? "no totals line")")
+        #expect(line?.hasSuffix("Swift Testing 7 tests (9 cases) in 2 suites, 1 skipped") == true, "\(line ?? "no totals line")")
     }
 
     /// A run that skipped nothing says so, in the same words as one that skipped some.

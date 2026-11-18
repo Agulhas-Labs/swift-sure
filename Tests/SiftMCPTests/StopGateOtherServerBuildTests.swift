@@ -92,7 +92,7 @@ struct StopGateOtherServerBuildTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript(fixture, tool: tool, text: text)])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
     }
 
     /// A tool named for tests in the plural is a test run, and clears where its result shows tests run and passed.
@@ -112,7 +112,7 @@ struct StopGateOtherServerBuildTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript(fixture, text: preview)])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
     }
 
     /// A result holding any block that is not text says nothing green, since what that block shows cannot be read.
@@ -130,7 +130,7 @@ struct StopGateOtherServerBuildTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
     }
 
     /// `swift test` over Swift Testing alone prints XCTest's zero summary before the Swift Testing pass: the zero line is neither failure nor pass, and the Swift Testing count decides.
@@ -160,7 +160,7 @@ struct StopGateOtherServerBuildTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript(fixture, text: text)])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
         #expect(!reason.contains("carries no success line"))
     }
 
@@ -197,7 +197,7 @@ struct StopGateOtherServerBuildTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript(fixture, tool: tool, text: text)])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
     }
 
     /// A build naming only paths outside every repository built an unrelated project: it clears nothing, though the context edited a single repository.
@@ -230,7 +230,7 @@ struct StopGateOtherServerBuildTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
         #expect(!reason.contains("carries no success line"))
     }
 
@@ -313,7 +313,7 @@ struct StopGateOtherServerBuildTests {
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
         #expect(reason.contains(
-            "as it stands; a build ran through gizmo build_project after the last edit, but its result carries no success line. Run `(cd "
+            "as it stands; a build ran through gizmo build_project after the last edit, but its result carries no success line. Run `swift-sure run --root "
         ))
     }
 }

@@ -170,7 +170,7 @@ struct WhereRenderer {
                 if let absence {
                     lines.insert(absence, at: bannerSlot)
                 }
-                lines += paging.settle(answer.lines) + siblingPointerLines(for: query, orTypeNamed: qualifierChain(of: query).last)
+                lines += paging.settle(answer.lines) + siblingPointerLines(for: query, orTypeNamed: qualifierChain(of: query).last, spelling: options.spelling)
                 return Output(body: lines.joined(separator: "\n"), axis: answer.axis ?? axis)
             }
             // Said apart from "no such symbol", because the two are acted on differently: an unresolvable path is
@@ -187,7 +187,7 @@ struct WhereRenderer {
                 if elsewhere.count > Self.listCap {
                     lines.append("  truncated: \(elsewhere.count - Self.listCap) more declarations")
                 }
-                lines.append(contentsOf: siblingPointerLines(for: query))
+                lines.append(contentsOf: siblingPointerLines(for: query, spelling: options.spelling))
                 return Output(body: lines.joined(separator: "\n"), axis: axis)
             }
             let candidates = try store.searchCandidates(prefix: baseComponent(of: query), limit: 12, qualifiers: qualifierChain(of: query))
@@ -200,7 +200,7 @@ struct WhereRenderer {
                 lines.append("no declarations found")
                 try await lines.append(contentsOf: WhereUsesPointer.absenceLines(for: baseComponent(of: query), in: store, at: revision, paths: revisionPaths, spelling: options.spelling, usesFileCount: usesFileCount))
                 lines.append(contentsOf: storePointer)
-                lines.append(contentsOf: siblingPointerLines(for: query))
+                lines.append(contentsOf: siblingPointerLines(for: query, spelling: options.spelling))
                 return Output(body: lines.joined(separator: "\n"), axis: axis)
             }
             // A near-miss list is still an answer whose headline is "not here", and a fuzzy candidate is not the
@@ -214,7 +214,7 @@ struct WhereRenderer {
                 lines.append("  \(row.name) — \(row.kind.rawValue) — \(row.module) — \(row.path):\(row.line)")
             }
             lines.append(contentsOf: storePointer)
-            lines.append(contentsOf: siblingPointerLines(for: query))
+            lines.append(contentsOf: siblingPointerLines(for: query, spelling: options.spelling))
             return Output(body: lines.joined(separator: "\n"), axis: axis)
         }
 
@@ -463,11 +463,11 @@ struct WhereRenderer {
     /// The cross-root pointer for a missed query — one line per sibling root whose existing index accounts for it, same claim strength and wording as digest's.
     ///
     /// `type` is the external-type answer's fallback: where no sibling root declares the whole path, the roots that declare or extend the type are pointed at under the type's name, which is what they were checked for.
-    private func siblingPointerLines(for query: String, orTypeNamed type: String? = nil) -> [String] {
+    private func siblingPointerLines(for query: String, orTypeNamed type: String? = nil, spelling: CallSpelling) -> [String] {
         guard let siblingRoots else { return [] }
         let exact = siblingRoots(query)
         let (pointers, name) = exact.isEmpty ? (type.map(siblingRoots) ?? [], type ?? query) : (exact, query)
-        return pointers.isEmpty ? [] : [""] + pointers.map { $0.line(for: name) }
+        return pointers.isEmpty ? [] : [""] + pointers.map { $0.line(for: name, spelling: spelling) }
     }
 
     func qualifiedName(of row: SymbolRow) throws -> String {

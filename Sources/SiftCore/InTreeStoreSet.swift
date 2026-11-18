@@ -66,7 +66,7 @@ final class InTreeStoreSet: @unchecked Sendable {
                 openings.warmingNote = openings.warmingNote ?? SiftEngine.warmingNote(provenance: discovered.provenance, seconds: seconds)
                 openings.pending.append("in-tree store \(discovered.provenance.name) still warming — \(Int(seconds.rounded()))s so far")
             case let .failed(error):
-                openings.pending.append("in-tree store \(discovered.provenance.name) failed to open: \(SemanticOpenFailure.cause(of: error))")
+                openings.pending.append("in-tree store \(discovered.provenance.name) failed to open: \(SemanticOpenFailure.cause(of: error, in: repoRoot))")
             }
         }
         opened = kept

@@ -765,6 +765,11 @@ whole file that is served keeps "the source itself". `--offset` and `--signature
 `--signatures-only` drops doc summaries and leading attributes, and a `Type.member` then returns its signature
 without the body; the CLI also accepts the MCP tool's camel-case spelling, `--signaturesOnly`, as the same flag.
 
+A file inside a resolved package's checkout (`.build/checkouts/<package>/…`, `SourcePackages/checkouts/<package>/…`)
+named explicitly to `digest` is parsed on demand and answered as a file digest headed `(dependency <package>
+<version>) — read on demand, not indexed`, the version read from `Package.resolved`; nothing in it enters the index,
+so `where` never lists it.
+
 ### Digests of views
 
 A declaration surface is the wrong *kind* of compression for view code: `var body: some View` and a
@@ -1095,6 +1100,7 @@ swift-sure flakes                      # the repository you are in; outside one,
 swift-sure flakes --root /             # every repository this machine has wrapped a run in
 swift-sure flakes --since 7d --root Orchard/app
 swift-sure flakes --unredact           # real test names; pseudonymised by default
+swift-sure flakes test-6cad8b          # one test by the id the redacted summary printed (per machine)
 ```
 
 **Read it as counts and nothing more.** A test named by 3 of 20 runs may fail at random, or may have
@@ -1351,6 +1357,8 @@ raw: Widget @ cc94af6 (Swift clean) · .swift-sure/runs/run-20260929-090738Z-58a
 The `raw:` line opens with the tree and commit the run happened in (`Widget @ cc94af6 (Swift clean)`, `(Swift dirty: 3)` for a tree whose `.swift` files have moved, counted as the `tree:` header's `dirty:` counts them, the word Swift saying the count covers only those files, followed by `, N other files modified` (`(Swift clean, 2 other files modified)`) where tracked files that are not Swift have moved from the commit, no word on it where it cannot be read, a linked worktree named as it is there, the
 tree alone outside a repository), so a suite run in the wrong checkout does not read as the right one.
 
+A run with parameterized tests says how many test cases ran right after the test count (`Swift Testing 1 test (4 cases) in 1 suite, 0 skipped`), and prints nothing extra where every test was one case.
+
 A skipped test is counted on that line as skipped (`Swift Testing 2 tests in 1 suite, 1 skipped`, and the
 same for an `XCTSkip`), so a run whose selected tests all skipped does not read as tests that ran. A run with
 test results states `0 skipped` when nothing skipped, and each skipped test is named under the totals line as
@@ -1403,6 +1411,8 @@ Six things worth knowing before you wire it into a script:
   `filtered:` line under the totals naming up to five suites that reach the change and did not run (a suite that ran in part
   with its share, `Suite (2 of 9 ran)`), and the `--filter` command that runs them; it is left out without an index, under
   `--parallel`, or where the run cannot say which tests it ran, and never changes the totals, the verdict or the exit code.
+  A file whose edit changes comments only (as `affected` reads it) seeds nothing and is not named, and a tree of such files gets no line;
+  a Swift Testing test declared at file scope is counted as a test, `1 suite and 2 tests reaching it`.
   An unfiltered `swift test` of a package whose manifest declares test targets, that exits 0 with every
   closing count at 0, answers the same way: `✘ swift test — nothing ran: no test executed, though the package
   declares N test targets`, exit 4, an `inventory:` line naming the declared tests that never reported
@@ -1441,6 +1451,8 @@ Six things worth knowing before you wire it into a script:
 
 - **`swift build`, `swift test` and `xcodebuild` are recognised** — by the command name, not by what
   the output looks like. Anything else runs untouched, with one note on stderr saying so.
+  `xcodebuild -exportArchive` is read against `** EXPORT SUCCEEDED **`, and when its export options
+  upload, the answer carries one `upload:` line under the verdict.
 - **A failure it cannot explain hands you the raw log instead.** If the command exits nonzero and the
   filter found no error and no test failure, you get the whole transcript rather than a reassuring
   summary of nothing. A summary line does not count as an explanation — `** TEST FAILED **` restates the

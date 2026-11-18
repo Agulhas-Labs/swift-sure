@@ -15,8 +15,8 @@ public struct SiblingPointer: Sendable, Equatable {
         self.declares = declares
     }
 
-    /// The pointer as both renderers print it.
-    public func line(for name: String) -> String {
-        "\(name) is \(declares ? "declared" : "extended") in \(root) (per that root's last index) — retry with root=\(root)"
+    /// The pointer as both renderers print it, its retry spelled for the face that asked: `--root <path>` on the CLI, `root=<path>` in a tool call.
+    public func line(for name: String, spelling: CallSpelling) -> String {
+        "\(name) is \(declares ? "declared" : "extended") in \(root) (per that root's last index) — retry with \(spelling.root(root))"
     }
 }

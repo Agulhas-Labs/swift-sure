@@ -14,6 +14,10 @@ struct WhereCommand: AsyncParsableCommand {
     @Argument(help: "Name, Module.Name, Type.member, or a labeled form like save(_:to:).")
     var symbol: String
 
+    /// Whatever else was written after the target: refused in `validate()`, after a `root=<path>` among it is named for what it is.
+    @Argument(parsing: .allUnrecognized, help: .hidden)
+    var strays: [String] = []
+
     @Flag(name: .customLong("syntactic"), help: "Skip the index store: no callers/overrides, no store open.")
     var syntacticOnly = false
 
@@ -42,6 +46,12 @@ struct WhereCommand: AsyncParsableCommand {
     func validate() throws {
         if let message = BlankTargetRefusal.message(tool: "where", targets: [symbol]) {
             throw ValidationError(message)
+        }
+        if let message = RootArgumentRefusal.message(targets: [symbol] + strays) {
+            throw ValidationError(message)
+        }
+        if let stray = strays.first {
+            throw ValidationError("Unexpected argument '\(stray)'")
         }
         if declarationsOnly, includeReferences || filesOnly {
             throw ValidationError("--decl answers where \(symbol) is declared, and --refs and --files every place it is written: pass one.")

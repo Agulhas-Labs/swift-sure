@@ -59,6 +59,8 @@ public struct RunReport: Sendable {
     public let testCrash: RunTestCrash?
     /// Each relaunch of a test bundle `xcodebuild` announced, in order; empty where it announced none.
     public let restarts: [RunRestart]
+    /// The `upload: …` line an export's log earned, or `nil` where the run was no export or its log held no upload result.
+    public let uploadLine: String?
 
     public init(
         errors: [RunDiagnostic],
@@ -81,8 +83,10 @@ public struct RunReport: Sendable {
         eventStreamNote: String? = nil,
         streamedTestIDs: Set<String>? = nil,
         testCrash: RunTestCrash? = nil,
-        restarts: [RunRestart] = []
+        restarts: [RunRestart] = [],
+        uploadLine: String? = nil
     ) {
+        self.uploadLine = uploadLine
         self.restarts = restarts
         self.testCrash = testCrash
         self.eventStreamNote = eventStreamNote

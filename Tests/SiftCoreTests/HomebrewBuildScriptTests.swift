@@ -40,13 +40,13 @@ struct HomebrewBuildScriptTests {
         return [homebrew.appending(path: "build.sh").path, tarball.path, root.appending(path: "formula.rb").path]
     }
 
-    /// Runs `executable` with no `GIT_*` variable and a PATH without `brew`, so the audit is skipped.
-    private static func run(_ executable: String, _ arguments: [String]) throws -> (status: Int32, output: String) {
+    /// Runs `executable` with no `GIT_*` variable and a PATH without `brew` (so the audit is skipped) unless a folder to put first is given.
+    private static func run(_ executable: String, _ arguments: [String], extraPath: String? = nil) throws -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(filePath: executable)
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("GIT_") }
-        environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
+        environment["PATH"] = (extraPath.map { $0 + ":" } ?? "") + "/usr/bin:/bin:/usr/sbin:/sbin"
         process.environment = environment
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -78,5 +78,35 @@ struct HomebrewBuildScriptTests {
 
         #expect(result.status != 0)
         #expect(result.output.contains("no bin.install \"swift-sure\" line in the formula template"))
+    }
+
+    @Test
+    func theAuditTapIsTrustedForTheAuditAndUntrustedAfterwards() throws {
+        let staged = try Self.stage { $0 }
+        let stubs = URL(filePath: staged[1]).deletingLastPathComponent().appending(path: "stubs")
+        try FileManager.default.createDirectory(at: stubs, withIntermediateDirectories: true)
+        let log = stubs.appending(path: "calls.log")
+        let stub = """
+        #!/bin/sh
+        echo "$*" >> "\(log.path)"
+        if [ "$1" = "--repository" ]; then echo "\(stubs.path)/tap"; fi
+        exit 0
+        """
+        try stub.write(to: stubs.appending(path: "brew"), atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stubs.appending(path: "brew").path)
+
+        let result = try Self.run("/bin/sh", staged, extraPath: stubs.path)
+
+        #expect(result.status == 0, "\(result.output)")
+        let calls = try String(contentsOf: log, encoding: .utf8).components(separatedBy: "\n").filter { !$0.isEmpty }
+        let order = ["tap-new --no-git ", "trust --tap ", "--repository ", "audit --strict ", "untrust --tap ", "untap "]
+        var position = 0
+        for call in calls where position < order.count && call.hasPrefix(order[position]) {
+            position += 1
+        }
+        #expect(position == order.count, "calls in order: \(calls)")
+        let trusted = calls.first { $0.hasPrefix("trust --tap ") }
+        let untrusted = calls.first { $0.hasPrefix("untrust --tap ") }
+        #expect(trusted?.dropFirst("trust --tap ".count) == untrusted?.dropFirst("untrust --tap ".count))
     }
 }

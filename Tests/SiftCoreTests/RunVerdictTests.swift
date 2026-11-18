@@ -161,9 +161,10 @@ struct RunVerdictTests {
         #expect(RunVerdict.Contract.of(["swift", "test"]) == .runTally)
         // An action with no wording is unreadable, not absent — the two are different answers and only
         // the first refuses the log's own literals. `installsrc` was measured to print nothing at all,
-        // and an export is a mode that replaces the build and closes on a line nobody here has measured.
+        // and a notarized export is a mode that replaces the build and closes on a line nobody here has measured.
         #expect(RunVerdict.Contract.of(["xcodebuild", "installsrc"]) == .unreadable)
-        #expect(RunVerdict.Contract.of(["xcodebuild", "-exportArchive", "-archivePath", "A.xcarchive"]) == .unreadable)
+        #expect(RunVerdict.Contract.of(["xcodebuild", "-exportNotarizedApp", "-archivePath", "A.xcarchive"]) == .unreadable)
+        #expect(RunVerdict.Contract.of(["xcodebuild", "-exportArchive", "-archivePath", "A.xcarchive"]) == .declares(succeeded: "** EXPORT SUCCEEDED **", failed: "** EXPORT FAILED **"))
         // A command this tool never wraps has no contract at all, which costs nothing: it is never filtered.
         #expect(RunVerdict.Contract.of(["make", "build"]) == nil)
         #expect(RunVerdict.Contract.of([]) == nil)
@@ -231,7 +232,7 @@ struct RunVerdictTests {
     @Test
     func anXcodebuildWhoseActionCannotBeReadHasNoVerdictAtAll() throws {
         let ambiguous = ["xcodebuild", "-project", "P.xcodeproj", "-aFlagAddedAfterThisTableWasWritten", "test"]
-        let exporting = ["xcodebuild", "-exportArchive", "-archivePath", "P.xcarchive", "-exportPath", "out"]
+        let exporting = ["xcodebuild", "-exportNotarizedApp", "-archivePath", "P.xcarchive", "-exportPath", "out"]
 
         for invocation in [ambiguous, exporting] {
             #expect(RunVerdict.Contract.of(invocation) == .unreadable)

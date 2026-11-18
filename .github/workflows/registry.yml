@@ -1,0 +1,67 @@
+# Puts a release in the public MCP registry: when a release is published, builds the registry bundle from
+# the release's own tarball, uploads it to the release, and publishes the registry entry with the
+# workflow's GitHub OIDC identity, which the registry accepts for the repository owner's namespace
+# (io.github.Agulhas-Labs/*), so no personal token is involved.
+#
+# The release event, not the bare tag push, because the tarball is attached after the tag exists and this
+# needs it. Run from the Actions tab (workflow_dispatch) to retry a failed run. Publishing a version the
+# registry already has fails, so a retry after a successful publish stops there, harmlessly.
+#
+# Never runs in the private repository: only the public one publishes.
+name: Registry
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, vX.Y.Z
+        required: true
+
+permissions: {}
+
+jobs:
+  registry:
+    if: github.repository == 'Agulhas-Labs/swift-sure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: registry-${{ github.event.release.tag_name || inputs.tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write # uploads the bundle to the release
+      id-token: write # the registry login
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      # Pinned by version and by the SHA-256 of the archive, which is the one the release's own
+      # registry_<version>_checksums.txt lists. Move both together, deliberately.
+      MCP_PUBLISHER_VERSION: v1.8.9
+      MCP_PUBLISHER_SHA256: 4d527ca8f1ced0394c962dc925c2a4a4addef441cbefd62501c875e9481823a8
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Build the bundle and upload it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh Distribution/registry-release.sh "$TAG" "$RUNNER_TEMP/registry"
+
+      - name: Install mcp-publisher
+        run: |
+          set -eu
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error --output "$archive" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/$archive"
+          echo "${MCP_PUBLISHER_SHA256}  $archive" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" mcp-publisher
+
+      - name: Publish to the registry
+        working-directory: ${{ runner.temp }}/registry/out
+        run: |
+          "$RUNNER_TEMP/bin/mcp-publisher" login github-oidc
+          "$RUNNER_TEMP/bin/mcp-publisher" publish

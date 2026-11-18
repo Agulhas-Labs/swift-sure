@@ -38,6 +38,9 @@ public struct DigestRenderer {
         if target == "." {
             return try MeasuredAnswer(text: renderRepoOverview())
         }
+        if let dependency = try DependencyFileDigest(renderer: self).answer(target: target, options: options) {
+            return dependency
+        }
         if let range = DigestLineRange.parse(target) {
             return try renderFileRange(range, options: options)
         }
@@ -135,6 +138,13 @@ public struct DigestRenderer {
 
         if declarations.isEmpty {
             // A qualified target naming no type is the `Type.member` case — resolve it as a member and serve its body, rather than answering a member query with the "nearest symbols" list.
+            // Only where no member of that exact spelling exists; the answer says itself whether it counts as a hit.
+            if let memberTarget {
+                let exact = try WhereRenderer(store: store).declarations(for: memberTarget).filter { !$0.kind.isContainer }
+                if exact.isEmpty, let prefixed = try DigestLabelPrefix(renderer: self).answer(target: memberTarget, options: options) {
+                    return MeasuredAnswer(text: prefixed.text, missed: prefixed.missed)
+                }
+            }
             if let memberTarget, let body = try renderMemberBody(target: memberTarget, options: options) {
                 // A member's source has no digest it stands in for — the alternative is a ranged Read of the
                 // same lines, which is the same bytes. Nothing to measure, so nothing is claimed.
@@ -863,19 +873,21 @@ extension DigestRenderer {
 
     // MARK: Module digest
 
-    func renderModule(_ module: String, options: DigestOptions) throws -> String {
-        let symbols = try store.topLevelSymbols(inModule: module)
+    /// A module's digest, or with `folder` the same digest over only the files under that directory prefix, headed by the folder's name.
+    func renderModule(_ module: String, folder: (name: String, prefix: String)? = nil, options: DigestOptions) throws -> String {
+        let inFolder: (String) -> Bool = { path in folder.map { path.hasPrefix($0.prefix) } ?? true }
+        let symbols = try store.topLevelSymbols(inModule: module).filter { inFolder($0.path) }
         // Scoped to the module's own files rather than the repo's: a module digest is an answer about this module, and naming a broken file in a different one is the decorative counter again.
         //
         // The count wording rather than the plain one, because the line below this banner publishes a
         // total. It says everything the scoped banner says — these files, declarations may be missing —
         // and one thing more, which is that the number is a floor; a reader can see a name absent from
         // the listing, and cannot see anything at all wrong with `12`.
-        let affected = try store.filesWithParseErrors().filter { $0.module == module }.map(\.path)
+        let affected = try store.filesWithParseErrors().filter { $0.module == module && inFolder($0.path) }.map(\.path)
         var lines = countBanner(ParseErrorNotice(paths: affected))
-        let guessed = try store.filesWithGuessedModule().filter { $0.module == module }.map(\.path)
+        let guessed = try store.filesWithGuessedModule().filter { $0.module == module && inFolder($0.path) }.map(\.path)
         lines += GuessedModuleNotice.bannerLines(for: guessed, isUnreadablyRenamed: isUnreadablyRenamed)
-        lines.append("module \(module) — \(symbols.count) top-level declarations")
+        lines.append(folder.map { "folder \($0.name) in module \(module) — \(symbols.count) top-level declarations" } ?? "module \(module) — \(symbols.count) top-level declarations")
         var budgeted: [BudgetedLine] = []
         var outlineBudget = DigestCaps.outlineCap
         var currentPath = ""
@@ -901,7 +913,10 @@ extension DigestRenderer {
             lines.append("")
             lines.append("\(hidden) private/fileprivate declaration\(hidden == 1 ? "" : "s") not shown — `--all` (MCP `all: true`) includes them")
         }
-        lines += try DigestModuleShadow(renderer: self, name: module).typeNote()
+        // The shadow note answers the bare module name, which a folder reader never typed.
+        if folder == nil {
+            lines += try DigestModuleShadow(renderer: self, name: module).typeNote()
+        }
         return lines.joined(separator: "\n")
     }
 

@@ -160,6 +160,11 @@ TOOL_DEBRIS = ([".claude/"] + [name for p in PRODUCTS for name in (p.directory +
 # these from --no-reuse and --check-both; the defaults are today's behaviour.
 CHECK_REUSE = False
 CHECK_BOTH = False
+# --dirty-injection: the corpus is committed clean and the injection is left as an uncommitted change, as a
+# user's working tree is when an agent runs a filtered test (#1067). DIRTY_INJECTED maps the injected file to
+# its text after injection, so a check can tell an untouched injection from an edit.
+DIRTY_INJECTION = False
+DIRTY_INJECTED: dict = {}
 TRASH_ROOTS = (RUN_HOME, WORK)
 
 MODEL = "claude-sonnet-5-5"
@@ -446,6 +451,8 @@ def inject(task: dict):
     if found != 1:
         raise Halt("%s: the injection's find text matches %d times in %s, not once" % (task["id"], found, spec["file"]))
     path.write_text(text.replace(spec["find"], spec["replace"]))
+    if DIRTY_INJECTION:
+        DIRTY_INJECTED[spec["file"]] = path.read_text()
 
 
 def commit_corpus(env: dict):
@@ -1215,6 +1222,11 @@ def check(task: dict, final_text: str, env: dict, log: Path) -> dict:
     kind = spec["type"]
     answer = answer_value(final_text)
     changed = unchanged(spec.get("unchanged", []), env)
+    if DIRTY_INJECTION:
+        # The injection is the one uncommitted change a clean session leaves; an edit to it still counts.
+        changed = [line for line in changed
+                   if not any(line.endswith(file) and (RUN / file).is_file() and (RUN / file).read_text() == text
+                              for file, text in DIRTY_INJECTED.items())]
     outcome = {"answer": answer, "changed": changed, "controls": spec.get("controls", "n/a")}
     if kind == "restored":
         # A fix checked without a build: the injected text is gone, and the file holds the original line
@@ -1298,8 +1310,13 @@ def run_one(tasks: dict, task: dict, arm: str, repeat: int, position: int, optio
     shutil.rmtree(SCRATCH_HOME, ignore_errors=True)
     try:
         checked(["cp", "-c", "-Rp", TEMPLATE, RUN])
-        inject(task)
-        commit_corpus(env_base)
+        if DIRTY_INJECTION:
+            DIRTY_INJECTED.clear()
+            commit_corpus(env_base)
+            inject(task)
+        else:
+            inject(task)
+            commit_corpus(env_base)
         sift_on = arm == "B" or options.sift_on_a
         arm_path = str(WRAPPER_DIR) + os.pathsep + base_path if sift_on else base_path
         arm_env = clean_env(arm_path)
@@ -1595,6 +1612,10 @@ def command_run(options):
         raise Halt("unknown task: %s" % ", ".join(sorted(unknown)))
     if options.paths < 1:
         raise Halt("--paths must be at least 1")
+    if options.dirty_injection:
+        unsupported = [t["id"] for t in selected if t["check"]["type"] not in ("answer_set", "answer_all", "answer_parts")]
+        if unsupported:
+            raise Halt("--dirty-injection supports answer_set, answer_all and answer_parts checks; not: %s" % ", ".join(unsupported))
     if options.no_reuse and options.check_both:
         raise Halt("--check-both compares the checker with the session tree; it is refused with --no-reuse")
     states = [path_names(k)[3] for k in range(1, options.paths + 1)]
@@ -1631,6 +1652,7 @@ def command_run(options):
     record = {
         "session": session, "model": MODEL, "effort": options.effort, "repeats": options.repeats,
         "paths": options.paths,
+        "dirty_injection": options.dirty_injection,
         "warmups": not options.no_warmup,
         "tasks": [t["id"] for t in selected],
         "tasks_file": str(tasks["_path"]), "tasks_file_sha256": sha256(tasks["_path"]),
@@ -1647,9 +1669,10 @@ def command_run(options):
         (out_dir / "session.json").write_text(json.dumps(sanitise(record), indent=1) + "\n")
 
     write_record()
-    global CHECK_REUSE, CHECK_BOTH, DELETER
+    global CHECK_REUSE, CHECK_BOTH, DELETER, DIRTY_INJECTION
     CHECK_REUSE = not options.no_reuse
     CHECK_BOTH = options.check_both
+    DIRTY_INJECTION = options.dirty_injection
     finished = False
     try:
         WORK.mkdir(parents=True)
@@ -2454,6 +2477,9 @@ def main(argv):
     run.add_argument("--check-both", action="store_true",
                      help="debug pin: a tests check runs in the session tree and through the checker, "
                           "and the run line says CHECK MISMATCH when the verdicts differ")
+    run.add_argument("--dirty-injection", action="store_true",
+                     help="commit the corpus clean and leave the injected bug as an uncommitted change, as a user's "
+                          "working tree is mid-task; answer-style checks only (#1067)")
     run.add_argument("--task", action="append", help="a task id; repeat for several (default: every task)")
     run.add_argument("--repeats", type=int, default=3, help="repeats per path")
     run.add_argument("--paths", type=int, default=1,

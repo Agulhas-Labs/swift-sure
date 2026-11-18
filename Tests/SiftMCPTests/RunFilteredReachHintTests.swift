@@ -56,4 +56,20 @@ struct RunFilteredReachHintTests {
         #expect(thrownWith == thrownWithout)
         #expect(!without.printed.contains("filtered:"))
     }
+
+    /// An index file that exists but has seen none of the files (what `search` alone leaves behind) is brought up to date for the note, not read as it stands.
+    @Test
+    func anIndexThatHasSeenNoFileStillGivesTheLineOnAChangedTree() async throws {
+        let repository = try RunInventoryNoteTests.package(source: Self.source)
+        _ = try SiftEngine(directory: repository)
+        let database = SiftPaths.cache(in: repository).appendingPathComponent(SiftPaths.indexFileName)
+        #expect(FileManager.default.fileExists(atPath: database.path), "the fixture needs the empty index file the bug starts from")
+        try Self.dirty(repository)
+
+        let (answer, _) = try await RunInventoryNoteTests.run(in: repository, printing: Self.transcript, exiting: 0, extraArguments: ["--filter", "PalletTests"])
+
+        let note = answer.printed.split(separator: "\n").filter { $0.hasPrefix("  filtered:") }
+        #expect(note.count == 1, "\(answer.printed)")
+        #expect(note.first?.contains("--filter PalletTests --filter GizmoTests.GadgetTests") == true, "\(answer.printed)")
+    }
 }

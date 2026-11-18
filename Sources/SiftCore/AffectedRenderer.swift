@@ -307,6 +307,8 @@ extension AffectedRenderer {
     struct ReachedSuite: Equatable {
         let filter: String
         let depth: Int
+        /// The readable `Target.function()` of a test declared at file scope, which `filter` spells as an escaped pattern; `nil` for a suite.
+        var testName: String?
     }
 
     /// The suites that reach one of `declarations`, `depth` hops out: the walk `render` runs, the semantic store's where it is open and the name walk for every declaration the store could not answer for, nearest suites first.
@@ -327,11 +329,15 @@ extension AffectedRenderer {
         }
         try await merge(nameWalk(from: Self.mentionSeeds(unanswered), reader: reader, depth: depth, excluding: excluded).reached, into: &reached)
         var nearest: [String: Int] = [:]
+        var testNames: [String: String] = [:]
         for (test, evidence) in reached where !test.swiftTestFilterSelectsNothing {
             let filter = test.suite == nil ? test.swiftTestFilter : test.suiteOnly.described
             nearest[filter] = min(nearest[filter] ?? evidence.depth, evidence.depth)
+            if test.suite == nil {
+                testNames[filter] = test.described
+            }
         }
-        return nearest.map { ReachedSuite(filter: $0.key, depth: $0.value) }.sorted { ($0.depth, $0.filter) < ($1.depth, $1.filter) }
+        return nearest.map { ReachedSuite(filter: $0.key, depth: $0.value, testName: testNames[$0.key]) }.sorted { ($0.depth, $0.filter) < ($1.depth, $1.filter) }
     }
 }
 

@@ -73,6 +73,12 @@ public struct Redactor {
         token("test", name)
     }
 
+    /// Whether `text` is exactly a test pseudonym as ``test(_:)`` prints it: `test-` and six lowercase hex digits.
+    public static func isTestToken(_ text: String) -> Bool {
+        let digits = text.dropFirst("test-".count)
+        return text.hasPrefix("test-") && digits.count == 6 && digits.allSatisfy { $0.isASCII && ($0.isNumber || ("a" ... "f").contains($0)) }
+    }
+
     /// A failure reason's pseudonym — most reasons quote the symbol that was asked about, and identical reasons share a token so grouping survives.
     public func reason(_ text: String) -> String {
         token("reason", text)

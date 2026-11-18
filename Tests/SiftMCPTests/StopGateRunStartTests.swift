@@ -86,7 +86,7 @@ struct StopGateRunStartTests {
 
             let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript], now: now)))
 
-            #expect(reason.contains("Run `(cd "))
+            #expect(reason.contains("Run `swift-sure run --root "))
             #expect(!reason.contains("in progress"))
         }
     }
@@ -103,7 +103,7 @@ struct StopGateRunStartTests {
             let reused = await fixture.hook(["transcript_path": transcript], now: now) { _ in started.addingTimeInterval(120) }
             let reason = try #require(try StopGateFixture.blockReason(of: reused))
 
-            #expect(reason.contains("Run `(cd "))
+            #expect(reason.contains("Run `swift-sure run --root "))
             #expect(!reason.contains("in progress"))
         }
     }

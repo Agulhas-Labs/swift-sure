@@ -67,9 +67,12 @@ sh "$REPO/Distribution/verify-private.sh" "$OUT"
 if command -v brew >/dev/null 2>&1; then
     AUDIT_TAP="swiftsurecheck/audit$$"
     AUDIT_LOG="$(mktemp)"
-    trap 'brew untap "$AUDIT_TAP" >/dev/null 2>&1 || true; rm -f "$AUDIT_LOG"' EXIT
+    # Homebrew 7 refuses to load a formula from a tap it has not been told to trust, so the throwaway
+    # tap is trusted for the audit and untrusted again in the trap: ~/.homebrew/trust.json ends as it began.
+    trap 'brew untrust --tap "$AUDIT_TAP" >/dev/null 2>&1 || true; brew untap "$AUDIT_TAP" >/dev/null 2>&1 || true; rm -f "$AUDIT_LOG"' EXIT
     trap 'exit 1' INT TERM
     brew tap-new --no-git "$AUDIT_TAP" >/dev/null
+    brew trust --tap "$AUDIT_TAP" >/dev/null 2>&1 || true # a Homebrew before 7 has no `trust`, and needs none
     AUDIT_DIR="$(brew --repository "$AUDIT_TAP")/Formula"
     mkdir -p "$AUDIT_DIR"
     cp "$OUT" "$AUDIT_DIR/swift-sure.rb"

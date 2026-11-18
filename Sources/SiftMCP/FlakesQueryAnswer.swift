@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import SiftCore
 
 /// The answer to `swift-sure flakes <query>`: the tests whose recorded name contains the query, each with the populations it was recorded failing in.
 struct FlakesQueryAnswer {
@@ -21,7 +22,7 @@ struct FlakesQueryAnswer {
         let uncounted = uncountedLines(named)
         guard !named.tests.isEmpty else {
             let who = uncounted.isEmpty ? "no run" : "no counted run"
-            return ["`\(query)` — \(who) recorded a matching test failing\(scoped), \(over)"] + uncounted
+            return ["`\(query)` — \(who) recorded a matching test failing\(scoped), \(over)"] + uncounted + suiteLines(query, named)
         }
         var lines = ["`\(query)` — \(counted(named.tests.count, "test")) recorded failing\(scoped), \(over)"]
         for test in named.tests.prefix(cap) {
@@ -33,7 +34,18 @@ struct FlakesQueryAnswer {
         if named.tests.count > cap {
             lines.append("… and \(named.tests.count - cap) more tests match — narrow the query")
         }
-        return lines + uncounted
+        return lines + uncounted + suiteLines(query, named)
+    }
+
+    /// The one line saying a suite query could not reach Swift Testing failures recorded without a suite.
+    ///
+    /// Only for a query that reads as a suite or `Suite.member`: one starting with an uppercase letter, or carrying a `.` or `/`. A lowercase bare word or one carrying a `(` names a function, which a bare recorded name always matches. The count is of distinct suiteless test names, not of failures. Swift Testing records its failures by bare function name, and the suite is filed beside them only where the run could resolve it, so a record from before that or an unresolved one is invisible to a query by suite, and silence there would read as "never failed".
+    private static func suiteLines(_ query: String, _ named: RunFailureHistory.NamedFailures) -> [String] {
+        let readsAsSuite = query.first?.isUppercase == true || query.contains(".") || query.contains("/")
+        guard named.suiteless > 0, readsAsSuite, !query.contains("("), !Redactor.isTestToken(query) else {
+            return []
+        }
+        return ["\(named.suiteless) failing tests in scope carry no suite (recorded before this version, or unresolved) and could not be matched by one"]
     }
 
     /// The runs the counts above leave out: those that name a match anyway, and those that could not say.

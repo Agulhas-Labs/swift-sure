@@ -17,7 +17,7 @@ struct RegistryFilesScriptTests {
     }
 
     /// The script is copied into a subdirectory of the temporary directory, as the other distribution-script tests do, and run with no `GIT_*` variable in its environment.
-    private static func run(in directory: URL, executableName: String = "swift-sure", createBinary: Bool = true) throws -> Outcome {
+    private static func run(in directory: URL, executableName: String = "swift-sure", createBinary: Bool = true, timeZone: String? = nil, umask: String? = nil) throws -> Outcome {
         let scripts = directory.appendingPathComponent("scripts", isDirectory: true)
         try FileManager.default.createDirectory(at: scripts, withIntermediateDirectories: true)
         let script = scripts.appendingPathComponent("registry-files.sh")
@@ -34,7 +34,14 @@ struct RegistryFilesScriptTests {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [script.path, binary.path, version, out.path]
-        process.environment = ["PATH": "/usr/bin:/bin", "HOME": directory.path]
+        if let umask {
+            process.arguments = ["-c", "umask \(umask); exec /bin/sh \"$@\"", "sh"] + (process.arguments ?? [])
+        }
+        var environment = ["PATH": "/usr/bin:/bin", "HOME": directory.path]
+        if let timeZone {
+            environment["TZ"] = timeZone
+        }
+        process.environment = environment
         let pipe = Pipe()
         let errors = Pipe()
         process.standardOutput = pipe
@@ -51,6 +58,10 @@ struct RegistryFilesScriptTests {
             bundle: out.appendingPathComponent("\(executableName)-mcp-\(version).mcpb"),
             serverJSON: out.appendingPathComponent("server.json")
         )
+    }
+
+    private static func checksum(_ file: URL) throws -> String {
+        try tool("/usr/bin/shasum", ["-a", "256", file.path]).split(separator: " ").first.map(String.init) ?? ""
     }
 
     private static func tool(_ path: String, _ arguments: [String]) throws -> String {
@@ -152,6 +163,27 @@ struct RegistryFilesScriptTests {
         #expect(entry["name"] as? String == "io.github.Agulhas-Labs/gizmo")
         let package = try #require((entry["packages"] as? [[String: Any]])?.first)
         #expect((package["identifier"] as? String)?.hasSuffix("/v\(Self.version)/gizmo-mcp-\(Self.version).mcpb") == true)
+    }
+
+    /// The same binary gives the same bundle byte for byte, in another time zone and more than the two seconds a zip entry's time resolves to later, because the release workflow rebuilds the bundle the registry entry's checksum was taken from.
+    @Test
+    func theSameBinaryGivesTheSameBundleWhereverAndWheneverItIsBuilt() async throws {
+        let first = try Self.run(in: TemporaryDirectory.make("registry-first"), timeZone: "Pacific/Auckland")
+        try await Task.sleep(for: .seconds(2.2))
+        let second = try Self.run(in: TemporaryDirectory.make("registry-second"), timeZone: "America/Los_Angeles")
+
+        #expect(first.status == 0 && second.status == 0, "\(first.errors) \(second.errors)")
+        #expect(try Self.checksum(first.bundle) == Self.checksum(second.bundle))
+    }
+
+    /// The bundle does not depend on the caller's umask, because the manifest's mode is stored in the zip entry.
+    @Test
+    func theBundleDoesNotDependOnTheCallersUmask() throws {
+        let open = try Self.run(in: TemporaryDirectory.make("registry-umask-open"), umask: "022")
+        let closed = try Self.run(in: TemporaryDirectory.make("registry-umask-closed"), umask: "077")
+
+        #expect(open.status == 0 && closed.status == 0, "\(open.errors) \(closed.errors)")
+        #expect(try Self.checksum(open.bundle) == Self.checksum(closed.bundle))
     }
 }
 

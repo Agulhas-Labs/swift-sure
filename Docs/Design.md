@@ -42,7 +42,12 @@ answer (§2's freshness contract names the commands that open otherwise); invali
   are indexed, and a digest of an external type says "declared outside this repository" and lists those
   extensions rather than pretending completeness; `where` says the same of a type, or of a member of a type,
   that a path or package dependency declares (§3, `where`), and never that it is "declared, but not under"
-  anything.
+  anything. The one read of a dependency is a file of a resolved package's checkout
+  (`.build/checkouts/<package>/…` or `SourcePackages/checkouts/<package>/…`) named explicitly to `digest`:
+  it is parsed on demand into a store held in memory for that answer, nothing is written to the index, and
+  the answer says `read on demand, not indexed` with the package and the version `Package.resolved` pins.
+  A path that leaves the checkout by `..` or a link, a directory, a non-Swift file and every other hidden
+  path keep the refusal, and `where` and a type or member name never resolve into a dependency.
 - **No network calls.** Everything local; nothing about a repository leaves the machine.
 - **No indexing of non-Swift sources.** Objective-C headers are out. The one non-Swift shape served is a
   Markdown document's heading outline (§3, `digest`), read from disk at query time and never stored.
@@ -1315,7 +1320,7 @@ so does a file suffix more than one indexed file ends in (the candidates capped 
 whose exact target another candidate shares (overloads differing only in parameter types) is named by its
 file range instead, so every suggested call answers rather than repeating the ambiguity. A module's source
 directory, the directory holding exactly that module's indexed files, serves the module as `Name/` does
-(refused at a revision as `Name/` is); a directory holding several modules or part of one stays a miss. **A
+(refused at a revision as `Name/` is); a directory whose indexed files all belong to one module but are only part of it is served as a folder slice, the module digest over only the files under that directory, headed `folder <name> in module <Module> — N top-level declarations` (N counted over the slice, refused at a revision likewise); a directory holding several modules stays a miss. **A
 `Type.member` whose declarations are small together is served, not listed.** Where the name resolves to
 several member declarations whose ranges add up to no more than 60 lines (the crossover's own bound,
 `SourcePassthrough.floorLineCeiling`), the answer opens on one line naming the count and the combined
@@ -1333,7 +1338,15 @@ member answer keep their lists. Nothing that reads an answer back changes: a `Ty
 credited by the file declaring the type whichever form it takes (`DigestedFiles.locatesAsMember`), and
 each header prints the same `path:start-end` the list's line did. The list's own line drops its trailing
 location where the exact target already is that location (`digest F.swift:297-299 — func`, not the range
-twice). An
+twice). **A labeled `Type.member` that matches no member exactly but whose written labels are the first
+labels of the type's members (extensions included; `_` counts as a label, order matters, so
+`init(opening:)` does not begin `init(cache:opening:)`) is resolved, not refused.** Exactly
+one such member is answered as `digest Type.<full signature>` would be, under one line first, `resolved
+init(opening:) to init(opening:cache:clock:) (the only init on DepotStore whose labels
+begin opening:)`; several keep the refusal narrowed to them, `no member named init(opening:) on
+DepotStore; 2 begin with those labels:` and one line each as the nearest-symbols list prints them,
+not the twelve nearest symbols of the index; none is the nearest-symbols answer unchanged. An exact match
+prints no `resolved` line. `where Type.member(labels:)` does not resolve this way. An
 externally declared type answers so and lists the local extensions, taking as evidence only an extension
 whose written path and the path asked for end one another — the asked path under a fuller spelling, or a
 suffix of it, the bare name included, so `extension Notification.Name` answers for
@@ -1498,7 +1511,7 @@ times the repository declares `member` on other types is one line, `member is de
 types in this repository — where member lists them`, which says nothing of `Dep` and lists no row. The answer
 ends with the cross-root pointer: a sibling root declaring the path `Dep.member` gets the path line, else one
 declaring or extending `Dep` gets the line for `Dep` (the type-name pointer is printed only on this answer, so
-a dependency's member in a sibling root's extension is found by a re-rooted query). The headline is an absence claim, so it carries the
+a dependency's member in a sibling root's extension is found by a re-rooted query; the pointer's retry is spelled for the face, `--root <path>` on the CLI and `root=<path>` in a tool call). The headline is an absence claim, so it carries the
 repo-wide parse-error banner like every other, and where the banner is present it says `Dep is declared in no
 file the index read in full — outside this repository, or in a file that did not fully parse`, since a
 truncated file can hide the declaration. With a store, the `semantic:` header is the verdict over the files
@@ -2803,6 +2816,8 @@ Removed on 24 October 2026: no agent called it in fourteen days. The design is i
 
 ### `strings <text-or-key>`
 
+A query holding `|` is searched as written first, since UI text can hold one; only when that finds nothing, and the query splits on `|` into two or more terms that are non-empty once trimmed of whitespace, is it read as any of them, answered as one section per term in query order under a `no literal contains "<query>" as written; read as any of <terms>` line, as `search` reads `|`.
+
 Traces display text to its localization key and back, across `.xcstrings` and legacy `.strings` catalogs,
 then lists where each matched key is **spelled as a string literal** in Swift source. Values match
 case-insensitively in any language, keys exactly or by substring, except that a query of three characters or fewer (trimmed) matches a key, value or literal only where no letter flanks it (`ShortQueryMatch`); catalogs are few and small, so this
@@ -2947,10 +2962,10 @@ beside the refused-filter hint's place:
 `  filtered: the working tree changes ShellWord.swift; 1 suite reaching it did not run — run swift test --filter ShellWordTests --filter InstallHookQuotedPathTests (swift-sure affected lists every suite)`,
 indented like the hint and inventory lines so it never reads as a token beside `totals:`. The suites come from
 `affected`'s walk at its default depth, seeded from every declaration in each dirty file (not the diff's changed
-lines, since the stored rows of a dirty file are stale exactly where those lines fall), each spelled as `--filter`
+lines, since the stored rows of a dirty file are stale exactly where those lines fall; a file whose edit `affected` reads as comment-only, by the same diff and comparison, seeds nothing and is not named, and where every dirty file is such the line is left out; a file the comparison cannot be made for is seeded whole), each spelled as `--filter`
 takes it, nearest first, at most five named (the hint's `listedSuites`) with `+N more`; the command repeats the
 run's own `--filter`s and adds the named suites, so it is whole as written even when more are left unnamed, and more
-than one changed file reads `changes ShellWord.swift and N more files`. **"Did not run" needs positive evidence, on
+than one changed file reads `changes ShellWord.swift and N more files`. The sentence counts what it lists: a Swift Testing test declared at file scope is a test, not a suite (`2 suites and 1 test reaching it`), read as `Target.function()` where it is named in the `did not run in full` list, its escaped filter kept in the command. **"Did not run" needs positive evidence, on
 the terms `unmatchedFilters` uses:** the run was not `--parallel`, it has the Swift Testing event stream for any
 Swift Testing test it ran, and every XCTest it printed carries its module; otherwise the line is left out, never
 guessed. A reached suite counts as run only when every test the index declares in it reported; one that ran in
@@ -2958,9 +2973,16 @@ part is named with its share, `ShellWordTests (2 of 9 ran)` (the line then reads
 suite the same way a suite filter leaves out a module. It is never judged by matching the pattern against suite
 names: SwiftPM's regex match on `Target.Suite/function()` is the only authority on what a filter selects. The walk
 runs after the test process ends, as the hint's does, under the same 2 s budget, so it reads a store this run's build
-has finished writing; like the hint it reads the stored index as it stands (never freshened or written), falls back
-to written names where the semantic store does not open, and is left out when the checkout has no SwiftSure index,
-when the budget runs out, when no suite reaches the change, and when every reaching suite ran in full. It never
+has finished writing. **Unlike the hint it brings the index up to date first** (`ensureFresh`, #1084), inside that same
+budget: the 25 Oct premise that `search` builds the stored index was wrong (after `search` alone `index.db` holds no
+files, 77 KB on the pinned corpus), so an agent that went from `search` straight to a filtered run, which is what the
+48-run dirty-tree bench did, got no line from an index that knew none of the dirty files, while a prior `where` or
+`affected` gave one. The line is the one note whose whole point is the dirty files, so it cannot read an index that has
+not seen them. The freshen is abandoned and cancelled when the budget runs out (the line is then left out, never
+waited on); a build cut short that way is resumed by the next call (§6.9), so nothing is lost but the time. It falls
+back to written names where the semantic store does not open, and is left out when the checkout has no SwiftSure
+index file (this note alone never creates one), when the budget runs out, when no suite reaches the change, and when
+every reaching suite ran in full. It never
 changes the totals line, the verdict, the exit code or what the run records. `xcodebuild -only-testing` takes the
 same line once its runs report suites per bundle (not in this change). **Measured before and after it is built.**
 Before: count how many of the 16 failed runs had `.swift-sure/index.db` when their filtered run ended (the corpus has
@@ -3037,7 +3059,7 @@ inventory would bound but could not read, so under the flag it is unclean and ex
 `-only-testing`, `-skip-testing` or `-testPlan` reads as filtered, as a filtered `swift test` does. A run exiting 6 settles
 its log as a failure, kept until a run of the command passes.
 
-`--root <dir>` changes the process to `<dir>`, and sets `PWD`, before anything reads its directory, so the log, the proof key, the set-aside's repository and the child's directory are a cd'd run's. It replaces the by-name refusal from #573, whose message told the caller to `cd`; in a Claude Code session that re-roots every later command. No allow rule covers the flag, since a rule that matched any directory could match any command after it. In a session that asks about commands a `--root` run asks, and so does `(cd <dir> && swift-sure run -- …)`, whose parentheses Claude Code asks about; only a bare `cd <dir> &&` in front runs unasked, and it moves the shell for every later command. The Stop block names the bare command where the context already stands in the build's directory, and the subshell only where it does not.
+`--root <dir>` changes the process to `<dir>`, and sets `PWD`, before anything reads its directory, so the log, the proof key, the set-aside's repository and the child's directory are a cd'd run's. It replaces the by-name refusal from #573, whose message told the caller to `cd`; in a Claude Code session that re-roots every later command. No allow rule covers the flag, since a rule that matched any directory could match any command after it. In a session that asks about commands a `--root` run asks, and so does `(cd <dir> && swift-sure run -- …)`, whose parentheses Claude Code asks about; only a bare `cd <dir> &&` in front runs unasked, and it moves the shell for every later command. The Stop block names the bare command where the context already stands in the build's directory, and `swift-sure run --root <dir> -- …` where it does not, as the installed rule teaches; it asks no more than the subshell did. Only a raw `xcodebuild`, which `--root` cannot place, is still named as a subshell.
 
 **The `raw:` line's tree stamp counts every tracked file that moved, and says which kind it counted** (#797). The
 stamp after the repository's name and HEAD, `Widget @ cc94af6 (Swift clean)` or `(Swift dirty: 3)`, is the
@@ -3361,6 +3383,12 @@ unfiltered, serial `swift test` of the package at the repository's root has its 
 reconciled against the inventory (the join `test --analyse --against` makes), and the answer carries
 `inventory: 3411 declared, 3411 reported` when the two agree, or `inventory: 3 declared to run, 2 reported
 — 1 never reported: …` naming up to five tests that never reported and any that reported more than once.
+**A reported name that is not shaped like a test's name claims no test.** Two concurrent writers can splice two
+pass lines into one (`✔ Test head(tail() passed after …`); a name whose parentheses do not balance, or
+whose base name before the final argument list holds one, is a garbled line, not a second report of the test its
+prefix spells. The inventory says `1 report line garbled (output lines spliced?): <name>` instead of `reported more
+than once`, and the test whose line was swallowed stays in the never-reported clause. The verdict is unchanged: the
+inventory is not clean, and `--require-inventory` still refuses it.
 **It is a note and never a verdict: the exit code stays the wrapped command's either way** (a run that
 executed no test exits 4 for its zero, not for this line), unless the caller asked otherwise with
 `--require-inventory`, which turns an unclean inventory into exit 6 (above). That run, its every closing count at 0, is
@@ -4851,14 +4879,23 @@ note on a red `swift-sure run` saying the same test passed on this tree before i
 
 **`flakes <query>` answers "has this test failed before?" for the tests it names.** The positional is
 matched against each recorded test name as a substring, case-sensitive, with `.` and `/` read as one
-separator, so `Depot.restock` finds `Gizmo/Depot/restock()`. Because the caller supplied the name,
+separator, so `Depot.restock` finds `Gizmo/Depot/restock()`. **Swift Testing records bare function
+names** (`restock()`), so the run files the test's suite beside them as `failedSuites`
+(`{"restock()": "Depot"}`, nested types joined with `/`), read at record time from the failure's file
+and line through the repository's *existing* index, never by parsing source or building one; a name whose
+location is missing, whose file name more than one indexed file carries, or that no type encloses stays
+bare and is left out. A name with a recorded suite also matches as `<suite>/<name>`, so `Depot` finds
+`restock()`; names, redacted ids and grouping stay keyed by the bare name, so a test's history does not
+split. A query that reads as a suite (first character uppercase, or containing `.` or `/`, and no `(`) and finds Swift Testing names with no recorded suite in
+scope says `N failing tests in scope carry no suite (recorded before this version, or unresolved)
+and could not be matched by one`, because silence there reads as "never failed". Because the caller supplied the name,
 the matched tests print by their **real names**; the root keeps its redaction unless `--unredact`. **Every
 test recorded failing counts**, not only those that also passed, so a test that failed in every run of its
 population is answered, as `failed in every run`, where the listing omits it. Each matched test has one line
 per population it was recorded failing in (one for the population's runs with a tree and one for its runs without,
 when both exist), over that population's runs and in the tier the listing would put
 it in, from the same tallies, so the two answers cannot disagree. At most 10 tests print, then a line counts
-the rest. A same-tree line adds the failures on trees or command lines the test never passed on. A query matching nothing says no run
+the rest. A same-tree line adds the failures on trees or command lines the test never passed on. A query that is exactly a redacted test id (`test-` and six lowercase hex digits, as the summary prints under redaction) names the recorded tests whose `Redactor.standard()` pseudonym is that id, even under `--unredact`; one no recorded failing test has is answered as an unknown id, not as a failed substring search. A query matching nothing says no run
 recorded a matching test failing, over the runs that recorded which tests failed, **but it never answers "no" for
 a run whose log could not say**: runs whose names ran past the cap or sit under a kind naming no action, and
 whose recorded names match, are counted on a line of their own (and the header then says "no counted run"), and
@@ -5126,7 +5163,7 @@ folder no repository encloses is the exception: the caller meant that file, and 
 repository's copy of the path may be on another branch (one such answer digested a checkout that differed
 in 993 files), so it is refused, saying the file is in no repository, to run `git init` in the caller's folder when the file is under it and that folder is neither the home folder nor one above it, and in the file's own folder otherwise, and which
 indexed copies to pass as the root instead; a symbol name names no file on disk and still adopts. And a name miss inside one repository consults
-the siblings and offers a pointer to the root that declares it — deliberately **not** a proxy answer,
+the siblings and offers a pointer to the root that declares it, its retry spelled for the face that asked (`retry with --root <path>` on the CLI, `retry with root=<path>` over MCP; a positional `root=<path>` on the CLI is refused before the lookup with `root=<path> is the MCP spelling; on the CLI pass --root <path>`) — deliberately **not** a proxy answer,
 because serving a sibling's digest would put another repository's content under this repository's
 freshness header. Probing is read-only by construction, so a root recorded but never indexed is skipped
 rather than indexed as a side effect of someone else's miss: this is routing, not indexing, and §1's
@@ -6028,7 +6065,9 @@ declared platform and asks for the project's simulator `xcodebuild … build`. T
 inside a lone subshell or group as its inside. Where the context already stands in the directory the build
 runs in (the `cwd` of its transcript's last line that carries one) it is named bare, since only a bare
 command, or a bare `cd <dir> &&` in front of one, runs unasked under the installed rules: Claude Code asks
-about a subshell's parentheses, as it does about `--root`. Anywhere else it is a subshell, `(cd <dir> &&
+about a subshell's parentheses, as it does about `--root`. Anywhere else a `swift-sure run -- <build>` is named
+`swift-sure run --root <dir> -- <build>` (each nested package's build carries its own `--root`), and a raw
+`xcodebuild` is a subshell, `(cd <dir> &&
 <command>)`, with `<dir>` the directory the line's own plain cds put the segment in, inside the checkout or
 not, so its relative paths resolve as they did; where the line leaves that unknown (a `pushd`, a group that is not the whole line) no build is named and the gate
 stays silent: it never names a build it cannot place. Else no block: an `xcodebuild` is never
@@ -7845,7 +7884,8 @@ The rules that hold:
 - **Vendored code.** `Pods/`, `Carthage/`, `DerivedData/`, `node_modules/` and **every hidden path
   component** — a directory or a file whose name starts with `.` — are excluded outright, by the
   enumerator and by the build-file walk alike, so a tree that is not indexed cannot name modules either.
-  The hidden rule is absolute and general, since a list of names loses a race with every tool that adds a
+  The hidden rule is absolute and general (a hidden path is never *indexed*; a resolved dependency's
+  checkout file named explicitly to `digest` is parsed on demand and answered unindexed, §1), since a list of names loses a race with every tool that adds a
   dotted directory, and losing it is a wrong answer (vendored source indexed as a module, a guessed-module
   banner on everything touching it): a hidden tree is build output, a cache or somebody else's code.
 - **Generated code.** An exclusion list in config, matched as plain substrings of the repo-relative path

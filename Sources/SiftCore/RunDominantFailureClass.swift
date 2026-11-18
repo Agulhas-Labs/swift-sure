@@ -152,6 +152,18 @@ private extension RunDominantFailureClass {
     struct Reading: Hashable {
         let expression: String
         let value: String
+
+        /// Whether the framework printed a placeholder in place of a value, which no other failure can be said to share.
+        var isPlaceholder: Bool {
+            RunDominantFailureClass.placeholders.contains(value)
+        }
+    }
+
+    /// What Swift Testing prints after the marker where it evaluated nothing, which is not a value.
+    ///
+    /// An expectation containing `try` that captures no operands reads `<not evaluated>`. Failures of different expectations printing it have not read one and the same value, so a placeholder never counts toward a shared one.
+    static var placeholders: Set<String> {
+        ["<not evaluated>"]
     }
 
     /// The marker Swift Testing puts between a subexpression and the value it evaluated to.
@@ -274,10 +286,13 @@ private extension RunDominantFailureClass {
                 frames.append((open: message.index(after: index), marker: nil))
             case ")":
                 if let frame = frames.popLast(), let marker = frame.marker {
-                    readings.append(Reading(
+                    let reading = Reading(
                         expression: trimmed(message[frame.open ..< marker]),
                         value: trimmed(message[message.index(after: marker) ..< index])
-                    ))
+                    )
+                    if !reading.isPlaceholder {
+                        readings.append(reading)
+                    }
                 }
             case Self.expansion:
                 if let frame = frames.last, frame.marker == nil {
@@ -308,6 +323,9 @@ private extension RunDominantFailureClass {
         for (position, line) in lines[start...].enumerated() {
             guard let reading = reading(of: line), !(depthKnown && position > 0 && !RunExpansionDepth.isIndented(line)) else {
                 break
+            }
+            if reading.isPlaceholder {
+                continue
             }
             if reading.expression == expression, ["true", "false"].contains(reading.value) {
                 continue

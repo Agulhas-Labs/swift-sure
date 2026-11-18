@@ -646,7 +646,7 @@ extension RunOutputFilterTests {
         let answer = RunReportRenderer(kind: .swiftTest, workingDirectory: URL(fileURLWithPath: "/Users/dev/Kettle"))
             .render(report, exitCode: 1, logURL: nil)
         #expect(answer.contains("3 failures ·"))
-        #expect(answer.contains("totals: ✘ failed · Swift Testing 2 tests in 0 suites, 2 failing (3 issues)"))
+        #expect(answer.contains("totals: ✘ failed · Swift Testing 2 tests (3 cases) in 0 suites, 2 failing (3 issues)"))
     }
 
     /// An argument that runs on for longer than a handful of lines — a fixture string — still reaches the location after it.

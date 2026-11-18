@@ -22,6 +22,12 @@ public struct ReadOnlyIndex {
         return database
     }
 
+    /// A read-only ``IndexStore`` over the current-schema index at `root`, or `nil` when there is nothing safe to read (none, another schema version, or a store that will not open).
+    static func store(atRoot root: String) -> IndexStore? {
+        let databasePath = SiftPaths.cache(in: URL(filePath: root)).appendingPathComponent(SiftPaths.indexFileName).path
+        return open(atRoot: root).map { IndexStore(readOnly: $0, databasePath: databasePath) }
+    }
+
     /// A connection to the current-schema index at `root` inside a read transaction it keeps open, or `nil` when there is nothing safe to read.
     ///
     /// Every later read through the connection sees the store as it stood when this returned, whatever another process does to it meanwhile: an unlinked file stays readable through the handle, a store replaced by rename stays the old one, and one dropped and rebuilt in place stays the snapshot this transaction began on, since the store keeps a write-ahead log and a reader's snapshot outlives any writer's commit. The version is checked again inside the transaction, so the snapshot held is one this build can read.

@@ -38,6 +38,8 @@ public struct RunTestOutcomes: Sendable, Equatable {
     public private(set) var swiftTestingNames: Set<String> = []
     /// The issues, net of known ones, that the console's last failing line for each Swift Testing test recorded; absent for a test whose failure the console did not state a count for.
     public private(set) var failureIssues: [String: Int] = [:]
+    /// The case count each parameterized Swift Testing test's ending line stated, per name.
+    private(set) var caseCounts: [String: Int] = [:]
     /// Every test the run reported skipped, in the order the skips were printed, each listed as often as it was reported: `Suite.test` for XCTest, the bare function for Swift Testing, with the reason the log gave where it gave one.
     public private(set) var skips: [Skip] = []
     /// The reason XCTest printed for a skip, held under the test's name until the `skipped` ending that follows it takes it.
@@ -164,6 +166,7 @@ public extension RunTestOutcomes {
             kept.tallies[name] = nil
             kept.lastEndings[name] = nil
             kept.attempts[name] = nil
+            kept.caseCounts[name] = nil
             kept.startedIterations[name] = nil
             kept.skips.removeAll { $0.name == name }
         }
@@ -214,6 +217,9 @@ public extension RunTestOutcomes {
         if xctest == nil {
             readSwiftTestingEvent(event, of: name)
             swiftTestingNames.insert(name)
+            if let (_, rest) = Self.swiftTestingLine(in: line), let cases = RunParameterizedCases.count(in: rest) {
+                caseCounts[name] = cases
+            }
         }
         var tally = tallies[name] ?? Tally()
         switch event {

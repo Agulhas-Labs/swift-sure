@@ -24,7 +24,11 @@ public struct TestRunResult: Sendable {
     /// The names of the tests the shards' reconciliation reported failing, or `nil` where it cannot say — see ``ShardReconciliation/reportedTestFailures``; always `nil` for a run that did not reconcile.
     public let failedTests: [String]?
 
-    public init(answer: String, exitCode: Int32, reconciled: Reconciled? = nil, runToken: String? = nil, shards: Int? = nil, failedTests: [String]? = nil) {
+    /// The suite of each failing Swift Testing test in ``failedTests``, keyed by that name, read off the reconciliation's own identifiers; empty where there is none.
+    public let failedSuites: [String: String]
+
+    public init(answer: String, exitCode: Int32, reconciled: Reconciled? = nil, runToken: String? = nil, shards: Int? = nil, failedTests: [String]? = nil, failedSuites: [String: String] = [:]) {
+        self.failedSuites = failedSuites
         self.answer = answer
         self.exitCode = exitCode
         self.reconciled = reconciled

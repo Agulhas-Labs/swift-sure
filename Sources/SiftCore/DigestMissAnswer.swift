@@ -64,7 +64,7 @@ struct DigestMissAnswer {
             if let external = try externalTypeAnswer(name: name, qualifiers: qualifiers, module: module, options: options) {
                 return external
             }
-            if let answer = try wrongPathAnswer(name: name, qualifiers: qualifiers, module: module) {
+            if let answer = try wrongPathAnswer(name: name, qualifiers: qualifiers, module: module, options: options) {
                 return MeasuredAnswer(text: answer, missed: true)
             }
         }
@@ -84,7 +84,7 @@ struct DigestMissAnswer {
                 return MeasuredAnswer(text: ([
                     "no \(name) extension in \(module) — \(counted) is extended in: \(byModule.joined(separator: ", "))",
                     "digest \(qualifiedTarget) serves every module's extensions",
-                ] + siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module))).joined(separator: "\n"), missed: true)
+                ] + siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module), spelling: options.spelling)).joined(separator: "\n"), missed: true)
             }
             let qualifiedTarget = (qualifiers + [name]).joined(separator: ".")
             // Both notes, independently. Hanging the widening note off `??` would let a module qualifier
@@ -126,13 +126,13 @@ struct DigestMissAnswer {
                     lines.append("(+\(count) extension\(count == 1 ? "" : "s") of \(owner), which this repo declares — digest \(owner) serves \(count == 1 ? "it" : "them"))")
                 }
             }
-            lines.append(contentsOf: siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module)))
+            lines.append(contentsOf: siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module), spelling: options.spelling))
             return MeasuredAnswer(text: lines.joined(separator: "\n"))
         }
         if let external = try externalTypeAnswer(name: name, qualifiers: qualifiers, module: module, options: options) {
             return external
         }
-        if let answer = try wrongPathAnswer(name: name, qualifiers: qualifiers, module: module) {
+        if let answer = try wrongPathAnswer(name: name, qualifiers: qualifiers, module: module, options: options) {
             return MeasuredAnswer(text: answer, missed: true)
         }
         let written = writtenTarget(name: name, qualifiers: qualifiers, module: module)
@@ -146,7 +146,7 @@ struct DigestMissAnswer {
             // The most absolute absence claim the tool makes: a file the parser could not finish is *exactly*
             // how "no symbol named X" comes to be said about a symbol written in plain sight, and without this
             // the reader has nothing in the answer to suspect it with.
-            let text = try (renderer.absenceBanner() + ["\(DigestMiss.noSymbolPrefix)\(name)\(DigestMiss.noSymbolSuffix)"] + WhereBasenamePointer.lines(for: QualifiedPath.baseName(of: name), in: renderer.store, at: renderer.revision, spelling: options.spelling) + siblingPointerLines(for: written)).joined(separator: "\n")
+            let text = try (renderer.absenceBanner() + ["\(DigestMiss.noSymbolPrefix)\(name)\(DigestMiss.noSymbolSuffix)"] + WhereBasenamePointer.lines(for: QualifiedPath.baseName(of: name), in: renderer.store, at: renderer.revision, spelling: options.spelling) + siblingPointerLines(for: written, spelling: options.spelling)).joined(separator: "\n")
             return MeasuredAnswer(text: text, missed: true)
         }
         // In the class too: "no type named X, here are some near ones" leads with an absence, and a fuzzy
@@ -158,19 +158,19 @@ struct DigestMissAnswer {
         for row in candidates {
             lines.append("  \(row.name) — \(row.kind.rawValue) — \(row.module) — \(row.path):\(row.line)")
         }
-        lines.append(contentsOf: siblingPointerLines(for: written))
+        lines.append(contentsOf: siblingPointerLines(for: written, spelling: options.spelling))
         return MeasuredAnswer(text: lines.joined(separator: "\n"), missed: true)
     }
 
     /// The answer for a target on a type the repository writes and declares nowhere, ahead of every miss that would read as a mistyped path, or `nil` where the type is not external.
     private func externalTypeAnswer(name: String, qualifiers: [String], module: String?, options: DigestOptions) throws -> MeasuredAnswer? {
-        try DigestExternalTypeAnswer(renderer: renderer).answer(name: name, qualifiers: qualifiers, options: options) { siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module), orTypeNamed: qualifiers.last) }
+        try DigestExternalTypeAnswer(renderer: renderer).answer(name: name, qualifiers: qualifiers, options: options) { siblingPointerLines(for: writtenTarget(name: name, qualifiers: qualifiers, module: module), orTypeNamed: qualifiers.last, spelling: options.spelling) }
     }
 
     /// The answer for a path that names something real but addresses it wrongly, or `nil` when nothing of the name is declared outside the path.
     ///
     /// Said apart from a name that names nothing: answering `Outer.Nested.member` with nearest symbols reads as "you have the wrong name", and a caller who believes that goes looking for a member it was already holding — or reads the whole file instead.
-    private func wrongPathAnswer(name: String, qualifiers: [String], module: String?) throws -> String? {
+    private func wrongPathAnswer(name: String, qualifiers: [String], module: String?, options: DigestOptions) throws -> String? {
         let under = (module.map { [$0] } ?? []) + qualifiers
         guard !under.isEmpty else { return nil }
         let baseName = QualifiedPath.baseName(of: name)
@@ -178,7 +178,7 @@ struct DigestMissAnswer {
         guard !elsewhere.isEmpty else { return nil }
         let written = writtenTarget(name: name, qualifiers: qualifiers, module: module)
         if let own = try DigestMemberMissAnswer(renderer: renderer).answer(baseName: baseName, qualifiers: qualifiers, module: module, elsewhere: elsewhere.count, written: written) {
-            return (own + siblingPointerLines(for: written)).joined(separator: "\n")
+            return (own + siblingPointerLines(for: written, spelling: options.spelling)).joined(separator: "\n")
         }
         // Repo-wide, unlike every other banner here, because this answer's claim is one of *absence*:
         // "declared, but not under X" is exactly what a file truncated by a parse error produces, and the
@@ -195,7 +195,7 @@ struct DigestMissAnswer {
         if elsewhere.count > DigestCaps.memberCap {
             lines.append("  truncated: \(elsewhere.count - DigestCaps.memberCap) more declarations")
         }
-        lines.append(contentsOf: siblingPointerLines(for: written))
+        lines.append(contentsOf: siblingPointerLines(for: written, spelling: options.spelling))
         return lines.joined(separator: "\n")
     }
 
@@ -225,14 +225,14 @@ struct DigestMissAnswer {
     /// The *whole* target goes to the probe, never its last component. Probing the base name and printing the path would claim what had not been checked: `Type.column` would be answered with unrelated repositories, each of which merely had something named `column` somewhere in it, under a line reading "Type.column is declared in …" — a lead worse than none, since following it costs every one of those repositories opened.
     ///
     /// `type` is the external-type answer's fallback: where no sibling root declares the whole path, the roots that declare or extend the type are pointed at under the type's name, which is what they were checked for.
-    private func siblingPointerLines(for target: String, orTypeNamed type: String? = nil) -> [String] {
+    private func siblingPointerLines(for target: String, orTypeNamed type: String? = nil, spelling: CallSpelling) -> [String] {
         guard let siblingRoots = renderer.siblingRoots else { return [] }
         let pointers = siblingRoots(target)
         if pointers.isEmpty, let type {
             let typePointers = siblingRoots(type)
-            return typePointers.isEmpty ? [] : [""] + typePointers.map { $0.line(for: type) }
+            return typePointers.isEmpty ? [] : [""] + typePointers.map { $0.line(for: type, spelling: spelling) }
         }
         guard !pointers.isEmpty else { return [] }
-        return [""] + pointers.map { $0.line(for: target) }
+        return [""] + pointers.map { $0.line(for: target, spelling: spelling) }
     }
 }

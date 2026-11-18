@@ -23,7 +23,7 @@ struct StopBuildGateTests {
         let first = await fixture.hook(["transcript_path": transcript])
         let reason = try #require(try StopGateFixture.blockReason(of: first))
 
-        #expect(reason.contains("`(cd \(CanonicalPath.of(fixture.repo.path)) && swift-sure run -- swift build)` and"))
+        #expect(reason.contains("`swift-sure run --root \(CanonicalPath.of(fixture.repo.path)) -- swift build` and"))
         #expect(reason.contains("1 Swift file (Depot.swift)"))
 
         #expect(await fixture.hook(["transcript_path": transcript]).isEmpty)
@@ -183,7 +183,7 @@ struct StopBuildGateTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("`(cd \(CanonicalPath.of(fixture.repo.path)) && swift-sure run -- swift build)` and"))
+        #expect(reason.contains("`swift-sure run --root \(CanonicalPath.of(fixture.repo.path)) -- swift build` and"))
         #expect(!reason.contains("Gizmo"))
     }
 
@@ -201,7 +201,7 @@ struct StopBuildGateTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("Run `(cd \(CanonicalPath.of(fixture.repo.path)) && swift-sure run -- xcodebuild -scheme 'Depot App' build)` and"))
+        #expect(reason.contains("Run `swift-sure run --root \(CanonicalPath.of(fixture.repo.path)) -- xcodebuild -scheme 'Depot App' build` and"))
     }
 
     @Test
@@ -338,7 +338,7 @@ struct StopBuildGateTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("Run `(cd "))
+        #expect(reason.contains("Run `swift-sure run --root "))
     }
 
     @Test
@@ -349,7 +349,7 @@ struct StopBuildGateTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript], now: Date().addingTimeInterval(-299))))
 
-        #expect(reason.contains("Once it ends, run `(cd "))
+        #expect(reason.contains("Once it ends, run `swift-sure run --root "))
     }
 
     @Test

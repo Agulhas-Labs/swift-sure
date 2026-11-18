@@ -103,7 +103,7 @@ public extension SetAside {
             throw SetAsideError.unsupported(path: shown, reason: "no regular file stands at \(path)", flag: "--without-line")
         }
         if let existing = try store.record() {
-            throw SetAsideError.unrestored(existing)
+            throw SetAsideError.unrestored(existing, stateDirectory: store.stateDirectoryName)
         }
         try? FileManager.default.removeItem(at: store.directory)
         do {

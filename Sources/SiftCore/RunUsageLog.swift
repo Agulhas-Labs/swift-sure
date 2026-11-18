@@ -59,6 +59,8 @@ public struct RunUsageLog: Sendable {
     ///
     /// **``Answer/failedTests`` is what failed.** Every other field says that *something* went wrong and none of them say what, so without it the log could see hundreds of runs and dozens of nonzero exits and still not answer "has this failed before?" — the one question a per-user history spanning every repository is uniquely placed to answer. The names are the identity worth keeping: a test that fails intermittently rarely fails the same way twice, so the normalised message signature ``RunFailureSignature`` computes beside them groups *messages* and would answer a different question. `nil` where the run is in no position to say, which is a third state and not a zero — see ``RunOutcome/reportedTestFailures``.
     ///
+    /// **`failedSuites` names the suite of a Swift Testing failure, beside its name and never in it.** Swift Testing prints a failing test by its bare function, so a query by suite has nothing to match; the suite is read from the failure's file and line through the repository's existing index (``FailureSuiteResolver``), and left out for any name it cannot resolve, and for every line written before it existed. The names stay as printed because ids and groupings are keyed by them.
+    ///
     /// The names are written distinct, sorted and bounded: distinct because a parameterized function failing once per case is one test, sorted so a line is stable to read and to diff like every other key here, and bounded by ``failedTestCap`` with the pre-cap count kept beside them.
     ///
     /// **`startedOn` is the ``TreeContentHash`` the run started on and the command line it was given**, written as `tree` and `invocation` when there is one and left out when there is not — a line without them is unknown to `flakes`, never a tree of its own.
@@ -88,6 +90,12 @@ public struct RunUsageLog: Sendable {
             let distinct = Set(failedTests.map(Self.clipped)).sorted()
             entry["failed"] = Array(distinct.prefix(Self.failedTestCap))
             entry["failed_total"] = distinct.count
+            let suites = FailureSuiteResolver.suites(of: answer.failures, repositoryRoot: repositoryRoot).merging(answer.failedSuites) { _, known in known }
+                .reduce(into: [String: String]()) { $0[Self.clipped($1.key)] = $1.value }
+            let kept = Dictionary(Array(distinct.prefix(Self.failedTestCap)).compactMap { name in suites[name].map { (name, $0) } }, uniquingKeysWith: { first, _ in first })
+            if !kept.isEmpty {
+                entry["failedSuites"] = kept
+            }
         }
         if let repositoryRoot {
             entry["root"] = repositoryRoot.path
@@ -132,10 +140,18 @@ public extension RunUsageLog {
         /// The tests the run named as failing, or `nil` where it is in no position to name any.
         public let failedTests: [String]?
 
-        public init(report: RunReport? = nil, lines: Int? = nil, failedTests: [String]? = nil) {
+        /// The failures as the filter parsed them, for the file and line the suite is read from; empty where the run kept none.
+        public let failures: [RunTestFailure]
+
+        /// The suite of each failing Swift Testing test the run already knows, keyed by the recorded name; a sharded run reads them off the identifiers its reconciliation holds, with no index needed.
+        public let failedSuites: [String: String]
+
+        public init(report: RunReport? = nil, lines: Int? = nil, failedTests: [String]? = nil, failures: [RunTestFailure] = [], failedSuites: [String: String] = [:]) {
             self.report = report
             self.lines = lines
             self.failedTests = failedTests
+            self.failures = failures
+            self.failedSuites = failedSuites
         }
     }
 }

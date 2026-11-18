@@ -185,7 +185,14 @@ sh Benchmarks/run.sh --rule-a .build/rule-ec096ea3.md --rule-b SwiftSure.md --re
 sh Benchmarks/run.sh --mod-b Distribution/mod --repeats 3   # mod vs no mod
 sh Benchmarks/run.sh --no-mcp-b --repeats 3   # arm B: swift-sure without its MCP server
 sh Benchmarks/run.sh --plugin-b Distribution/plugin --paths 6 --repeats 2   # plugin route vs installer route
+sh Benchmarks/run.sh --dirty-injection --task <answer-style task> --paths 6 --repeats 2   # the injected bug left uncommitted
 ```
+
+`--dirty-injection` commits the corpus clean and leaves the injected bug as an uncommitted change, as a user's working tree
+is mid-task, so an answer that depends on uncommitted changes (the `filtered:` line, #1067) can show. Without it the bug is
+committed and every run's tree reads `Swift clean`. The agent can then see the modified file in `git status`. Answer-style
+checks only (`answer_set`, `answer_all`, `answer_parts`); `session.json` records `dirty_injection`, and an edit to the
+injected file still fails the "no file changed" check.
 
 `--mod-b <dir>` turns the session into **mod vs no mod**: both arms run with SwiftSure under one rule (`--rule-b`'s),
 arm B adds `claude --plugin-dir <dir>`, and arm A runs without it and with `SWIFT_SURE_MOD=off`. Both arms get

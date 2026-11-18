@@ -53,7 +53,7 @@ struct StopGateSubshellTests {
 
         let reason = try await reason(afterRunning: command, in: fixture)
 
-        let expected = "(cd \(CanonicalPath.of(fixture.repo.path))/app && swift-sure run -- xcodebuild -scheme Gizmo -destination 'generic/platform=iOS Simulator' build)"
+        let expected = "swift-sure run --root \(CanonicalPath.of(fixture.repo.path))/app -- xcodebuild -scheme Gizmo -destination 'generic/platform=iOS Simulator' build"
 
         #expect(reason.contains("Run `\(expected)` and"))
     }
@@ -67,7 +67,7 @@ struct StopGateSubshellTests {
 
         let reason = try await reason(afterRunning: command, in: fixture)
 
-        #expect(reason.contains("Run `(cd \(CanonicalPath.of(fixture.repo.path))/app && swift-sure run -- xcodebuild -scheme Gizmo build)` and"))
+        #expect(reason.contains("Run `swift-sure run --root \(CanonicalPath.of(fixture.repo.path))/app -- xcodebuild -scheme Gizmo build` and"))
     }
 
     @Test(arguments: [
@@ -132,7 +132,7 @@ struct StopGateSubshellTests {
     }
 
     @Test
-    func aContextStandingElsewhereIsToldTheSubshell() async throws {
+    func aContextStandingElsewhereIsToldTheRootRun() async throws {
         let fixture = try StopGateFixture()
         let transcript = try fixture.transcript([
             StopGateFixture.edit("t1", path: fixture.depot, cwd: fixture.transcripts.path),
@@ -141,6 +141,19 @@ struct StopGateSubshellTests {
 
         let reason = try #require(try await StopGateFixture.blockReason(of: fixture.hook(["transcript_path": transcript])))
 
-        #expect(reason.contains("Run `(cd \(CanonicalPath.of(fixture.repo.path)) && swift-sure run -- swift build)` and"))
+        #expect(reason.contains("Run `swift-sure run --root \(CanonicalPath.of(fixture.repo.path)) -- swift build` and"))
+    }
+
+    @Test
+    func aGreenRootRunFromElsewhereLetsTheStopThrough() async throws {
+        let fixture = try StopGateFixture()
+        let transcript = try fixture.transcript([
+            StopGateFixture.edit("t1", path: fixture.depot, cwd: fixture.transcripts.path),
+            StopGateFixture.result("t1"),
+            StopGateFixture.bash("t2", command: "swift-sure run --root \(CanonicalPath.of(fixture.repo.path)) -- swift build", cwd: fixture.transcripts.path),
+            StopGateFixture.result("t2"),
+        ])
+
+        #expect(await fixture.hook(["transcript_path": transcript]).isEmpty)
     }
 }

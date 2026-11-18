@@ -13,6 +13,8 @@ import SiftCore
 public struct RunFailureHistoryReport {
     /// The rendered report for the run log at `fileURL`, or an honest empty-state line.
     ///
+    /// `ids` is the redactor that resolves a `test-…` query (the report's own when redacted, else this machine's).
+    ///
     /// `query` narrows the answer to the tests whose recorded name contains it, printed by their real names.
     ///
     /// `since` (an inclusive `YYYY-MM-DD`) and `root` narrow it, and are stated in the header when set, because a count read against the wrong population is the misreading this whole report is arranged to prevent.
@@ -24,7 +26,8 @@ public struct RunFailureHistoryReport {
         root: String? = nil,
         rootIsDefault: Bool = false,
         redactor: Redactor? = nil,
-        query: String? = nil
+        query: String? = nil,
+        ids: Redactor? = nil
     ) -> String {
         let logPath = redactor == nil ? fileURL.path : Redactor.tilded(fileURL.path)
         // The root of the whole filesystem is every repository, and also the runs that recorded no root at all, which no path holds: so it is no scope, and the answer is the unscoped one.
@@ -44,7 +47,7 @@ public struct RunFailureHistoryReport {
             return message(for: problem, redactor: redactor)
         }
         let scan = RunScan.load(fileURL: fileURL, since: since, scope: scope, acrossWorktrees: true)
-        let (history, answered) = RunFailureHistory.read(scan, query: query)
+        let (history, answered) = RunFailureHistory.read(scan, query: query, ids: ids ?? redactor ?? .standard())
         var suffix: [String] = []
         if let since {
             suffix.append("since \(since)")
@@ -53,6 +56,11 @@ public struct RunFailureHistoryReport {
             suffix.append("in \(redactor?.root(scope.path) ?? scope.path)\(rootIsDefault ? defaultRootNote : "")")
         }
         let scoped = suffix.isEmpty ? "" : " (\(suffix.joined(separator: ", ")))"
+        if let query, let answered, Redactor.isTestToken(query), answered.tests.isEmpty, answered.incompleteNaming + answered.conflatedNaming == 0 {
+            let hint = "ids are per machine: `flakes --unredact` shows names"
+            let none = FlakesQueryAnswer.lines(for: query, in: answered, scoped: scoped) ?? ["`\(query)` — no recorded failing test has this id\(scoped)"]
+            return (none + [hint, "log: \(logPath)"]).joined(separator: "\n")
+        }
         if let query, let answered, let answer = FlakesQueryAnswer.lines(for: query, in: answered, scoped: scoped) {
             return (answer + ["log: \(logPath)"]).joined(separator: "\n")
         }
@@ -193,7 +201,7 @@ private extension RunFailureHistoryReport {
         // Said once per answer, not once per row — a reader who does not already know the flag is
         // otherwise stuck with names like `test-9b3bcb` that identify nothing.
         if redactor != nil {
-            lines.append("names redacted — --unredact to show them")
+            lines.append("names redacted — --unredact to show them, or flakes <id> for one")
         }
         return lines
     }

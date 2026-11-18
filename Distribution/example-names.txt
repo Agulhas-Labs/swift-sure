@@ -180,6 +180,7 @@ DepotKitTests
 DepotOld
 DepotStore
 DepotStoreTests
+DepotTests
 DerivedData
 DesignKit
 DetailData
@@ -360,6 +361,7 @@ OpenLDAP
 OpenStep
 OptionSet
 OrchardApp
+OrchardTests
 OtherSources
 OtherTarget
 OtherTests
@@ -989,6 +991,7 @@ onReceive
 onSubmit
 onTapGesture
 oneOfSeveral
+onlyCase
 onlyShared
 onlyUsePackageVersionsFromResolvedFile
 operateValve
@@ -1024,6 +1027,7 @@ performCommand
 permissionDecision
 permissionDecisionReason
 phoneOnly
+pickedRows
 placeholderCount
 placeholderCountLabel
 plainCheck

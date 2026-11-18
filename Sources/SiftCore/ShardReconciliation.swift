@@ -216,6 +216,20 @@ public extension ShardReconciliation {
         return Array(Set(names)).sorted()
     }
 
+    /// The suite of each failed Swift Testing test, keyed by the name ``reportedTestFailures`` gives it, from the identifier the reconciliation already holds.
+    ///
+    /// Only a test named by its bare function, which is how Swift Testing prints one: an XCTest name carries its class already, and a test named by its quoted literal is left bare rather than guessed. A bare name two failed tests share in different suites is left out, since either suite would be a guess.
+    var reportedFailedSuites: [String: String] {
+        var suites: [String: Set<String>] = [:]
+        for test in failed {
+            let name = failureNames[test] ?? test.function
+            if name == test.function {
+                suites[name, default: []].insert(test.type)
+            }
+        }
+        return suites.compactMapValues { $0.count == 1 ? $0.first : nil }
+    }
+
     /// What `swift-sure test` exits with: the first non-zero shard's code, else `1` where the reconciliation alone failed, else `0`.
     ///
     /// A shard's own code comes first because it is the more specific fact — 65 from `xcodebuild` says something a reader knows how to look up — and `1` stands for the case no shard reported: every process exited cleanly and the tests still do not add up.

@@ -486,7 +486,7 @@ struct TestCommand: AsyncParsableCommand {
         usageLog.record(
             logKey: ProductName.testRunLogKey,
             exitCode: result.exitCode,
-            answer: RunUsageLog.Answer(lines: result.answer.split(separator: "\n", omittingEmptySubsequences: false).count, failedTests: result.failedTests),
+            answer: RunUsageLog.Answer(lines: result.answer.split(separator: "\n", omittingEmptySubsequences: false).count, failedTests: result.failedTests, failedSuites: result.failedSuites),
             repositoryRoot: repositoryRoot,
             milliseconds: milliseconds,
             startedOn: startedOn

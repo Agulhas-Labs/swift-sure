@@ -115,7 +115,7 @@ public struct StopBuildGate {
     ///
     /// Always a build, never a test, and never a command spelled here: a scheme and a destination are the project's to name, so an `xcodebuild` is only ever one the agent wrote itself, run in the directory it ran in, inside the checkout or not; where the line leaves that directory unknown, nothing is named, since a fragment of a line would build somewhere else. The ledger is not a source: it records test runs, and a test is more than the block asks for.
     ///
-    /// Named bare where `cwd`, the directory the context stands in, is the one the build runs in, since only a bare command runs without asking in a session that asks about commands; anywhere else it is a subshell, `(cd <dir> && …)`, which runs it there without moving the caller's shell.
+    /// Named bare where `cwd`, the directory the context stands in, is the one the build runs in; anywhere else a `swift-sure` run is named `run --root <dir> -- …`, as the installed rule teaches (a `cd` re-roots the caller's shell, and in a session that asks about commands a `--root` run asks no more than a subshell does). The `(cd <dir> && …)` subshell, which runs it there without moving the caller's shell, is only the fallback for a segment `--root` cannot place: a raw `xcodebuild`, or a run whose own `--root` names another directory. Leading environment assignments are kept as written in front of the rebuilt run.
     ///
     /// The directory returned is the one the build runs in where that is inside the checkout, and the checkout's root otherwise.
     static func command(root: URL, xcodebuild: (command: String, directory: String?)?, standingIn cwd: String? = nil, editing files: [String] = []) -> (command: String, directory: String)? {
@@ -124,7 +124,13 @@ public struct StopBuildGate {
             let canonicalRoot = CanonicalPath.of(root.path)
             let ranIn = CanonicalPath.of(directory)
             let shown = ranIn == canonicalRoot || ranIn.hasPrefix(canonicalRoot + "/") ? ranIn : root.path
-            return (standing == ranIn ? xcodebuild.command : "(cd \(ShellWord.quoted(ranIn)) && \(xcodebuild.command))", shown)
+            guard standing != ranIn else {
+                return (xcodebuild.command, shown)
+            }
+            if let rooted = BuildInputEditsSinceGreenRun.rooted(segment: xcodebuild.command, at: ranIn) {
+                return (rooted, shown)
+            }
+            return ("(cd \(ShellWord.quoted(ranIn)) && \(xcodebuild.command))", shown)
         }
         guard FileManager.default.fileExists(atPath: root.appendingPathComponent("Package.swift").path) else {
             return nested(root: root, standing: standing, editing: files)
@@ -132,8 +138,7 @@ public struct StopBuildGate {
         guard ManifestPlatforms.firstWithoutMacOS(inPackageAt: root) == nil else {
             return nil
         }
-        let build = "\(ProductName.current.binary) run -- swift build"
-        return (standing == CanonicalPath.of(root.path) ? build : "(cd \(ShellWord.quoted(root.path)) && \(build))", root.path)
+        return (run("swift build", at: root, standing: standing), root.path)
     }
 
     /// The build of each package below `root` that encloses an edited file, joined with ` && ` in path order, or `nil` where there is none or any of them leaves macOS out.
@@ -148,12 +153,20 @@ public struct StopBuildGate {
             return nil
         }
         let builds = packages
-            .map { "\(ProductName.current.binary) run -- swift build --package-path \(ShellWord.quoted(String($0.path.dropFirst(top.count + 1))))" }
+            .map { run("swift build --package-path \(ShellWord.quoted(String($0.path.dropFirst(top.count + 1))))", at: root, standing: standing) }
         guard !builds.isEmpty else {
             return nil
         }
-        let build = builds.joined(separator: " && ")
-        return (standing == top ? build : "(cd \(ShellWord.quoted(root.path)) && \(build))", root.path)
+        return (builds.joined(separator: " && "), root.path)
+    }
+
+    /// `<binary> run -- <build>`, or `<binary> run --root <root> -- <build>` where `standing` is not the root's directory.
+    private static func run(_ build: String, at root: URL, standing: String?) -> String {
+        let binary = ProductName.current.binary
+        guard standing != CanonicalPath.of(root.path) else {
+            return "\(binary) run -- \(build)"
+        }
+        return "\(binary) run --root \(ShellWord.quoted(root.path)) -- \(build)"
     }
 }
 

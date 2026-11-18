@@ -11,6 +11,13 @@ struct StringsRenderer {
         80
     }
 
+    /// Whether the answer holds no catalog entry and no listable source literal, plain or around interpolations.
+    static func foundNothing(_ answer: StringCatalogSearch.Answer) -> Bool {
+        answer.sourceLiterals.allSatisfy(\.isAroundInterpolation)
+            && answer.hits.isEmpty
+            && !answer.sourceLiterals.contains { $0.isAroundInterpolation && $0.isListable }
+    }
+
     static func render(answer: StringCatalogSearch.Answer, query: String, trails: PropertyTrailLedger = PropertyTrailLedger()) -> String {
         var lines: [String] = []
         if answer.catalogsSearched == 0 {
@@ -28,7 +35,7 @@ struct StringsRenderer {
             lines += sourceLiteralLines(plain, heading: "source literals:", query: query, listsTestsAlone: !producerFollows, trails: trails)
         }
         let around = answer.sourceLiterals.filter(\.isAroundInterpolation)
-        if plain.isEmpty, answer.hits.isEmpty, !around.contains(where: \.isListable) {
+        if foundNothing(answer) {
             lines.append("no Swift string literal contains it either")
         }
         // A plain literal already spells the query: the matches on one of its words alone are counted only where nothing better answered.

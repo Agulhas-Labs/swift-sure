@@ -81,10 +81,10 @@ public extension SetAsideSession {
         }
         let store = SetAsideStore(repositoryRoot: root)
         guard let lock = try SetAsideLock.take(for: store, as: .run) else {
-            throw SetAsideError.busy(holder: SetAsideLock.holder(for: store), record: try? store.record())
+            throw SetAsideError.busy(holder: SetAsideLock.holder(for: store), record: try? store.record(), stateDirectory: store.stateDirectoryName)
         }
         if let existing = try store.record() {
-            throw SetAsideError.unrestored(existing)
+            throw SetAsideError.unrestored(existing, stateDirectory: store.stateDirectoryName)
         }
         let children = SetAsideChildren()
         let record = try capture(store, children)
@@ -234,10 +234,10 @@ public extension SetAsideSession {
                 return nil
             }
             if SetAsideLock.isHeld(for: store) {
-                return .busy(holder: SetAsideLock.holder(for: store), record: record)
+                return .busy(holder: SetAsideLock.holder(for: store), record: record, stateDirectory: store.stateDirectoryName)
             }
             guard SetAsideLock.isWatched(for: store), Date() < deadline else {
-                return .unrestored(record)
+                return .unrestored(record, stateDirectory: store.stateDirectoryName)
             }
             usleep(20000)
         }
@@ -253,7 +253,7 @@ public extension SetAsideSession {
         let store = SetAsideStore(repositoryRoot: root)
         waitForAWatcherToTakeTheLock(in: store)
         guard let lock = try SetAsideLock.take(for: store, as: .restore) else {
-            throw SetAsideError.busy(holder: SetAsideLock.holder(for: store), record: try? store.record())
+            throw SetAsideError.busy(holder: SetAsideLock.holder(for: store), record: try? store.record(), stateDirectory: store.stateDirectoryName)
         }
         defer { lock.release() }
         guard let record = try store.record() else {
@@ -283,7 +283,7 @@ public extension SetAsideSession {
         }
         beforeTheLock()
         guard let lock = try SetAsideLock.take(for: store, as: .reset, excludingCache: false) else {
-            throw SetAsideError.busy(holder: SetAsideLock.holder(for: store), record: try? store.record())
+            throw SetAsideError.busy(holder: SetAsideLock.holder(for: store), record: try? store.record(), stateDirectory: store.stateDirectoryName)
         }
         defer { lock.release() }
         // Read again under the lock, since the refusal above can wait seconds: a `.swift-sure` swapped for a link or another directory by then is refused with nothing deleted. The lock file itself can already have been created through such a link, and the deletes below still go by path, so a swap in the moment after this read is not caught.
@@ -292,7 +292,7 @@ public extension SetAsideSession {
             throw PathKind.Refused(path: cache.path, reason: reason)
         }
         if let record = try store.record() {
-            throw SetAsideError.unrestored(record)
+            throw SetAsideError.unrestored(record, stateDirectory: store.stateDirectoryName)
         }
         for name in try FileManager.default.contentsOfDirectory(atPath: cache.path) where name != store.lockURL.lastPathComponent {
             try FileManager.default.removeItem(at: cache.appendingPathComponent(name))

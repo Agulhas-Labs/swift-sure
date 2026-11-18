@@ -103,6 +103,11 @@ public extension RunScan {
         /// How many distinct names the run reported before the cap, which is `named.count` unless some were withheld.
         public let distinct: Int
 
+        /// The suite each Swift Testing name was recorded under (`failedSuites`), for the names whose suite the run could resolve; empty for a line written before the field existed.
+        ///
+        /// Beside the names and never in them: the names are what ids and groups are keyed by, and a name that changed spelling would split a test's history in two.
+        public var suites: [String: String] = [:]
+
         /// Whether every failing test in this run is named above.
         ///
         /// A run where it is `false` names some of its failures and withholds the rest, so it can say a test *did* fail and can never say one did not — which is a denominator it cannot be part of, and it is dropped from the tally rather than being allowed to contribute one half of a fraction.
@@ -169,7 +174,9 @@ public extension RunScan {
             // Both or neither again, on the same reasoning: a list of names with no count beside it cannot
             // say whether it is the whole list, and a count with no names says nothing at all.
             failures = (object["failed"] as? [String]).flatMap { named in
-                (object["failed_total"] as? Int).map { Failures(named: named, distinct: $0) }
+                (object["failed_total"] as? Int).map {
+                    Failures(named: named, distinct: $0, suites: (object["failedSuites"] as? [String: String]) ?? [:])
+                }
             }
             tree = (object["tree"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             invocation = (object["invocation"] as? String).flatMap { $0.isEmpty ? nil : $0 }

@@ -272,6 +272,10 @@ private extension RunInventoryCheck {
         if counts.duplicated > 0 {
             clauses.append("\(counts.duplicated) reported more than once: \(listing(reconciliation.duplicated.map(\.test.enumerated), of: counts.duplicated))")
         }
+        let garbled = reconciliation.unclaimed.filter(TestIdentifier.isGarbledSwiftTestingLogName)
+        if !garbled.isEmpty {
+            clauses.append("\(garbled.count) report line\(garbled.count == 1 ? "" : "s") garbled (output lines spliced?): \(listing(garbled))")
+        }
         var lines = ["inventory: \(counts.expected) declared, \(counts.ran) reported\(Self.qualification(reconciliation)) — \(clauses.joined(separator: " · "))"]
         lines.append(contentsOf: reconciliation.shortfalls.prefix(listedNames).map { "  \($0.function): \($0.sentence), by count alone" })
         lines.append(contentsOf: reconciliation.lostByCount.prefix(listedNames).map { "  \($0.function): \($0.lostSentence), by count alone" })

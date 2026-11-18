@@ -544,7 +544,7 @@ extension TestRun {
         .render(reconciliation, plan: plan)
         let answer = ([rendered] + notes).joined(separator: "\n\n")
         _ = state.teardown(children: children, simctl: environment.simctl, overrides: environment.overrides, leases: environment.leases, releasingWatcher: true)
-        return Result(answer: answer, exitCode: reconciliation.exitCode, failedTests: reconciliation.reportedTestFailures)
+        return Result(answer: answer, exitCode: reconciliation.exitCode, failedTests: reconciliation.reportedTestFailures, failedSuites: reconciliation.reportedFailedSuites)
     }
 }
 

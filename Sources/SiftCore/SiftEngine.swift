@@ -381,9 +381,11 @@ public final class SiftEngine: @unchecked Sendable {
 
     /// The uncommitted indexable `.swift` files and the suites that reach any declaration stored for them, for the line a filtered `swift-sure run` adds; `nil` where the tree has no such file or no suite reaches one.
     ///
-    /// The seeds are the stored rows of each dirty file, every declaration in it, since the diff's changed lines fall exactly where those rows are stale; the walk is `affected`'s, at its default depth and over the index as it stands.
+    /// The seeds are the stored rows of each dirty file, every declaration in it, but for a file `affected` reads as comment-only, which seeds nothing and is not named, since the diff's changed lines fall exactly where those rows are stale; the walk is `affected`'s, at its default depth and over the index as it stands.
     func suitesReachingWorkingTree() async throws -> (files: [String], suites: [AffectedRenderer.ReachedSuite])? {
-        let files = try git.dirtySwiftFiles().map(\.path).filter { enumerator.isIndexable(relativePath: $0) }
+        let changes = try git.dirtySwiftFiles().filter { enumerator.isIndexable(relativePath: $0.path) }
+        let commentOnly = commentOnlyPaths(among: changes)
+        let files = changes.map(\.path).filter { !commentOnly.contains($0) }
         let declared = try files.flatMap { try store.symbols(inFile: $0) }
         guard !declared.isEmpty else { return nil }
         let reached = try await suitesReaching(declared)
@@ -534,7 +536,7 @@ public final class SiftEngine: @unchecked Sendable {
             semanticFailure = nil
             return .active(SemanticContext(store: opened, repoRoot: repoRoot, rejectedSettings: rejected, outsideNote: outsideNote(of: discovered, rejected: rejected), rootFlag: storeRootFlag))
         case let .failed(error):
-            let note = "index store found (\(discovered.label)) but failed to open: \(SemanticOpenFailure.cause(of: error))"
+            let note = "index store found (\(discovered.label)) but failed to open: \(SemanticOpenFailure.cause(of: error, in: repoRoot))"
             semanticFailure = SemanticFailure(note: note, cache: cache, anchor: anchor)
             return .openFailed(note: note)
         }
@@ -849,11 +851,34 @@ public extension SiftEngine {
             swiftPaths: { self.enumerator.swiftFiles() },
             cache: stringCatalogCache
         )
-        return try Freshness.liveHeaderLine(tree: tree) + "\n" + StringsRenderer.render(answer: search.run(query: query), query: query)
+        let header = Freshness.liveHeaderLine(tree: tree) + "\n"
+        let answer = try search.run(query: query)
+        let terms = query.split(separator: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard StringsRenderer.foundNothing(answer), query.contains("|"), !StructuralQuery.NamePattern.isOperatorName(query), terms.count >= 2 else {
+            return header + StringsRenderer.render(answer: answer, query: query)
+        }
+        // UI text can hold a `|`, so the query is read as written first; only a miss is read as any of its terms, as `search` reads one.
+        var sections = ["no literal contains \"\(query)\" as written; read as any of \(terms.joined(separator: ", "))"]
+        for term in terms {
+            sections.append("")
+            sections.append("term \"\(term)\":")
+            try sections.append(StringsRenderer.render(answer: search.run(query: term), query: term))
+        }
+        return header + sections.joined(separator: "\n")
     }
 }
 
 extension SiftEngine {
+    /// The paths among `changes` whose edit `affected` accounts for as comments only; none where the comparison cannot be made, so such a file is seeded whole.
+    private func commentOnlyPaths(among changes: [GitContext.Change]) -> Set<String> {
+        guard let diffs = try? AffectedAfterEditSeeds.fileDiffs(of: changes, range: nil, git: git, repositoryRoot: repoRoot),
+              let seeds = try? AffectedAfterEditSeeds.of(diffs.filter { $0.status != .added }, store: store)
+        else {
+            return []
+        }
+        return seeds.commentOnly
+    }
+
     /// The `affected` walk over `options`' change set, before it is framed: what `affected` reads.
     func affectedOutput(options: AffectedOptions) async throws -> AffectedRenderer.Output {
         // Filtered through the same rule the indexer applies, so a path the tool would never index is not part of this question at all — a generated `.build` source is neither a changed file nor an honest gap, it is out of scope. What survives the filter and still has no rows is the gap the answer must name.

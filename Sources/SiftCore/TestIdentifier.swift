@@ -134,6 +134,48 @@ public extension TestIdentifier {
         return parsed.qualifiedType[parsed.qualifiedType.index(after: moduleSeparator)...] == type
     }
 
+    /// Whether a reported Swift Testing name is not shaped like a test's name: its parentheses do not balance, or its base name — what stands before the final argument list — holds one.
+    ///
+    /// **This is what a pass line spliced by two concurrent writers looks like.** `anOrdinaryPass(ne()` is the head of one test's name and the tail of another's, and cut at its first `(` it reads as the first test, which then reports twice while the second reports nothing. A name like that names no test, so no test claims it and ``RunInventoryCheck`` states it as a garbled line. A quoted display name is not read: it is free text, not a function name.
+    static func isGarbledSwiftTestingLogName(_ name: String) -> Bool {
+        guard xctestLogName(name) == nil else {
+            return false
+        }
+        let bare = RunOutputFilter.undecorated(name)
+        guard !name[name.startIndex ..< bare.startIndex].contains("\""), !bare.hasPrefix("\"") else {
+            return false
+        }
+        var depth = 0
+        var finalGroupOpen: String.Index?
+        for index in bare.indices {
+            switch bare[index] {
+            case "(":
+                if depth == 0 {
+                    finalGroupOpen = index
+                }
+                depth += 1
+            case ")":
+                depth -= 1
+                if depth < 0 {
+                    return true
+                }
+            default:
+                break
+            }
+        }
+        guard depth == 0 else {
+            return true
+        }
+        guard let open = finalGroupOpen else {
+            return false
+        }
+        // The final top-level group is the argument list only if it closes the name; anything after it is not a name.
+        guard bare.hasSuffix(")") else {
+            return true
+        }
+        return bare[bare.startIndex ..< open].contains { $0 == "(" || $0 == ")" }
+    }
+
     /// Whether a Swift Testing log name names this test — the function, with whatever decoration the line carried in front of it stripped.
     ///
     /// **The name is undecorated through ``RunOutputFilter/undecorated(_:)``**, the same reader the filter takes a Swift Testing line apart with: a line may begin with U+200B, and a test that ran behind one is not a different test.
@@ -143,7 +185,7 @@ public extension TestIdentifier {
     /// **A quoted display name is deliberately not matched**, and it is recognised by the quote standing in the decoration `undecorated` dropped — the same span ``RunTestOutcomes/swiftTestingEvent(in:)`` reads a continuation marker out of. A display name names nothing the enumeration printed, so an author who wrote one that happens to read like the function is reporting a name this cannot claim, and it is left to be counted as a name that claimed no test rather than guessed onto one.
     func matches(swiftTestingLogName name: String) -> Bool {
         let bare = RunOutputFilter.undecorated(name)
-        guard !name[name.startIndex ..< bare.startIndex].contains("\"") else {
+        guard !name[name.startIndex ..< bare.startIndex].contains("\""), !Self.isGarbledSwiftTestingLogName(name) else {
             return false
         }
         return bare.prefix { $0 != "(" } == functionName

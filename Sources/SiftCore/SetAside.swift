@@ -82,7 +82,7 @@ public extension SetAside {
         // Checked here as well as by every caller: clearing the store below would take an unrestored
         // record's copies with it, and a caller that forgot to look is not a reason to lose them.
         if let existing = try store.record() {
-            throw SetAsideError.unrestored(existing)
+            throw SetAsideError.unrestored(existing, stateDirectory: store.stateDirectoryName)
         }
         try? FileManager.default.removeItem(at: store.directory)
         do {

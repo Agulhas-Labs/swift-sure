@@ -26,7 +26,7 @@ struct RunVerboseDisplayNameTests {
         #expect(report.testFailures.count == 5, sourceLocation: sourceLocation)
         #expect(report.testFailures.allSatisfy { $0.location?.hasPrefix("GizmoTests.swift:") == true }, sourceLocation: sourceLocation)
         #expect(!answer.contains("XCTest"), sourceLocation: sourceLocation)
-        #expect(answer.contains("totals: ✘ failed · Swift Testing 3 tests in 0 suites, 3 failing (5 issues), 0 skipped"), sourceLocation: sourceLocation)
+        #expect(answer.contains("totals: ✘ failed · Swift Testing 3 tests (5 cases) in 0 suites, 3 failing (5 issues), 0 skipped"), sourceLocation: sourceLocation)
     }
 
     /// The verbose capture: the display-named test, the three located issues of `quoteCase(_:)` and `other()` all reach the answer.

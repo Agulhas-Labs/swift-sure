@@ -164,7 +164,8 @@ rm -rf "$(dirname "$STAGE")"
 # prints is the command that installs it, kept for this script's last line; a failure stops the script.
 INSTALL="$(sh "$REPO/Distribution/unpack-bundle.sh" "$TARBALL" "$OUT_DIR")"
 
-# The two files the public MCP registry takes, beside the tarball. Prepared, never published.
+# The two files the public MCP registry takes, beside the tarball. Prepared, never published: the registry
+# workflow rebuilds the same bundle, byte for byte, from the released tarball and uploads and publishes that.
 REGISTRY_FILES="$(sh "$REPO/Distribution/registry-files.sh" "$BIN" "$VERSION" "$OUT_DIR")"
 
 # Older bundles go, the newest few kept. Every build left a tarball here and nothing ever took one

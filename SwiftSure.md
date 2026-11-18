@@ -16,4 +16,4 @@ A cited `File.swift:120` or `:95-135` goes to `digest File.swift:120`, not a gue
 
 The hook answers a Swift lookup in place or lets it through. A denial is not a wall: re-run the same lookup and it is allowed, and a re-run is never held against you.
 
-`swift-sure test`, `affected` and the rest: `<verb> --help`; `swift-sure help` lists the topics. In a git worktree, pass `--root`, not `cd`.
+`swift-sure test`, `affected` and the rest: `<verb> --help`; `swift-sure help` lists the topics. In a git worktree, pass `--root`, not `cd`, and `root:` (its absolute path) on every lookup.

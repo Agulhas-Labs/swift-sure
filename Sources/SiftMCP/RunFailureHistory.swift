@@ -94,9 +94,11 @@ public extension RunFailureHistory {
     }
 
     /// The history and, when `query` is given, the tests it names, both drawn from one tally of `scan`.
-    static func read(_ scan: RunScan, query: String?) -> (history: RunFailureHistory, named: NamedFailures?) {
+    ///
+    /// A query that is exactly a test pseudonym (`test-` and six hex digits, as a redacted summary prints) names the recorded tests `ids` pseudonymises to it, not a substring.
+    static func read(_ scan: RunScan, query: String?, ids: @autoclosure () -> Redactor = .standard()) -> (history: RunFailureHistory, named: NamedFailures?) {
         let reading = Reading.of(scan)
-        return (of(reading), query.map { named($0, reading) })
+        return (of(reading), query.map { named($0, reading, ids: ids) })
     }
 
     private static func of(_ read: Reading) -> RunFailureHistory {
@@ -128,8 +130,20 @@ public extension RunFailureHistory {
         name.replacingOccurrences(of: "/", with: ".").contains(wanted)
     }
 
-    private static func named(_ query: String, _ read: Reading) -> NamedFailures {
+    /// Whether a name matches bare, or as `<suite>/<name>` for any suite a record filed it under, under the same folding.
+    private static func matches(_ name: String, suites: Set<String>?, _ wanted: String) -> Bool {
+        matches(name, wanted) || (suites ?? []).contains { matches("\($0)/\(name)", wanted) }
+    }
+
+    private static func named(_ query: String, _ read: Reading, ids: () -> Redactor = { .standard() }) -> NamedFailures {
         let wanted = query.replacingOccurrences(of: "/", with: ".")
+        let redactor = Redactor.isTestToken(query) ? ids() : nil
+        func matches(_ name: String, _ wanted: String) -> Bool {
+            if let redactor {
+                return redactor.test(name) == query
+            }
+            return RunFailureHistory.matches(name, suites: read.suites[name], wanted)
+        }
         var found: [String: [NamedFailures.Population]] = [:]
         for (tally, treed) in [(read.known, true), (read.unknown, false)] {
             for (population, count) in tally.runs {
@@ -178,7 +192,8 @@ public extension RunFailureHistory {
             unrecorded: read.unrecorded,
             incompleteNaming: incompleteNaming,
             conflatedNaming: conflatedNaming,
-            incompleteSilent: read.incomplete - incompleteNaming
+            incompleteSilent: read.incomplete - incompleteNaming,
+            suiteless: read.suiteless.subtracting(read.suites.keys).count
         )
     }
 }
@@ -202,6 +217,9 @@ public extension RunFailureHistory {
 
         /// Runs whose names ran past the cap and whose recorded names do not match the query.
         public let incompleteSilent: Int
+
+        /// How many distinct Swift Testing failure names in the counted runs carry no recorded suite, so a query by suite could not have matched them.
+        public let suiteless: Int
     }
 }
 
@@ -266,6 +284,10 @@ private extension RunFailureHistory {
         var conflated = 0
         var incompleteNames: [[String]] = []
         var conflatedNames: [[String]] = []
+        /// Each name's recorded suites, over every counted run.
+        var suites: [String: Set<String>] = [:]
+        /// Names in the counted runs that look like Swift Testing's (no `/`) and a run recorded with no suite.
+        var suiteless: Set<String> = []
 
         var measured: Int {
             known.runs.values.reduce(0, +) + unknown.runs.values.reduce(0, +)
@@ -287,6 +309,13 @@ private extension RunFailureHistory {
                     read.conflated += 1
                     read.conflatedNames.append(failures.named)
                     continue
+                }
+                for name in failures.named {
+                    if let suite = failures.suites[name] {
+                        read.suites[name, default: []].insert(suite)
+                    } else if !name.contains("/") {
+                        read.suiteless.insert(name)
+                    }
                 }
                 // Every run without a tree is filed under one placeholder, because the unknown tier is read as one
                 // pool per population; the two known tiers never see it.

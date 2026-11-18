@@ -303,10 +303,7 @@ public extension TestRunEnvironment {
     ///
     /// The read is failure-tolerant for the same reason: a database this process cannot open is a run that should go on running, not a run that refuses after its simulators are already booted.
     static func liveInventory(repositoryRoot: URL) -> TestInventory? {
-        let databasePath = SiftPaths.cache(in: repositoryRoot).appendingPathComponent(SiftPaths.indexFileName).path
-        guard FileManager.default.fileExists(atPath: databasePath),
-              let store = try? IndexStore(databasePath: databasePath)
-        else {
+        guard let store = ReadOnlyIndex.store(atRoot: repositoryRoot.path) else {
             return nil
         }
         return try? TestInventory.read(store: store, repositoryRoot: repositoryRoot)

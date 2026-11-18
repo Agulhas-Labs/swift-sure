@@ -2,6 +2,8 @@
 // Copyright © Agulhas Labs
 //
 
+import Fieldwork
+
 /// How an answer writes a call it suggests: as the CLI's arguments, or as the MCP tool's.
 ///
 /// A paging cursor is spelled for the face that asked — `--offset 200` on the CLI, `offset: 200` in a tool call — since a caller copies it into the next call as written. A suggestion that names a target and an offset together is spelled as the whole call to repeat: a caller copying the CLI's pair into a tool call sends the offset as part of the target.
@@ -32,6 +34,14 @@ public enum CallSpelling: Sendable {
         switch self {
         case .commandLine: "search uses:\(name)"
         case .toolCall: "search query:\"uses:\(name)\""
+        }
+    }
+
+    /// The root selection alone, spelled for the face: a CLI option, or a tool-call argument.
+    func root(_ path: String) -> String {
+        switch self {
+        case .commandLine: "--root \(ShellWord.quoted(path))"
+        case .toolCall: "root=\(path)"
         }
     }
 

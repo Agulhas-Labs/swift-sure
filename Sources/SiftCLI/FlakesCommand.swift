@@ -30,7 +30,7 @@ struct FlakesCommand: ParsableCommand {
         )
     }
 
-    @Argument(help: "Only the tests whose recorded name contains this, with . and / read alike (Depot.restock matches Gizmo/Depot/restock()); every test recorded failing counts, and the names print as recorded.")
+    @Argument(help: "Only the tests whose recorded name contains this, with . and / read alike (Depot.restock matches Gizmo/Depot/restock()); every test recorded failing counts, and the names print as recorded. A test-xxxxxx id from the redacted summary names that one test.")
     var query: String?
 
     @Option(name: .customLong("file"), help: "Wrapped-run log to read (defaults to ~/\(ProductName.current.directoryName)/run.jsonl).")
