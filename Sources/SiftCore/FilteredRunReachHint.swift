@@ -86,7 +86,11 @@ public struct FilteredRunReachHint: Sendable, Equatable {
         let lookup = Task.detached {
             do {
                 let engine = try SiftEngine(directory: repositoryRoot)
-                engine.openBudget = budget
+                // A store with no cache is never opened here, since its import alone can fill the budget, and the walk goes by
+                // written name instead (``SiftEngine/opensColdStore``). One with a cache gets half the budget to reopen, so an
+                // import of a rebuild's new units that runs long leaves the walk the other half rather than none.
+                engine.opensColdStore = false
+                engine.openBudget = budget / 2
                 // Brought up to date first, inside the same budget: an index that has not seen the dirty files (after `search` alone it knows none) names no suite.
                 try await engine.ensureFresh()
                 if let (files, reached) = try await engine.suitesReachingWorkingTree() {

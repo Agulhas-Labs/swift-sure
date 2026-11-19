@@ -217,8 +217,8 @@ def clean_env(path: str) -> dict:
 
 def limited(command, seconds, cwd, env, stdin=None, stdout=None, stderr=None):
     """Runs `command` in its own process group under a wall-clock alarm (macOS has no `timeout`), then
-    kills whatever of the group is left, so nothing a run started outlives it into the next one at the
-    same path. Returns (exit code, timed out)."""
+    kills whatever of the group is left, and every process still standing in `cwd`, so nothing a run
+    started outlives it into the next one at the same path. Returns (exit code, timed out)."""
     global CURRENT_GROUP
     wrapped = ["perl", "-e", "setpgrp(0,0); alarm shift; exec @ARGV", str(seconds)] + [str(c) for c in command]
     process = subprocess.Popen(wrapped, cwd=str(cwd), env=env, stdin=stdin, stdout=stdout, stderr=stderr)
@@ -228,6 +228,7 @@ def limited(command, seconds, cwd, env, stdin=None, stdout=None, stderr=None):
     finally:
         kill_group(process.pid)
         CURRENT_GROUP = None
+        reap_under(cwd)
     return code, code == -signal.SIGALRM
 
 
@@ -305,6 +306,74 @@ def kill_group(group):
         os.killpg(group, signal.SIGKILL)
     except Exception:  # the group is already gone
         pass
+
+
+def reap_under(directory, bound: float = 5.0) -> list:
+    """SIGKILLs every process of this user whose working directory is `directory` or lies under it, pass
+    after pass until a pass finds none or `bound` seconds have gone, and says on stderr what it killed.
+    `kill_group` misses whatever left the run's process group: Claude Code runs each Bash command in a group
+    of its own and `swift-sure run` puts `swift test` in another, so when the session ends that tree is
+    reparented to launchd, still standing in the corpus, and a hung `swift test` there holds the path's
+    SwiftPM build lock for every later run. This process and its ancestors are never killed. Returns the
+    pids killed. Its own lsof and ps run from `/`, so a reaper standing in `directory` never finds them.
+    A directory holding this checkout or the home directory is refused: a reap there would kill the
+    operator's own shells, editor and session."""
+    root = os.path.realpath(str(directory))
+    for kept in (REPO, Path.home()):
+        if path_within(os.path.realpath(str(kept)), root):
+            raise Halt("refusing to reap processes under %s: it holds %s" % (root, kept))
+    spared = own_ancestry()
+    killed = []
+    deadline = time.time() + bound
+    while True:
+        found = [(pid, cwd) for pid, cwd in working_directories()
+                 if pid not in spared and path_within(os.path.realpath(cwd), root)]
+        for pid, cwd in found:
+            if pid not in killed:
+                command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True,
+                                         text=True, cwd="/").stdout.strip()
+                print("reaped pid %d left in %s: %s" % (pid, cwd, command or "?"), file=sys.stderr, flush=True)
+                killed.append(pid)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception:  # already gone
+                pass
+        if not found or time.time() >= deadline:
+            return killed
+        time.sleep(0.1)
+
+
+def path_within(path: str, root: str) -> bool:
+    """Whether `path` is `root` or lies under it, by whole path components (`corpus-10` is not under `corpus-1`)."""
+    return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def working_directories() -> list:
+    """(pid, working directory) for every process of this user, reparented ones too (`ps` has no cwd column
+    on macOS, `lsof` has)."""
+    listed = subprocess.run(["lsof", "-a", "-d", "cwd", "-F", "pn", "-u", str(os.getuid())],
+                            capture_output=True, text=True, cwd="/").stdout
+    found, pid = [], None
+    for line in listed.splitlines():
+        if line.startswith("p"):
+            pid = int(line[1:])
+        elif line.startswith("n") and pid is not None:
+            found.append((pid, line[1:]))
+    return found
+
+
+def own_ancestry() -> set:
+    """This process's pid and every ancestor's."""
+    parents = {}
+    for line in subprocess.run(["ps", "-axo", "pid=,ppid="], capture_output=True, text=True, cwd="/").stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 2:
+            parents[int(fields[0])] = int(fields[1])
+    pid, spared = os.getpid(), set()
+    while pid > 0 and pid not in spared:
+        spared.add(pid)
+        pid = parents.get(pid, 0)
+    return spared
 
 
 def checked(command, **kwargs):
@@ -420,16 +489,21 @@ def build_index_store(command: list, tasks: dict, source, env: dict, log: Path) 
     return {"index_store_bytes": size, "index_build_seconds": round(time.time() - started, 1)}
 
 
-def materialise(tasks: dict, source, env: dict, log: Path) -> dict:
+def materialise(tasks: dict, source, env: dict, log: Path, index_corpus: bool = False) -> dict:
     """The corpus once, indexed and built warm at the fixed run path (where the tasks file asks) and then
     moved aside as the template every run is cloned from, so the build's absolute paths hold in every
-    clone. Returns what the session records about the index store."""
+    clone. With `index_corpus`, the binary under test indexes it there too, as a user's checkout is indexed.
+    Returns what the session records about both indexes."""
     write_tree(tasks, source)
     indexed = {"corpus_indexed": False}
     index_build = tasks["corpus"].get("index_build")
     if index_build:
         indexed = dict(corpus_indexed=True, **build_index_store(index_build, tasks, source, env,
                                                                  log.with_name(log.name.replace("warm", "index"))))
+    indexed.update(corpus_swift_sure_indexed=index_corpus, corpus_swift_sure_index_seconds=None)
+    if index_corpus:
+        indexed["corpus_swift_sure_index_seconds"] = index_corpus_tree(
+            env, log.with_name(log.name.replace("warm", PRODUCT.word + "-index")))
     warm = tasks["corpus"].get("warm", DEFAULT_WARM)
     if warm:
         print("warming the corpus build (%s); log: %s" % (" ".join(warm), log), flush=True)
@@ -439,6 +513,23 @@ def materialise(tasks: dict, source, env: dict, log: Path) -> dict:
             raise Halt("the warm build failed (exit %s%s); see %s" % (code, ", timed out" if timed_out else "", log))
     RUN.rename(TEMPLATE)
     return indexed
+
+
+def index_corpus_tree(env: dict, log: Path) -> float:
+    """The binary under test's index of the corpus, at RUN's own state directory, so every clone of the
+    template carries it at the same absolute path and arm B's first query no longer pays for it. The index
+    needs a repository, so the corpus is committed for it and the repository then dropped: each run commits
+    its clone afresh, and the state directory is in that repository's excludes. Returns the seconds taken."""
+    commit_corpus(env)
+    print("indexing the corpus (%s index); log: %s" % (PRODUCT.word, log), flush=True)
+    started = time.time()
+    with open(log, "w") as out:
+        code, timed_out = limited([WRAPPER, "index"], 1800, RUN, env, stdout=out, stderr=subprocess.STDOUT)
+    seconds = round(time.time() - started, 1)
+    shutil.rmtree(RUN / ".git")
+    if code != 0 or not (RUN / PRODUCT.directory).is_dir():
+        raise Halt("the corpus index failed (exit %s%s); see %s" % (code, ", timed out" if timed_out else "", log))
+    return seconds
 
 
 def inject(task: dict):
@@ -1345,6 +1436,15 @@ def run_one(tasks: dict, task: dict, arm: str, repeat: int, position: int, optio
                 # built from this same archive, so its units are moved past the copy.
                 for unit in (STORE / "v5" / "units").iterdir():
                     os.utime(unit)
+            if options.index_corpus:
+                # The copy gives the semantic store a new cache key, so it reads as a store no query has opened,
+                # which a user's checkout is not: one query opens it here, in harness time, so the arm meets the
+                # warm store a user's would. The symbol need not exist; any lookup opens the store.
+                with open(WORK / "open-store.log", "w") as out:
+                    code, timed_out = limited([WRAPPER, "where", "Gizmo"], 120, RUN, arm_env,
+                                              stdout=out, stderr=subprocess.STDOUT)
+                if timed_out:
+                    raise Halt("opening the corpus's index store timed out; see %s" % (WORK / "open-store.log"))
         settings = WORK / "settings.json"
         settings.write_text(json.dumps({"claudeMdExcludes": memory_excludes()}, indent=1))
         mcp = WORK / ("mcp-%s.json" % arm)
@@ -1684,7 +1784,8 @@ def command_run(options):
         for k in range(1, options.paths + 1):
             select_path(k)
             run_paths.append(str(RUN))
-            built = materialise(tasks, source, env, WORK / ("warm.log" if k == 1 else "warm-%d.log" % k))
+            built = materialise(tasks, source, env, WORK / ("warm.log" if k == 1 else "warm-%d.log" % k),
+                                options.index_corpus)
             probed = probe_hook(base_path, sift_binary, options.rule_b)
             if options.plugin_b:
                 probed.update(probe_plugin_hook(base_path, options.plugin_b))
@@ -2486,6 +2587,9 @@ def main(argv):
                      help="spread the repeats over this many run paths, pairing A with B at each (#799)")
     run.add_argument("--session", help="the results directory name (default: a timestamp)")
     run.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
+    run.add_argument("--index-corpus", action="store_true",
+                     help="index each corpus path with the binary under test before the arms, so every clone "
+                          "carries the index and its filtered: hint can print (#1067)")
     run.add_argument("--timeout", type=int, default=1200, help="wall-clock seconds per claude run")
     run.add_argument("--budget", type=float, default=5.0, help="--max-budget-usd per claude run")
     run.add_argument("--binary", "--sift", dest="binary",

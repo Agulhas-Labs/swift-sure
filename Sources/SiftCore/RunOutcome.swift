@@ -144,6 +144,16 @@ public extension RunOutcome {
         return report.testFailures.map(\.name)
     }
 
+    /// The tests a crashed test process left unfinished, or `nil` when the run did not crash or named none.
+    ///
+    /// These are suspects and never failures: the process died while they ran, so any one of them may be the cause or merely in flight, and ``reportedTestFailures`` stays `nil` for the run so none of them is counted into a denominator as a test that failed.
+    var crashedTests: [String]? {
+        guard let report, report.isUsable(exitCode: exitCode), let unfinished = report.testCrash?.unfinished, !unfinished.isEmpty else {
+            return nil
+        }
+        return unfinished
+    }
+
     /// Whether this run may stand for the tree it ran on — the one judgement the proved-run ledger records against a ``TreeKey``.
     ///
     /// **It is the `✔ passed` of the answer and nothing weaker.** Every clause the answer would print as an anomaly is a clause that stops a record being written, because a record exists to let a later gate skip the suite entirely: a run whose bundle never launched, whose process died silently, or whose pass is read from an exit code rather than from a line the tool printed is a run nobody may stand on.

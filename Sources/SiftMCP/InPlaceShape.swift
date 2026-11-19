@@ -547,8 +547,9 @@ public struct InPlaceShape {
         guard words.count == 2, words[0] == "cd", !words[1].hasPrefix("-"), !words[1].contains("$") else { return nil }
         // A `~` the shell never expands — quoted or escaped — names a directory called `~`, not home; the real
         // `cd` fails or moves somewhere the lookups that follow never read, so the line is not the shape.
+        // The word is read from its raw spelling, since `ShellSyntax` keeps the backslash of `'\''` that `ShellWord.quoted` writes for an apostrophe; a word the reader refuses keeps its unquoted reading.
         guard ShellOperand(raw: query.rawInvocation[1])?.quotesLeadingTilde != true else { return nil }
-        return (words[1] as NSString).expandingTildeInPath
+        return ((ShellOperand(raw: query.rawInvocation[1])?.value ?? words[1]) as NSString).expandingTildeInPath
     }
 
     /// `path` spelled out against `directory`, or `nil` where it is relative and there is nothing to resolve it against.

@@ -182,6 +182,24 @@ public extension BuildInputEditsSinceGreenRun {
     }
 }
 
+public extension BuildInputEditsSinceGreenRun {
+    /// The directory the last `swift-sure run` in `command` runs against, or `nil` where the command holds none or the directory cannot be told.
+    ///
+    /// A build prints its diagnostics' paths relative to the tree it ran in, which is the run's own `--root` (read against the directory any `cd` before it moved to, else `cwd`) or that `cd`'s directory, and not necessarily the hook payload's `cwd`; reading them against `cwd` located a worktree's compile error in the primary checkout.
+    static func siftRunDirectory(ofCommand command: String, cwd: String?) -> String? {
+        guard let statements = Statements(command) else { return nil }
+        for index in statements.located.indices.reversed() {
+            guard let run = ShellSyntax.segments(of: statements.located[index].statement).compactMap({ siftRun(ofSegment: $0) }).last else { continue }
+            let base = statements.directory(before: index, cwd: cwd)
+            if let root = run.root {
+                return InPlaceShape.resolve(root, against: base)
+            }
+            return index > 0 ? base : nil
+        }
+        return nil
+    }
+}
+
 private extension BuildInputEditsSinceGreenRun {
     static let toolUseMarker = Data("\"tool_use\"".utf8)
     static let toolResultMarker = Data("\"tool_result\"".utf8)
@@ -340,6 +358,8 @@ private extension BuildInputEditsSinceGreenRun {
 
     /// The command a `swift-sure run` segment wraps and the directory its own `--root` names, or `nil` where the segment is not a `swift-sure run`.
     ///
+    /// The root is read from its raw spelling, since `ShellSyntax` keeps the backslash of the `'\''` that `ShellWord.quoted` writes for an apostrophe; a word `ShellOperand` refuses keeps its unquoted reading.
+    ///
     /// The run's own options come first, and those taking a value are skipped with it; the command follows `--` or, with no terminator, is the first word that is neither an option nor an option's value.
     static func siftRun(ofSegment segment: String) -> (wrapped: [String], root: String?)? {
         let query = ShellQuery(segment)
@@ -347,6 +367,7 @@ private extension BuildInputEditsSinceGreenRun {
         guard let length = query.binarySpellingLength, invocation.count > length, invocation[length] == "run" else { return nil }
         let valued: Set = ["--root", "--without", "--without-line", "--since", "--guard", "--from"]
         let words = Array(invocation.dropFirst(length + 1))
+        let rawWords = Array(query.rawInvocation.dropFirst(length + 1))
         var root: String?
         var index = 0
         while index < words.count {
@@ -358,12 +379,12 @@ private extension BuildInputEditsSinceGreenRun {
             guard word.hasPrefix("-") else { break }
             if valued.contains(word) {
                 if word == "--root", index + 1 < words.count {
-                    root = words[index + 1]
+                    root = ShellOperand(raw: rawWords[index + 1])?.value ?? words[index + 1]
                 }
                 index += 2
             } else {
                 if word.hasPrefix("--root=") {
-                    root = String(word.dropFirst("--root=".count))
+                    root = ShellOperand(raw: String(rawWords[index].dropFirst("--root=".count)))?.value ?? String(word.dropFirst("--root=".count))
                 }
                 index += 1
             }

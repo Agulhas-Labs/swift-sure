@@ -97,6 +97,11 @@ public struct RunUsageLog: Sendable {
                 entry["failedSuites"] = kept
             }
         }
+        if let crashedTests = answer.crashedTests {
+            let distinct = Set(crashedTests.map(Self.clipped)).sorted()
+            entry["crashed"] = Array(distinct.prefix(Self.failedTestCap))
+            entry["crashed_total"] = distinct.count
+        }
         if let repositoryRoot {
             entry["root"] = repositoryRoot.path
             if let repository = Self.repositoryKey(of: repositoryRoot) {
@@ -146,12 +151,16 @@ public extension RunUsageLog {
         /// The suite of each failing Swift Testing test the run already knows, keyed by the recorded name; a sharded run reads them off the identifiers its reconciliation holds, with no index needed.
         public let failedSuites: [String: String]
 
-        public init(report: RunReport? = nil, lines: Int? = nil, failedTests: [String]? = nil, failures: [RunTestFailure] = [], failedSuites: [String: String] = [:]) {
+        /// The tests a crashed test process left unfinished, or `nil` where the run did not crash or named none; suspects, never failures.
+        public let crashedTests: [String]?
+
+        public init(report: RunReport? = nil, lines: Int? = nil, failedTests: [String]? = nil, failures: [RunTestFailure] = [], failedSuites: [String: String] = [:], crashedTests: [String]? = nil) {
             self.report = report
             self.lines = lines
             self.failedTests = failedTests
             self.failures = failures
             self.failedSuites = failedSuites
+            self.crashedTests = crashedTests
         }
     }
 }

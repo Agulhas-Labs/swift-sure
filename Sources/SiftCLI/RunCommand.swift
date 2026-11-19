@@ -387,7 +387,8 @@ struct RunCommand: ParsableCommand {
                 report: outcome.report,
                 lines: answerLines.map { $0 + (asked.rewritten ? 1 : 0) },
                 failedTests: outcome.reportedTestFailures,
-                failures: outcome.report?.testFailures ?? []
+                failures: outcome.report?.testFailures ?? [],
+                crashedTests: outcome.crashedTests
             ),
             repositoryRoot: outcome.repositoryRoot,
             milliseconds: milliseconds,
@@ -688,7 +689,7 @@ extension RunCommand {
         }
         var outcomes = report.testOutcomes
         outcomes.commandExitCode = outcome.exitCode
-        let check = RunInventoryCheck.check(outcomes, loggedAt: outcome.log?.url, repositoryRoot: GitContext.discoverRoot(from: package) ?? package, package: package, budget: inventoryBudget, executedNothing: executedNothing)
+        let check = RunInventoryCheck.check(outcomes, summary: report.summaryCount, loggedAt: outcome.log?.url, repositoryRoot: GitContext.discoverRoot(from: package) ?? package, package: package, budget: inventoryBudget, executedNothing: executedNothing)
         return (check.lines(after: report.testCrash, restarts: report.restarts), !check.isClean(after: report.testCrash, restarts: report.restarts))
     }
 

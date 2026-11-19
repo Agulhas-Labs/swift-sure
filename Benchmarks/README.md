@@ -41,7 +41,9 @@ checkout means the same path set.
 
 SwiftSure's own repository at commit `27d3aca3` (absent from the public repository, whose history starts at the release cut; a rerun passes its own corpus and tasks file with `bench.py run --corpus <repo>@<commit> --tasks <file>`; `Benchmarks/tasks.example.json` is the template), written out with `git archive` into a fresh one-commit
 repository for every run, so no history hints at an injected bug. It is about 93k lines of Swift in three
-modules, and was private when measured, so the model could not answer from memory.
+modules, and was private when measured, so the model could not answer from memory. One of its tests,
+`DeadlineChildTests.anEarlierAttemptsChildLeftRunningIsFound`, can hang a full `swift test` there (fixed in later
+SwiftSure), so a run whose agent runs the whole suite can time out.
 
 A public corpus was the first choice and was dropped: the repository's example-name gate
 (`ExampleNamesTests`) fails on any camel-cased name that this tree does not declare, and its permit list
@@ -154,6 +156,18 @@ building only an unoptimised build by default, and a scheme's Test configuration
 Swift module compiled without an index. `session.json` records `corpus_indexed`, `index_store_bytes` and `index_build_seconds`;
 `validate` skips the build.
 
+**SwiftSure's own index.** That store is Xcode's; SwiftSure's index of the corpus is another thing, and a
+checkout carries one by default. `run --index-corpus` builds it once per path before the arms: the binary under
+test runs `index` in the corpus at the fixed run path (committed for it, since the index needs a repository,
+which is then dropped), so the template, and every clone, carries `.swift-sure/index.db` at the same absolute
+path. Arm A's tree carries it too, inert without the tool, and `.git/info/exclude` hides it from the checks.
+Answers that need an index, such as the `filtered:` line `swift-sure run -- swift test --filter …` prints (#1067),
+show only with it. A clone also gives the semantic store a new cache key, so it reads as one no query has opened,
+and the `filtered:` line then names suites by written name rather than resolved reference; so with
+`--index-corpus` each run's harness preparation makes one `where` query in the clone (logged to `open-store.log`
+in the bench work directory), and the arm meets the warm store a user's checkout has. `session.json` (and each path's `path_detail`) records `corpus_swift_sure_indexed` and
+`corpus_swift_sure_index_seconds`. The flag is off by default, so other sessions stay comparable with earlier ones.
+
 ## Threats to validity
 
 - **One model.** Results hold for `claude-sonnet-5-5` on one Claude Code version; another model may use
@@ -163,6 +177,7 @@ Swift module compiled without an index. `session.json` records `corpus_indexed`,
 - **Repeat variance.** Three repeats give a median and a range, not a confidence interval; a difference
   smaller than the range is not evidence.
 - **Cold index.** Arm B indexes the corpus on its first query, and that time is in its wall time.
+  `--index-corpus` builds the index before the arms, so arm B's wall time no longer includes it.
 - **Not a user's session.** Single-prompt `-p` runs with no prior context; a long interactive session
   amortises the fixed cost of SwiftSure's primer and tool list differently.
 
@@ -186,6 +201,7 @@ sh Benchmarks/run.sh --mod-b Distribution/mod --repeats 3   # mod vs no mod
 sh Benchmarks/run.sh --no-mcp-b --repeats 3   # arm B: swift-sure without its MCP server
 sh Benchmarks/run.sh --plugin-b Distribution/plugin --paths 6 --repeats 2   # plugin route vs installer route
 sh Benchmarks/run.sh --dirty-injection --task <answer-style task> --paths 6 --repeats 2   # the injected bug left uncommitted
+sh Benchmarks/run.sh --index-corpus --paths 6 --repeats 2   # every corpus clone already indexed by SwiftSure
 ```
 
 `--dirty-injection` commits the corpus clean and leaves the injected bug as an uncommitted change, as a user's working tree

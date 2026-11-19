@@ -234,7 +234,7 @@ private extension TestRun {
         let answer = ([renderer.render(plans: answers, declared: declared, shards: shards)] + notes).joined(separator: "\n\n")
         _ = state.teardown(children: children, simctl: environment.simctl, overrides: environment.overrides, leases: environment.leases, releasingWatcher: true)
         let failing = plans.first { $0.reconciliation.exitCode != 0 }
-        return Result(answer: answer, exitCode: failing?.reconciliation.exitCode ?? 0, failedTests: plans.contains { $0.reconciliation.reportedTestFailures != nil } ? plans.flatMap { $0.reconciliation.reportedTestFailures ?? [] } : nil, failedSuites: plans.reduce(into: [:]) { $0.merge($1.reconciliation.reportedFailedSuites) { first, _ in first } })
+        return Result(answer: answer, exitCode: failing?.reconciliation.exitCode ?? 0, failedTests: TestRun.reportedTestFailures(ofPlans: plans.map(\.reconciliation.reportedTestFailures)), failedSuites: plans.reduce(into: [:]) { $0.merge($1.reconciliation.reportedFailedSuites) { first, _ in first } })
     }
 }
 
@@ -258,6 +258,17 @@ extension MultiPlanPreparation {
 }
 
 extension TestRun {
+    /// The failing tests a multi-plan run records: every plan's names when every plan can say, and `nil` (cannot say) when any plan answers `nil`, such as one whose shard crashed, so a clean plan beside it never reads as a run where nothing failed.
+    static func reportedTestFailures(ofPlans plans: [[String]?]) -> [String]? {
+        guard !plans.isEmpty else { return nil }
+        var names: [String] = []
+        for plan in plans {
+            guard let plan else { return nil }
+            names += plan
+        }
+        return names
+    }
+
     /// `names` with each kept once, where it first appears.
     static func unique(_ names: [String]) -> [String] {
         var kept: [String] = []

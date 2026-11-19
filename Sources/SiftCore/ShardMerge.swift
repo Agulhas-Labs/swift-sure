@@ -423,6 +423,7 @@ private extension ShardMerge {
         }
 
         tally.unattributed += unclaimed.count
+        tally.garbled.append(contentsOf: unclaimed.filter(TestIdentifier.isGarbledSwiftTestingLogName))
     }
 }
 
@@ -630,8 +631,9 @@ private extension ShardMerge {
         \(count) reported ending\(count == 1 ? "" : "s") named no test the shard was given; counted here and nowhere else, \
         never spent on a test the shard reported nothing for, and not on their own a reason to fail the run.
         """
+        let splice = garbledNote(tally.garbled)
         guard !tally.missing.isEmpty else {
-            return [stated]
+            return [stated] + splice
         }
         return [
             """
@@ -640,7 +642,17 @@ private extension ShardMerge {
             wrote it, so one still standing here is a name no inventory this run could read accounts for, and a test \
             of this shard's is reported missing rather than counted by it.
             """,
-        ]
+        ] + splice
+    }
+
+    /// The sentence naming unattributed endings that are spliced result lines, in the unsharded inventory line's words.
+    ///
+    /// Such a name matches no test however the inventory is read, so the other sentences' reasons do not apply to it and it is named apart.
+    private static func garbledNote(_ garbled: [String]) -> [String] {
+        guard !garbled.isEmpty else {
+            return []
+        }
+        return ["\(garbled.count) report line\(garbled.count == 1 ? "" : "s") garbled (output lines spliced?): \(garbled.prefix(5).joined(separator: ", "))\(garbled.count > 5 ? ", +\(garbled.count - 5) more" : "")"]
     }
 }
 
@@ -677,6 +689,9 @@ private extension ShardMerge {
 
         /// How many endings named no test the shard was given, and were therefore attributed to none — see ``ShardMerge/readUnclaimed(_:shard:elsewhere:declared:unreported:into:)``.
         var unattributed = 0
+
+        /// The unattributed names that are the splice of two result lines rather than a test's name, so the answer says what they are as the unsharded inventory line does.
+        var garbled: [String] = []
 
         /// The reasons some names were reconciled by count, in the order they were first met.
         var countOnlyCauses: [String] = []

@@ -115,8 +115,9 @@ public extension RunInventoryCheck {
 
     /// Reconciles `outcomes` against the index at `repositoryRoot`, inside the manifest of `package` (the repository's root where it is `nil`), brought up to date first as `--against` does; a checkout with no index yet has one built inside the same budget.
     ///
+    /// - Parameter summary: What the frameworks' own closing lines counted, so a declared test the output never reported can be told from one that did not run.
     /// - Parameter executedNothing: Whether the run executed no test, as ``testedPackage(by:report:workingDirectory:executedNothing:)`` takes it: its empty outcomes reconcile as zero reported, so the line names every declared test that never reported.
-    static func check(_ outcomes: RunTestOutcomes, loggedAt logURL: URL?, repositoryRoot: URL, package: URL? = nil, budget: TimeInterval = freshenBudget, executedNothing: Bool = false) -> RunInventoryCheck {
+    static func check(_ outcomes: RunTestOutcomes, summary: RunSummaryCount? = nil, loggedAt logURL: URL?, repositoryRoot: URL, package: URL? = nil, budget: TimeInterval = freshenBudget, executedNothing: Bool = false) -> RunInventoryCheck {
         let root = CanonicalPath.of(repositoryRoot.path)
         do {
             guard try GitContext.enclosingRoot(from: repositoryRoot) != nil else {
@@ -137,7 +138,9 @@ public extension RunInventoryCheck {
             do {
                 let engine = try SiftEngine(directory: repositoryRoot)
                 try await engine.ensureFresh()
-                check = try .reconciled(engine.reconcileRun(outcomes, loggedAt: logURL, packageDirectory: packageDirectory, executedNothing: executedNothing))
+                var reconciliation = try engine.reconcileRun(outcomes, loggedAt: logURL, packageDirectory: packageDirectory, executedNothing: executedNothing)
+                reconciliation.summary = summary
+                check = .reconciled(reconciliation)
             } catch {
                 check = .skipped("the inventory could not be read: \(error)")
             }
@@ -263,7 +266,7 @@ private extension RunInventoryCheck {
         }
         if counts.missing > 0 {
             let named = reconciliation.missing.map(\.enumerated) + reconciliation.shortfalls.map(\.function)
-            clauses.append("\(counts.missing) never reported: \(listing(named))")
+            clauses.append("\(counts.missing) never reported: \(listing(named))\(Self.summaryAccount(reconciliation))")
         }
         if counts.linesLost > 0 {
             let named = reconciliation.lost.map(\.enumerated) + reconciliation.lostByCount.map(\.function)
@@ -272,14 +275,27 @@ private extension RunInventoryCheck {
         if counts.duplicated > 0 {
             clauses.append("\(counts.duplicated) reported more than once: \(listing(reconciliation.duplicated.map(\.test.enumerated), of: counts.duplicated))")
         }
-        let garbled = reconciliation.unclaimed.filter(TestIdentifier.isGarbledSwiftTestingLogName)
-        if !garbled.isEmpty {
-            clauses.append("\(garbled.count) report line\(garbled.count == 1 ? "" : "s") garbled (output lines spliced?): \(listing(garbled))")
-        }
         var lines = ["inventory: \(counts.expected) declared, \(counts.ran) reported\(Self.qualification(reconciliation)) — \(clauses.joined(separator: " · "))"]
         lines.append(contentsOf: reconciliation.shortfalls.prefix(listedNames).map { "  \($0.function): \($0.sentence), by count alone" })
         lines.append(contentsOf: reconciliation.lostByCount.prefix(listedNames).map { "  \($0.function): \($0.lostSentence), by count alone" })
         return lines
+    }
+
+    /// The clause saying the frameworks' own summaries cover the tests the run never reported, or none where they do not.
+    ///
+    /// A pass line can be lost from a loaded run's output without a test being skipped; the summaries are counted by the framework itself, so when they pass and count exactly the declared tests the missing ones are lost lines and not missed tests. The run stays unclean: only a re-run can show it.
+    ///
+    /// Every condition guards the same inference. The summary counts every ending the framework printed, so an ending no declared test claimed or a test that ended twice can lift it to the declared count while a declared test never ran (a name mismatch, which a re-run repeats): the clause is added only where neither occurred. A garbled line is allowed, as one spliced line stands for two endings. The summary counts a skipped test as run, so the wording says "run, none failing" and never "passed".
+    static func summaryAccount(_ reconciliation: RunReconciliation) -> String {
+        let counts = reconciliation.counts
+        // Where lines are already counted lost by their suite's and run's summaries, those summaries are spent: the line says which test they cover and which they cannot.
+        guard counts.linesLost == 0, counts.duplicated == 0, reconciliation.unclaimed.allSatisfy(TestIdentifier.isGarbledSwiftTestingLogName),
+              let summary = reconciliation.summary, summary.passed, summary.tests == counts.expected
+        else {
+            return ""
+        }
+        let lost = counts.missing == 1 ? "a pass line was lost" : "pass lines were lost"
+        return "; \(summary.framework) summary counts all \(summary.tests) run, none failing (\(lost) from the output; re-run to confirm)"
     }
 
     /// The undecided, excluded and outside-scope counts the `N declared, N reported` line owes, in both the healthy and the residue branch.
@@ -308,6 +324,11 @@ private extension RunInventoryCheck {
         let unclaimed = reconciliation.unclaimed.filter { TestIdentifier.xctestLogName($0) != nil }
         if !unclaimed.isEmpty {
             clauses.append("\(unclaimed.count) more XCTest ending\(unclaimed.count == 1 ? "" : "s") no declared test claims: \(listing(unclaimed))")
+        }
+        // A spliced result line claims no test, so it is named wherever it turns up: on the clean line as much as the residue one.
+        let garbled = reconciliation.unclaimed.filter(TestIdentifier.isGarbledSwiftTestingLogName)
+        if !garbled.isEmpty {
+            clauses.append("\(garbled.count) report line\(garbled.count == 1 ? "" : "s") garbled (output lines spliced?): \(listing(garbled))")
         }
         guard !clauses.isEmpty else {
             return ""

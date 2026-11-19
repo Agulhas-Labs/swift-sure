@@ -173,9 +173,13 @@ public extension RunFailureShape {
 
 private extension RunFailureShape {
     /// Every failure, each with its own name — or `nil` once that listing is no longer the answer worth serving.
+    ///
+    /// Each entry is charged as it prints, folded by ``RunListingFolds``, so a fold can keep a listing that would otherwise have become a sample.
     func listed(within allowance: Int, spending budget: inout Int) -> [String]? {
-        census.listing(of: "failure", within: allowance, spending: &budget, entries: failures.indices.lazy.map { position in
-            described(failures[position], at: position, standingFor: 1)
+        let folds = RunListingFolds.of(failures, inArgumentOrder: inArgumentOrder, placedAt: place(at:))
+        return census.listing(of: "failure", within: allowance, spending: &budget, entries: folds.listed.lazy.map { position in
+            let fold = folds.folds[position]
+            return described(failures[position], at: position, standingFor: fold?.count ?? 1, folded: fold)
         })
     }
 
@@ -255,7 +259,7 @@ private extension RunFailureShape {
     /// `standingFor` is how many failures this line speaks for, and the multiplier is what says it stands for more than itself so a reader never reads one example as one failure. `everywhere` is the whole membership of that signature, which is what lets ``sited(_:everywhere:)`` make the stronger of its two claims; a listing passes none, because a line standing only for itself has nothing to generalise over.
     ///
     /// **An ``RunFailureCensus/Entry`` rather than lines, because the site line is not the run's and may not be measured as though it were.** The three lines above it are what the framework printed; the `in …` line beneath is what this checkout's index added, and charging a listing for it would make the same red suite name 80 tests without an index and five with one. Both forms compose an entry — the sample only ever prints it — so the split is written once, where the line is built.
-    func described(_ failure: Failure, at position: Int, standingFor count: Int, everywhere positions: [Int] = []) -> RunFailureCensus.Entry {
+    func described(_ failure: Failure, at position: Int, standingFor count: Int, everywhere positions: [Int] = [], folded fold: RunListingFolds.Fold? = nil) -> RunFailureCensus.Entry {
         // Clipped for the reason the message beneath it is: this is unbounded input printed inside a
         // block whose stated ceiling on a failure's own words is `wordsCap`. Swift Testing writes
         // whatever `description` the argument has, so one `@Test(arguments:)` over a type with a long
@@ -275,7 +279,12 @@ private extension RunFailureShape {
         if let note = noteLines.first, merged == nil {
             lines.append("    ↳ \(RunFailureCensus.clipped(note)) \(Self.adjacency)")
         }
-        lines.append(contentsOf: noteLines.dropFirst().map { "      \(RunFailureCensus.clipped($0))" })
+        let repeated = fold?.repeated
+        let beneath = RunListingFolds.printed(beneath: noteLines.dropFirst(), repeating: repeated.flatMap { place(at: $0.position) }, of: repeated)
+        lines.append(contentsOf: beneath.map { "      \(RunFailureCensus.clipped($0))" })
+        if let cases = fold?.cases {
+            lines.append("    \(cases)")
+        }
         // The failing test's own body is said on the heading, as a range beside the resolved path: the
         // charge stays the unresolved heading's, so the form is decided by the run alone as it is below.
         if let own = ownBody(of: failure, at: position, everywhere: positions) {
@@ -301,6 +310,14 @@ private extension RunFailureShape {
             return nil
         }
         return "\(paths.shown(sites.absolutePath(of: resolved))):\(line) (body :\(resolved.startLine)-\(resolved.endLine))"
+    }
+
+    /// Where the heading of the failure at `position` says it happened, without the `(body …)` range a resolved test adds.
+    func place(at position: Int) -> String? {
+        guard let own = ownBody(of: failures[position], at: position, everywhere: []), let body = own.range(of: " (body :", options: .backwards) else {
+            return failures[position].location.map(paths.shown)
+        }
+        return String(own[..<body.lowerBound])
     }
 
     /// Whether `resolved` is the test a failure's log name names.

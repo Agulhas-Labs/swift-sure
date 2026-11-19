@@ -151,17 +151,28 @@ struct PostToolUseCommand: ParsableCommand {
         return notes.isEmpty ? nil : HookOutput.postToolUseContext(notes.joined(separator: "\n"), event: event)
     }
 
+    /// The directory a `Bash` call's `swift-sure run` ran against (its `--root`, or the `cd` before it), or `nil` where the call names none, so the diagnostics it printed are located in that tree and not the caller's.
+    private static func runDirectory(of payload: [String: Any]) -> String? {
+        guard payload["tool_name"] as? String == "Bash",
+              let command = (payload["tool_input"] as? [String: Any])?["command"] as? String
+        else {
+            return nil
+        }
+        return BuildInputEditsSinceGreenRun.siftRunDirectory(ofCommand: command, cwd: payload["cwd"] as? String)
+    }
+
     /// The note locating the diagnostics a `Grep` or `Bash` call printed, or `nil` where it printed none, its directory is in no repository or `deadline` has passed.
     private static func located(in payload: [String: Any], lookUp: (_ directory: String) -> String?, deadline: Date) -> String? {
         guard let tool = payload["tool_name"] as? String, tool == "Grep" || tool == "Bash",
               deadline.timeIntervalSinceNow > 0,
               let response = diagnosticText(payload["tool_response"]), response.contains(".swift:"),
               let cwd = (payload["cwd"] as? String).flatMap({ $0.isEmpty ? nil : $0 }),
-              let root = lookUp(cwd)
+              case let start = runDirectory(of: payload) ?? cwd,
+              let root = lookUp(start)
         else {
             return nil
         }
-        return DiagnosticSites.note(forResponse: response, cwd: cwd, root: root, deadline: deadline)
+        return DiagnosticSites.note(forResponse: response, cwd: start, root: root, deadline: deadline)
     }
 
     /// The note naming the `swift-sure run` call for a `Bash` call that was one piped build and whose output shows it failed, or `nil`; never for a call marked interrupted, nor once `deadline` has passed.

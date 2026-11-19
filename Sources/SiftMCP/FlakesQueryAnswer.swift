@@ -13,24 +13,28 @@ struct FlakesQueryAnswer {
     /// The answer's lines, before the `log:` line, or `nil` when no run recorded which tests failed and none named a match anyway, so the ordinary empty state should speak.
     static func lines(for query: String, in named: RunFailureHistory.NamedFailures, scoped: String) -> [String]? {
         guard named.measured > 0 else {
-            guard named.incompleteNaming + named.conflatedNaming > 0 else {
+            guard named.incompleteNaming + named.conflatedNaming + named.crashedMatching.count > 0 else {
                 return nil
             }
-            return ["`\(query)` — no counted run recorded a matching test failing\(scoped)"] + uncountedLines(named)
+            return ["`\(query)` — no counted run recorded a matching test failing\(scoped)"] + crashOnlyLines(named, []) + uncountedLines(named)
         }
         let over = "over \(counted(named.measured, "run")) that recorded which tests failed"
         let uncounted = uncountedLines(named)
         guard !named.tests.isEmpty else {
             let who = uncounted.isEmpty ? "no run" : "no counted run"
-            return ["`\(query)` — \(who) recorded a matching test failing\(scoped), \(over)"] + uncounted + suiteLines(query, named)
+            return ["`\(query)` — \(who) recorded a matching test failing\(scoped), \(over)"] + crashOnlyLines(named, []) + uncounted + suiteLines(query, named)
         }
         var lines = ["`\(query)` — \(counted(named.tests.count, "test")) recorded failing\(scoped), \(over)"]
         for test in named.tests.prefix(cap) {
             lines.append(test.name)
+            if let crash = named.crashedMatching.first(where: { $0.name == test.name }) {
+                lines.append(crashLine(crash))
+            }
             for population in test.populations {
                 lines.append("  \(population.keys.joined(separator: ", ")) — failed \(population.failed) of \(counted(population.runs, "run")) · last \(population.lastFailed) · \(tail(population.tier))\(elsewhere(population))")
             }
         }
+        lines += crashOnlyLines(named, named.tests.map(\.name))
         if named.tests.count > cap {
             lines.append("… and \(named.tests.count - cap) more tests match — narrow the query")
         }
@@ -45,7 +49,16 @@ struct FlakesQueryAnswer {
         guard named.suiteless > 0, readsAsSuite, !query.contains("("), !Redactor.isTestToken(query) else {
             return []
         }
-        return ["\(named.suiteless) failing tests in scope carry no suite (recorded before this version, or unresolved) and could not be matched by one"]
+        return ["\(counted(named.suiteless, "test")) in scope \(named.suiteless == 1 ? "carries" : "carry") no suite (crash records never do; failures recorded before this version, or unresolved) and could not be matched by one"]
+    }
+
+    private static func crashLine(_ crash: RunFailureHistory.CrashedTest) -> String {
+        "  crashed in \(counted(crash.runs, "run")) · last \(crash.lastCrashed)"
+    }
+
+    /// The matching tests a crash left unfinished that no run recorded failing, each with its one crash line.
+    private static func crashOnlyLines(_ named: RunFailureHistory.NamedFailures, _ failing: [String]) -> [String] {
+        named.crashedMatching.filter { !failing.contains($0.name) }.prefix(cap).flatMap { [$0.name, crashLine($0)] }
     }
 
     /// The runs the counts above leave out: those that name a match anyway, and those that could not say.
@@ -61,6 +74,9 @@ struct FlakesQueryAnswer {
                 parts.append("\(named.conflatedNaming) under a kind that names no action")
             }
             lines.append("also named failing by \(counted(naming, "run")) not counted above: \(parts.joined(separator: ", "))")
+        }
+        if named.crashedRuns > 0 {
+            lines.append(RunFailureHistory.CrashedTest.line(runs: named.crashedRuns, in: named.crashedIn, pastCap: named.crashedPastCap))
         }
         let silent = named.unrecorded + named.incompleteSilent
         if silent > 0 {

@@ -168,6 +168,13 @@ private extension RunFailureHistoryReport {
             lines.append("")
             lines.append("\(counted(history.unrecorded, "run")) recorded nothing about which tests failed — written before the log kept them, passed through unfiltered, or failed for a reason the filter could not explain. Unknown, and counted in nothing above.")
         }
+        if history.crashed > 0 {
+            if lines.isEmpty {
+                lines.append("")
+            }
+            let crashedIn = RunFailureHistory.CrashedTest.line(runs: history.crashed, in: history.crashedIn, pastCap: history.crashedPastCap) { redactor?.test($0) ?? $0 }
+            lines.append("\(crashedIn) — the tests each crash left unfinished, suspects rather than failures, and counted in nothing above.")
+        }
         if history.treeless > 0 {
             if lines.isEmpty {
                 lines.append("")

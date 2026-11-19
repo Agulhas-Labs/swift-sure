@@ -33,6 +33,15 @@ public struct RunFailureHistory: Sendable, Equatable {
     /// Counted and reported rather than dropped in silence, because it is the number that says how much of the log this report is *not* built on.
     public let unrecorded: Int
 
+    /// Runs whose test process crashed and named the tests it left unfinished: suspects, not failures, so counted apart from ``unrecorded`` and in no tier.
+    public let crashed: Int
+
+    /// The tests those crashed runs left unfinished, most runs first.
+    public let crashedIn: [CrashedTest]
+
+    /// How many of the ``crashed`` runs left more tests unfinished than their record names, the log capping the list.
+    public let crashedPastCap: Int
+
     /// Runs whose failures ran past ``RunUsageLog/failedTestCap``, so they cannot say a test did not fail.
     public let incomplete: Int
 
@@ -109,6 +118,9 @@ public extension RunFailureHistory {
             otherTrees: tiers.otherTrees,
             unknownTree: read.unknown.pooled(),
             unrecorded: read.unrecorded,
+            crashed: read.crashedRuns,
+            crashedIn: CrashedTest.ranked(read.crashes.values),
+            crashedPastCap: read.crashedPastCap,
             incomplete: read.incomplete,
             conflated: read.conflated,
             measured: read.known.runs.values.reduce(0, +) + treeless,
@@ -190,6 +202,10 @@ public extension RunFailureHistory {
             tests: tests,
             measured: read.measured,
             unrecorded: read.unrecorded,
+            crashedRuns: read.crashedRuns,
+            crashedIn: CrashedTest.ranked(read.crashes.values),
+            crashedPastCap: read.crashedPastCap,
+            crashedMatching: read.crashes.values.filter { matches($0.name, wanted) }.sorted { $0.name < $1.name },
             incompleteNaming: incompleteNaming,
             conflatedNaming: conflatedNaming,
             incompleteSilent: read.incomplete - incompleteNaming,
@@ -209,6 +225,18 @@ public extension RunFailureHistory {
         /// Runs that recorded no test names at all.
         public let unrecorded: Int
 
+        /// Runs whose test process crashed and named the tests it left unfinished: suspects, not failures, and counted in no denominator.
+        public let crashedRuns: Int
+
+        /// Every test those runs left unfinished, most runs first then by name.
+        public let crashedIn: [CrashedTest]
+
+        /// How many of the crashed runs left more tests unfinished than their record names.
+        public let crashedPastCap: Int
+
+        /// The ``crashedIn`` tests whose name matches the query, by name.
+        public let crashedMatching: [CrashedTest]
+
         /// Runs whose names ran past the cap but whose recorded names match the query.
         public let incompleteNaming: Int
 
@@ -220,6 +248,28 @@ public extension RunFailureHistory {
 
         /// How many distinct Swift Testing failure names in the counted runs carry no recorded suite, so a query by suite could not have matched them.
         public let suiteless: Int
+    }
+}
+
+public extension RunFailureHistory {
+    /// A test a crashed run left unfinished, in how many runs, and the last day.
+    struct CrashedTest: Sendable, Equatable {
+        public let name: String
+        public let runs: Int
+        public let lastCrashed: String
+
+        /// Most runs first, then by name.
+        static func ranked(_ tests: some Sequence<Self>) -> [Self] {
+            tests.sorted { $0.runs == $1.runs ? $0.name < $1.name : $0.runs > $1.runs }
+        }
+
+        /// `<N runs> crashed in: <name> (<k>), …`: the first five of `ranked`, then how many more, then how many of the runs left more unfinished than the log lists.
+        static func line(runs: Int, in ranked: [Self], pastCap: Int = 0, naming: (String) -> String = { $0 }) -> String {
+            let shown = ranked.prefix(5).map { "\(naming($0.name)) (\($0.runs))" }.joined(separator: ", ")
+            let more = ranked.count > 5 ? ", +\(ranked.count - 5) more" : ""
+            let capped = pastCap == 0 ? "" : runs == 1 ? "; it left more tests unfinished than the log lists" : "; \(pastCap) of them left more tests unfinished than the log lists"
+            return "\(runs) run\(runs == 1 ? "" : "s") crashed in: \(shown)\(more)\(capped)"
+        }
     }
 }
 
@@ -282,6 +332,11 @@ private extension RunFailureHistory {
         var unrecorded = 0
         var incomplete = 0
         var conflated = 0
+        /// Runs whose test process crashed and recorded the tests it left unfinished, which are no failures and so no part of a denominator.
+        var crashedRuns = 0
+        var crashes: [String: CrashedTest] = [:]
+        /// Crashed runs whose record names fewer tests than the run left unfinished.
+        var crashedPastCap = 0
         var incompleteNames: [[String]] = []
         var conflatedNames: [[String]] = []
         /// Each name's recorded suites, over every counted run.
@@ -297,7 +352,21 @@ private extension RunFailureHistory {
             var read = Reading()
             for entry in scan.entries {
                 guard let failures = entry.failures else {
-                    read.unrecorded += 1
+                    if let crashed = entry.crashed, !crashed.named.isEmpty {
+                        read.crashedRuns += 1
+                        if crashed.named.count < crashed.distinct {
+                            read.crashedPastCap += 1
+                        }
+                        for name in Set(crashed.named) {
+                            if !name.contains("/") {
+                                read.suiteless.insert(name)
+                            }
+                            let before = read.crashes[name]
+                            read.crashes[name] = CrashedTest(name: name, runs: (before?.runs ?? 0) + 1, lastCrashed: max(before?.lastCrashed ?? "", entry.day))
+                        }
+                    } else {
+                        read.unrecorded += 1
+                    }
                     continue
                 }
                 guard failures.namesThemAll else {

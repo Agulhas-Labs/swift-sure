@@ -2980,7 +2980,13 @@ files, 77 KB on the pinned corpus), so an agent that went from `search` straight
 `affected` gave one. The line is the one note whose whole point is the dirty files, so it cannot read an index that has
 not seen them. The freshen is abandoned and cancelled when the budget runs out (the line is then left out, never
 waited on); a build cut short that way is resumed by the next call (§6.9), so nothing is lost but the time. It falls
-back to written names where the semantic store does not open, and is left out when the checkout has no SwiftSure
+back to written names where the semantic store does not open, **and never starts a cold open** (#1067): a store with
+no cache under `.swift-sure/isdb` yet, which every clone or copy of a checkout has since the cache key carries the
+units directory's identity, imports every unit as it opens, 1.1–1.7 s of the 2 s budget on the pinned corpus and past
+it under load, so the first filtered run after a clone lost the line. Such a store is read by written name instead
+(48 suites there, against 7 resolved), and the same on every run while it stays cold; a store with a cache gets half
+the budget to reopen, so a long import of a rebuild's new units falls back to written names rather than dropping the
+line. The line thus depends on the tree and the cache's presence, not on how fast an open ran. It is left out when the checkout has no SwiftSure
 index file (this note alone never creates one), when the budget runs out, when no suite reaches the change, and when
 every reaching suite ran in full. It never
 changes the totals line, the verdict, the exit code or what the run records. `xcodebuild -only-testing` takes the
@@ -3389,6 +3395,16 @@ whose base name before the final argument list holds one, is a garbled line, not
 prefix spells. The inventory says `1 report line garbled (output lines spliced?): <name>` instead of `reported more
 than once`, and the test whose line was swallowed stays in the never-reported clause. The verdict is unchanged: the
 inventory is not clean, and `--require-inventory` still refuses it.
+The garbled clause is printed on the clean line too (`inventory: 3 declared, 3 reported (1 report line garbled …)`), and
+a sharded run's merge notes carry the same sentence for an unattributed spliced name.
+**A pass line lost from the output is told from a test that never ran by the frameworks' own summaries.** Where tests
+went unreported, the clause reads `1 never reported: <name>; Swift Testing's summary counts all 3 run, none failing (a
+pass line was lost from the output; re-run to confirm)` (`pass lines were lost` for several). It is added only when all
+hold: the summaries passed; no reported ending is unclaimed and none is reported more than once (a garbled line is
+allowed, as it stands for two endings); no result line is already counted lost by its suite's summary; and the summaries'
+test count equals the declared count exactly. Otherwise a surplus ending could lift the count to the declared one while
+the missing test never ran, and a re-run would repeat it. The wording says "run, none failing" and never "passed",
+because XCTest counts a skipped test as run. The run stays unclean and the exit code is unchanged.
 **It is a note and never a verdict: the exit code stays the wrapped command's either way** (a run that
 executed no test exits 4 for its zero, not for this line), unless the caller asked otherwise with
 `--require-inventory`, which turns an unclean inventory into exit 6 (above). That run, its every closing count at 0, is
@@ -3467,6 +3483,52 @@ fresh from disk, and marked `(syntactic)` on every line it qualifies — contain
 what the failing line *called*. The exception is a failure inside the very test named beside it: that
 heading carries the resolved path and the body's range, `name() — Tests/…/File.swift:10 (body :8-12)`, with
 no `in …` line and no tag. A lone failure is listed with no `N failures · N signatures` line above it.
+
+**A listing says a test's repeated output once** (#952). The `↳` lines beneath a failure are often the
+value its expectation interpolated, so three failing `#expect`s on one output string printed the same
+ten-line excerpt three times (about 30 of a 52-line answer), and five cases of one parameterized test
+printed five near-identical blocks (about 60 of 82). Two rules apply, in this order, to the listing only
+(the sample form already folds a signature into `×N`; one test's excerpt repeated under two signatures of
+a sample, #859, is not covered). Both compare failures of one test (same name), never across tests:
+
+- *Cases of one expectation.* The cases of one parameterized test (arguments present) that fail at the same
+  location with exactly the same message form a group; a case read from the event stream is never grouped.
+  A group of two or more prints one block, at the place its first-listed case was listed: the case first in
+  argument order (as a sample's example is chosen, so the block does not change with the order parallel
+  cases finished in), then one line under it naming the others sorted by their argument text, each clipped
+  as a heading's `with …` is: `    … and 4 more cases of this expectation: shape → 1, shape → 2, shape → 3,
+  shape → 4`. A case that failed more than once there is named once with its count (`shape → 1 ×2`). When
+  any grouped case's note differs from the printed case's, or its closest line does, the line ends `(their values differ — see the
+  raw log)`, since notes are not compared to form the group: they differ in what a case echoes (a temporary
+  path, the case's own source line). The line is clipped at the words cap with the count kept. Exact message
+  equality, not the signature's normalised text, decides the group: the signature masks the digits and
+  quoted literals (`Code=260` against `Code=4`) a fix may need.
+- *The same excerpt.* A failure's excerpt is its note's lines beneath the first (the lines the listing
+  prints indented), without the trailing `… (+N more lines — see the raw log)` count. The first line stays
+  as it is, merged into the message or on its own `↳` line, because it carries that expectation's own
+  expression (Swift Testing's first `↳` lines expand the expression, so whole notes of one test's
+  different expectations never match). A failure with a location whose excerpt is two lines or more, and
+  is the same as, or the first lines of, the excerpt printed under an earlier listed failure of the same
+  test (whatever its arguments), keeps its heading, message, closest line and note's first line, and
+  prints one line in place of the excerpt: `      (the same N lines as under the failure at <location>
+  above)`, N being this failure's excerpt lines and the location spelled exactly as the earlier heading's
+  location slot reads, without `(body …)`. A note's trailing `… (+N more lines — see the raw log)` line is
+  not part of the excerpt and stays under a folded failure, beneath the `(the same N lines …)` line, since
+  the lines it counts were never compared. The earlier failure is the nearest one of the same test listed
+  above whose excerpt was printed in full: a folded failure, or one with no excerpt, is never one. When
+  that failure has no location, or a failure of any test listed between them shows the same location,
+  nothing folds. A failure with no location is never folded. Cases form a group only when they name two or
+  more distinct arguments; a case that failed again under the printed case's own arguments is counted `×k`
+  on the block's heading, and any other case's repeats as ` ×k` after its name. A parameterized case with no
+  location is never grouped. The `… and N more cases` line follows the printed case's excerpt, and only its
+  list of names is clipped.
+
+Exact comparison, with no normalisation, decides both, because `the same` is a claim: two excerpts that
+differ in a temporary directory's name are printed twice. Each entry is charged against the byte budget
+folded, so a fold can keep a listing that would otherwise have become a sample; the `raw:` line's `M out`
+counts the folded lines. A grouped case still counts in the heading's failure count, and its test is named
+by the printed case's heading, so the section leaves no test unnamed and nothing leaves the answer but
+repeated text.
 
 **Where that section leaves a failing test unnamed, one more block lists them all.** A sample names the lead
 of each signature it illustrates and a few others beneath it, so the tests it counts but never names are the
@@ -4877,6 +4939,24 @@ before the field existed — is **unknown**, never either tier: its tests are li
 single-tier reading, and the runs are counted out loud the way runs that recorded no failures are. An inline
 note on a red `swift-sure run` saying the same test passed on this tree before is a follow-on, not part of this.
 
+**What `run.jsonl` records of a run's tests.** `failed` and `failed_total`: the sorted distinct names of the
+tests the run reported failing, each clipped at 120 characters, the first 50 kept, and the distinct count
+beside them; both or neither. A run whose test process crashed reports nothing failing, so it writes no
+`failed`. It writes `crashed` and `crashed_total` instead, only when its report has a test crash with a
+non-empty list of unfinished tests, under the same clip, cap and both-or-neither rule. These are the tests the
+crash left unfinished (started and never ended): suspects, **not failures**, and they never go into `failed`
+or into any denominator. A crash record carries no suite, so a suite-qualified query such as `Depot.restock`
+cannot match a test seen only in crashes (as bare `restock()`), and the suite note counts such names.
+`flakes` counts such a run apart from the runs that cannot say, with
+`<N runs> crashed in: <name> (<k>), <name> (<k>)` (names ranked by runs then name, at most 5, then
+`, +<M> more`, then `; <k> of them left more tests unfinished than the log lists` (`; it left …` when the line counts one run) when <k> crashed runs recorded
+fewer names than `crashed_total` says), on its own line before the `cannot say` line; a crash that named no unfinished test stays
+under `recorded no test names`. The report with no query says the same line in its coverage section, after the
+runs that recorded nothing, followed by `— the tests each crash left unfinished, suspects rather than failures,
+and counted in nothing above.`; a crashed run is not counted among the runs that recorded nothing.
+`flakes <query>` gives a matching test that appears in crash records, under its
+name, `  crashed in <k> runs · last <day>`, including a test that was never recorded failing.
+
 **`flakes <query>` answers "has this test failed before?" for the tests it names.** The positional is
 matched against each recorded test name as a substring, case-sensitive, with `.` and `/` read as one
 separator, so `Depot.restock` finds `Gizmo/Depot/restock()`. **Swift Testing records bare function
@@ -4887,7 +4967,7 @@ location is missing, whose file name more than one indexed file carries, or that
 bare and is left out. A name with a recorded suite also matches as `<suite>/<name>`, so `Depot` finds
 `restock()`; names, redacted ids and grouping stay keyed by the bare name, so a test's history does not
 split. A query that reads as a suite (first character uppercase, or containing `.` or `/`, and no `(`) and finds Swift Testing names with no recorded suite in
-scope says `N failing tests in scope carry no suite (recorded before this version, or unresolved)
+scope says `N tests in scope carry no suite (crash records never do; failures recorded before this version, or unresolved)
 and could not be matched by one`, because silence there reads as "never failed". Because the caller supplied the name,
 the matched tests print by their **real names**; the root keeps its redaction unless `--unredact`. **Every
 test recorded failing counts**, not only those that also passed, so a test that failed in every run of its
@@ -4959,7 +5039,7 @@ scope reader behind `where` sits five hops from its first test), while walking e
 of a suite; the walk-on is under the same expansion cap, which makes a capped answer not a strict superset of the one before the walk-on existed (a helper expanded early spends cap a later ordinary row would have used), and it never feeds the name-matched fallback, which past
 the bound would match far more than it narrows. **The freshness contract applies in
 full**, through the same machinery `where` uses, and a name written in more than 40 files is dropped from
-the fallback and named as dropped. A name match in a file whose module cannot load the module declaring the
+the fallback and named as dropped. One exception keeps such a name narrowed: a member of a type, whether a changed declaration itself (on the first hop, its owner read from its own declaration) or one reached on an earlier hop, is still followed at the sites that write it qualified by its owner (`Gizmo.line`, `Module.Gizmo.line`, `Gizmo<T>.line`), a spelling as narrow as the type's own name and held to the same 40-file cap. A file is parsed for this only if its text spells `Gizmo.line` or `>.line`, so a qualified spelling split across lines (`Gizmo` then `.line` on the next) is missed. `Self.line`, `x.line` and a bare `line` inside the type are not admitted, since telling them from another type's member needs resolution a cold store cannot give. Nor is an unqualified `Gizmo.line` or `Gizmo<T>.line` in a file that declares a `Gizmo` of its own at file scope, such as a test's `private enum Gizmo`, other than the file holding the real owner's declaration; `Module.Gizmo.line` there still counts. A nested or local `Gizmo` and a `typealias Gizmo` shadow nothing, since the real type can still be meant outside the nested one's parent and a typealias usually names the real type: their files' sites are admitted. A file is read alone, so a shadowing `Gizmo` declared in another file of the same module is not seen and the sites beside it are still admitted. The name is then listed in its own note, with one example spelling, as followed only where its type qualifies it, because its other sites were dropped and nothing is reported through them. A name match in a file whose module cannot load the module declaring the
 name is set aside, since Swift lets no code name a declaration from a module it never loads: a module loads
 itself and every tree module an import in any of its files names, followed transitively (the module-wide
 union, not the file's own imports, because a member can leak between one module's files). It never sets

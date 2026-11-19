@@ -16,9 +16,9 @@ struct AffectedRenderer {
     /// The resolver's project directories, which decide which unit-less test files belong to another project in the tree and so are never counted, advised or walked.
     let projectDirectories: [String]
     /// Supplies working-tree name mentions for the declarations the index store could not be asked about.
-    var mentions: ((Set<String>) async -> [String: [NameMention]])?
+    var mentions: ((Set<String>) async -> SpelledSites<NameMention>)?
     /// Supplies the call sites `where` lists for each name, in the shape asked for it, for the after-edit walk.
-    var callSites: (([String: CallSiteScanner.SiteShape]) async -> [String: [SyntacticCallSite]])?
+    var callSites: (([String: CallSiteScanner.SiteShape]) async -> SpelledSites<SyntacticCallSite>)?
     /// Compares both sides of the named changed files, for the after-edit walk's seeds.
     var fileDiffs: ((Set<String>) throws -> [FileDiff])?
     /// When a file was last committed, for a comparison against `HEAD`.
@@ -41,7 +41,7 @@ extension AffectedRenderer {
         let scanner = NameMentionScanner(repoRoot: repositoryRoot, enumerator: enumerator)
         let callScanner = CallSiteScanner(repoRoot: repositoryRoot, enumerator: enumerator)
         mentions = { await scanner.mentions(of: $0) }
-        callSites = { await callScanner.callSites(named: $0) }
+        callSites = { await callScanner.callSites(named: $0, spelling: true) }
         lastCommitTime = range == nil ? { git.lastCommitTime(of: $0) } : nil
         headMoveTime = range == nil ? { HeadReflog.lastMoveTime(in: git) } : nil
         driftedPastRange = range.map { range in { [repositoryRoot] in try AffectedTouchedRoots.drifted($0, from: range.to, git: git, repositoryRoot: repositoryRoot) } }
@@ -171,10 +171,10 @@ extension AffectedRenderer {
         // A file changed since the build is seeded from the declarations the diff touched in it and walked to their call sites, where both its sides could be compared; every other unanswered declaration keeps the written-name walk.
         let afterEdit = semantic.context == nil ? noStoreSeeds : try afterEditSeeds(refusals: semanticWalk.refusals, declaringFiles: declaringFiles)
         let mentionInput = semanticWalk.unanswered.filter { !afterEdit.files.contains($0.path) && !afterEdit.commentOnly.contains($0.path) }
-        let nameWalk = try await nameWalk(from: Self.mentionSeeds(mentionInput), reader: reader, depth: options.depth, excluding: Set(unbuiltTests.outsideTargets))
+        let nameWalk = try await nameWalk(from: Self.mentionSeeds(mentionInput), declaredBy: mentionInput, reader: reader, depth: options.depth, excluding: Set(unbuiltTests.outsideTargets))
         // A removed or renamed declaration of a file the store answers for, or one whose signature changed, is seeded by its old name too: a call left unedited can now resolve to an overload the diff did not touch.
         let callSeeds = afterEdit.seeds + touched.comparison.seededByName.filter { !afterEdit.seeds.contains($0) }
-        var callWalk = try await self.nameWalk(from: callSeeds, reader: reader, depth: options.depth, excluding: Set(unbuiltTests.outsideTargets), byCallSites: true, fallbacks: afterEdit.fallbacks)
+        var callWalk = try await self.nameWalk(from: callSeeds, declaredBy: afterEdit.rows, reader: reader, depth: options.depth, excluding: Set(unbuiltTests.outsideTargets), byCallSites: true, fallbacks: afterEdit.fallbacks)
         for row in afterEdit.rows {
             if let test = try reader.testSymbol(enclosing: row) {
                 record(test, resolved: false, depth: 1, state: .live, into: &callWalk.reached)
@@ -182,8 +182,10 @@ extension AffectedRenderer {
         }
         // The declarations the store did answer for, asked again by name of the test files it holds no unit for: the store's answer for them cannot include a reference from a target it never compiled.
         let unanswered = Set(semanticWalk.unanswered.map(\.id))
+        let answered = resolution.declarations.filter { !unanswered.contains($0.id) && $0.kind != .extensionKind }
         let testSideWalk = unbuiltTests.paths.isEmpty ? NameWalk() : try await self.nameWalk(
-            from: Self.mentionSeeds(resolution.declarations.filter { !unanswered.contains($0.id) && $0.kind != .extensionKind }),
+            from: Self.mentionSeeds(answered),
+            declaredBy: answered,
             reader: reader,
             depth: options.depth,
             recordingOnlyIn: Set(unbuiltTests.paths),
@@ -327,7 +329,7 @@ extension AffectedRenderer {
             unanswered = walk.unanswered
             excluded = try Set(context.testFilesWithoutUnit(in: store, projectDirectories: projectDirectories).outsideTargets)
         }
-        try await merge(nameWalk(from: Self.mentionSeeds(unanswered), reader: reader, depth: depth, excluding: excluded).reached, into: &reached)
+        try await merge(nameWalk(from: Self.mentionSeeds(unanswered), declaredBy: unanswered, reader: reader, depth: depth, excluding: excluded).reached, into: &reached)
         var nearest: [String: Int] = [:]
         var testNames: [String: String] = [:]
         for (test, evidence) in reached where !test.swiftTestFilterSelectsNothing {
@@ -592,6 +594,11 @@ private extension AffectedRenderer {
         var scannedNames = 0
 
         var tooCommon: Set<String> = []
+
+        /// The too-common names the walk followed only at sites qualified by their owner, each with one such spelling (`Gizmo.line`).
+        ///
+        /// Their bare, `Self.` and `x.` sites were dropped, so they are named in the answer as the names in ``tooCommon`` are.
+        var ownerQualifiedOnly: [String: String] = [:]
         var capped = false
 
         /// Tests a name turned up in from a module that cannot load the module declaring the name, which the walk did not record.
@@ -608,7 +615,7 @@ private extension AffectedRenderer {
         func notes(cap: Int) -> [String] {
             guard scannedNames > 0 else { return [] }
             var lines = ["", "name-matched fallback: \(scannedNames) written name\(scannedNames == 1 ? "" : "s") \(scannedNames == 1 ? "was" : "were") scanned across the working tree instead — the base names of the declarations the store could not be asked about, and at each further hop the names of the declarations those turned up in. **A name is not a symbol** — same-named members of unrelated types are included, and dynamically dispatched uses are missed. Those tests are marked `name match` below."]
-            lines.append(contentsOf: [tooCommonNote(cap: cap), setAsideNote()].compactMap(\.self))
+            lines.append(contentsOf: [tooCommonNote(cap: cap), ownerQualifiedNote(cap: cap), setAsideNote()].compactMap(\.self))
             return lines
         }
 
@@ -624,7 +631,7 @@ private extension AffectedRenderer {
             let files = seeds.files.count
             let names = "\(seeds.nameCount) name\(seeds.nameCount == 1 ? "" : "s")"
             let note = "\(label) — syntactic, lower bound: the \(files) file\(files == 1 ? "" : "s") changed\(noStore ? "" : " since the build") \(files == 1 ? "was" : "were") seeded from the \(names) the diff touched there (\(seeds.namesListed)), not every declaration in \(files == 1 ? "it" : "them"), and followed to the call sites `where` finds by written name, \(scannedNames) name\(scannedNames == 1 ? "" : "s") over every hop. **A call site found by name is not a resolved reference** — same-named members of unrelated types are included, and dynamically dispatched uses are missed. Those tests are marked `name match` below, and a test the diff touched is listed itself."
-            return ["", note] + committed + [tooCommonNote(cap: cap), setAsideNote()].compactMap(\.self)
+            return ["", note] + committed + [tooCommonNote(cap: cap), ownerQualifiedNote(cap: cap), setAsideNote()].compactMap(\.self)
         }
 
         /// The names dropped for being written in more than `cap` files, named.
@@ -632,6 +639,15 @@ private extension AffectedRenderer {
             guard !tooCommon.isEmpty else { return nil }
             let names = tooCommon.sorted()
             return "  \(names.count) name\(names.count == 1 ? "" : "s") in that scan \(names.count == 1 ? "was" : "were") written in more than \(cap) files and dropped rather than admitted — a match that broad narrows nothing, so NOTHING is reported for \(names.count == 1 ? "it" : "them"): \(names.joined(separator: ", "))"
+        }
+
+        /// The names followed only where their owning type qualifies them, with one example spelling: the sites written any other way were dropped, so nothing is reported through them.
+        func ownerQualifiedNote(cap: Int) -> String? {
+            guard !ownerQualifiedOnly.isEmpty else { return nil }
+            let names = ownerQualifiedOnly.keys.sorted()
+            let many = names.count != 1
+            let example = ownerQualifiedOnly[names[0], default: ""]
+            return "  \(names.count) name\(many ? "s" : "") in that scan \(many ? "were" : "was") written in more than \(cap) files and followed only where \(many ? "their types qualify them" : "its type qualifies it") (\(example)) — \(many ? "their" : "its") bare, Self. and x. sites were dropped, so NOTHING is reported through them: \(names.joined(separator: ", "))"
         }
 
         /// The line counting the tests set aside because their module cannot load the module declaring the name, with their targets named.
@@ -675,7 +691,7 @@ private extension AffectedRenderer {
                 let dropped = walk.tooCommon.sorted()
                 lines.append("  \(dropped.count) name\(dropped.count == 1 ? "" : "s") in that scan \(dropped.count == 1 ? "was" : "were") written in more than \(cap) files and dropped, so NOTHING is reported for \(dropped.count == 1 ? "it" : "them"): \(dropped.joined(separator: ", "))")
             }
-            lines.append(contentsOf: [walk.setAsideNote()].compactMap(\.self))
+            lines.append(contentsOf: [walk.ownerQualifiedNote(cap: cap), walk.setAsideNote()].compactMap(\.self))
             return lines + outside
         }
     }
@@ -687,8 +703,11 @@ private extension AffectedRenderer {
     /// Given files to record from, it keeps only the tests written in those files, for the test files the store has no unit for; every other declaration a name turns up in is still carried into the next hop, since a helper anywhere is how a test reaches the change.
     ///
     /// `byCallSites` is the after-edit walk: each name is followed to the call sites `where` lists for it rather than to every token spelling it, so a declaration's own name, a same-named parameter or a label is no match. Its `fallbacks` are the types a seed name is followed through instead when the first hop finds no site of it.
+    ///
+    /// `declarations` are the indexed declarations the seeds were taken from, read for the type owning each, so a changed member whose name is too common is still followed where that type qualifies it.
     func nameWalk(
         from seeds: [AffectedNameSeed],
+        declaredBy declarations: [SymbolRow] = [],
         reader: TestSymbolReader,
         depth: Int,
         recordingOnlyIn: Set<String>? = nil,
@@ -709,6 +728,11 @@ private extension AffectedRenderer {
         var seen = frontier
         // Names the previous hop admitted through a helper's sites. Their enclosing names are helper routes too, so a name reached through a helper never enters the ordinary cut on any later hop.
         var helperRouted: Set<String> = []
+        // The declarations each onward name was taken from, whose owning types are the spelling a too-common name is still followed through. A changed declaration is the origin of its own name on the first hop.
+        var origins: [String: [Int64: SymbolRow]] = [:]
+        for row in declarations where row.kind != .initializer && frontier[row.baseName] != nil {
+            origins[row.baseName, default: [:]][row.id] = row
+        }
         let fileRows = try store.fileInventory()
         let reach = ModuleReach(files: fileRows.values)
 
@@ -721,25 +745,30 @@ private extension AffectedRenderer {
             var found = await sites(of: Set(frontier.keys), shapes: shapes, byCallSites: byCallSites)
             if hop == 1, !fallbacks.isEmpty {
                 let scanned = frontier.count
-                let rescan = AffectedAfterEditSeeds.fallingBack(to: fallbacks, found: found, excluding: excluding, frontier: &frontier, shapes: &shapes)
+                let rescan = AffectedAfterEditSeeds.fallingBack(to: fallbacks, found: found.sites, excluding: excluding, frontier: &frontier, shapes: &shapes)
                 seen.merge(frontier) { $0.union($1) }
                 walk.scannedNames += frontier.count - scanned
-                await found.merge(rescan.isEmpty ? [:] : sites(of: rescan, shapes: shapes, byCallSites: byCallSites)) { $1 }
+                await found.update(with: rescan.isEmpty ? SpelledSites() : sites(of: rescan, shapes: shapes, byCallSites: byCallSites))
             }
             // Sorted, because the site printed beside a test is whichever account `record` sees first and a
             // Dictionary hands its keys back in hash order. A suite declared in one file and extended in
             // another is the same `TestSymbol` reached from two names with two different sites, so the
             // `— path:line` beside it would flip between runs with the per-process hash seed. The sites
             // inside one name are sorted for exactly the same reason.
-            for (name, written) in found.sorted(by: { $0.key < $1.key }) {
+            for (name, written) in found.sites.sorted(by: { $0.key < $1.key }) {
                 // Another project's files are left out before the cap is counted: they are no part of what the walk reads, as a test or as a hop.
-                let sites = written.filter { !excluding.contains($0.path) }
+                var sites = written.filter { !excluding.contains($0.path) }
                 let declaring = frontier[name] ?? []
                 let viaHelper = helperRouted.contains(name)
-                // A name written across a large share of the repository has stopped narrowing anything, and admitting its matches turns the fallback into "the whole suite, with a footnote".
-                guard Set(sites.map(\.path)).count <= Self.nameEvidenceFileCap else {
-                    walk.tooCommon.insert(name)
-                    continue
+                // A name written across a large share of the repository has stopped narrowing anything, and admitting its matches turns the fallback into "the whole suite, with a footnote". A member reached on an earlier hop is still followed where it is written qualified by its owning type, which narrows as well as the type's own name does; that spelling is held to the same cap.
+                if Set(sites.map(\.path)).count > Self.nameEvidenceFileCap {
+                    let (qualified, owner) = try OwnerQualifiedMentions.sites(sites, name: name, from: origins[name].map { Array($0.values) } ?? [], spellings: found.spellings, store: store, rootPath: repositoryRoot.path)
+                    guard let owner, !qualified.isEmpty, Set(qualified.map(\.path)).count <= Self.nameEvidenceFileCap else {
+                        walk.tooCommon.insert(name)
+                        continue
+                    }
+                    walk.ownerQualifiedOnly[name] = "\(owner).\(name)"
+                    sites = qualified
                 }
                 for site in sites {
                     guard let enclosing = try reader.enclosingSymbol(path: site.path, line: site.line) else { continue }
@@ -762,6 +791,9 @@ private extension AffectedRenderer {
                         : AffectedNameSeed(name: enclosing.baseName, module: enclosing.module, kind: enclosing.kind)
                     if loadable, Self.leadsOn(enclosing, from: test), AffectedNameSeed.isIdentifier(onward.name) {
                         shapes[onward.name] = onward.shape.widened(by: shapes[onward.name])
+                        if onward.name == enclosing.baseName, enclosing.kind != .initializer {
+                            origins[onward.name, default: [:]][enclosing.id] = enclosing
+                        }
                         if test == nil, !viaHelper {
                             if seen[onward.name, default: []].insert(onward.module).inserted {
                                 next[onward.name, default: []].insert(onward.module)
@@ -814,13 +846,13 @@ private extension AffectedRenderer {
     /// Where each of `names` is written: every identifier token spelling it, or, for the after-edit walk, the call sites `where` would list for it.
     ///
     /// A function's name written as a member with no call and no labels, `x.f`, is one `where` counts beside its list rather than in it, and the walk leaves it out the same way, as it is far more often another type's property; a call, `T.f`, `x.f(label:)` and a bare `f` handed to a call or bound as a value all stay.
-    func sites(of names: Set<String>, shapes: [String: CallSiteScanner.SiteShape], byCallSites: Bool) async -> [String: [NameMention]] {
-        guard byCallSites, let callSites else { return await mentions?(names) ?? [:] }
+    func sites(of names: Set<String>, shapes: [String: CallSiteScanner.SiteShape], byCallSites: Bool) async -> SpelledSites<NameMention> {
+        guard byCallSites, let callSites else { return await mentions?(names) ?? SpelledSites() }
         let found = await callSites(shapes.filter { names.contains($0.key) })
-        var sites: [String: [NameMention]] = [:]
-        for (name, written) in found {
+        var sites = SpelledSites<NameMention>(spellings: found.spellings)
+        for (name, written) in found.sites {
             let listed = shapes[name] == .callOrReference ? written.filter { !$0.nameOnly || $0.handedOnBare } : written
-            sites[name] = listed.map { NameMention(path: $0.path, line: $0.line) }
+            sites.sites[name] = listed.map { NameMention(path: $0.path, line: $0.line) }
         }
         return sites
     }

@@ -448,6 +448,16 @@ public final class SiftEngine: @unchecked Sendable {
     /// This engine's budget: the one above everywhere but a test, which sets zero to hold a real open in its warming state — deterministically, since the open cannot settle while the budget check holds its lock.
     var openBudget = SiftEngine.semanticOpenBudget
 
+    /// Whether a query may start an open of a store no cache has been made for yet: every query but the filtered run's `filtered:` line, which reads only a store an earlier query opened.
+    ///
+    /// Such an open imports every unit: 1.1 to 1.7 s of that line's 2 s budget on a 2,000-file package, and past it on a machine under load, which left the line out. A clone or copy of a checkout gives its store a new cache key (``SemanticCache``), so every first filtered run after one meets a cold store. Not opening it there also keeps the line one answer for one state: by written name while the store has no cache, by resolved reference once it has, never whichever the clock allowed.
+    var opensColdStore = true
+
+    /// The note a query that did not open a cold store carries.
+    static var coldStoreNote: String {
+        "the index store has no cache yet and this query does not open one; answered by written name"
+    }
+
     /// How far the conformers block's text search may read before its line is left out: the scan's own bounds everywhere but a test, which narrows them or steps their clock.
     var textSearchBounds = TextSearchFiles.Bounds()
 
@@ -499,6 +509,9 @@ public final class SiftEngine: @unchecked Sendable {
         }
         if let failure = semanticFailure, failure.cache == cache, failure.anchor >= anchor {
             return .openFailed(note: failure.note)
+        }
+        if !opensColdStore, !FileManager.default.fileExists(atPath: cache.directory.path) {
+            return .inactive(note: Self.coldStoreNote)
         }
         let afterOpen = afterSemanticOpen
         let beforeRead = beforeSemanticRead

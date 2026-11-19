@@ -12,4 +12,6 @@ struct ScannedCallSites: Sendable {
     var propertyWrappers: Set<String> = []
     /// The labelled parameters declared with `@T`, by T: where a `$label:` argument calls T's `init(projectedValue:)`.
     var wrappedParameters: [String: [WrappedParameter]] = [:]
+    /// How the file writes each name it holds sites of after a `.`, where the scan was asked to record it.
+    var spellings = MemberSpellings()
 }

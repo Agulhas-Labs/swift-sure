@@ -31,6 +31,9 @@ public struct RunReconciliation: Sendable {
     /// The groups one reported name could not be told apart by whose shortfall lost result lines account for, on the same terms as ``lost``.
     public var lostByCount: [ReconciliationShortfall] = []
 
+    /// What the frameworks' own closing lines counted for the run, where the caller had them.
+    public var summary: RunSummaryCount?
+
     /// Every test that ended more than once inside a single iteration, once each.
     public let duplicated: [Duplication]
 

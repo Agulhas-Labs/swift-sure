@@ -17,15 +17,16 @@ struct NameMentionScanner {
 
     /// Every distinct (file, line) each requested name is written on, ordered by path then line.
     ///
-    /// Distinct per line rather than per occurrence: this feeds a lookup of the declaration enclosing the line, so a name written three times on one line is one answer, and keeping all three would triple the work for nothing.
-    func mentions(of names: Set<String>) async -> [String: [NameMention]] {
-        guard !names.isEmpty else { return [:] }
+    /// Distinct per line rather than per occurrence: this feeds a lookup of the declaration enclosing the line, so a name written three times on one line is one answer, and keeping all three would triple the work for nothing. Beside them, how each file holding a name writes it after a `.` (`MemberSpellings`), read from the text the scan already holds.
+    func mentions(of names: Set<String>) async -> SpelledSites<NameMention> {
+        guard !names.isEmpty else { return SpelledSites() }
         let paths = enumerator.swiftFiles()
-        guard !paths.isEmpty else { return [:] }
+        guard !paths.isEmpty else { return SpelledSites() }
         let cores = ProcessInfo.processInfo.activeProcessorCount
         let rootPath = repoRoot.path
         var collected: [String: Set<NameMention>] = [:]
-        await withTaskGroup(of: [String: Set<NameMention>].self) { group in
+        var spellings = MemberSpellings()
+        await withTaskGroup(of: (sites: [String: Set<NameMention>], spellings: MemberSpellings).self) { group in
             var iterator = paths.makeIterator()
             var inFlight = 0
             while inFlight < cores, let path = iterator.next() {
@@ -33,28 +34,30 @@ struct NameMentionScanner {
                 inFlight += 1
             }
             for await found in group {
-                for (name, sites) in found {
+                for (name, sites) in found.sites {
                     collected[name, default: []].formUnion(sites)
                 }
+                spellings.merge(found.spellings)
                 if let path = iterator.next() {
                     group.addTask { Self.mentions(at: path, rootPath: rootPath, names: names) }
                 }
             }
         }
-        return collected.mapValues { $0.sorted { ($0.path, $0.line) < ($1.path, $1.line) } }
+        return SpelledSites(sites: collected.mapValues { $0.sorted { ($0.path, $0.line) < ($1.path, $1.line) } }, spellings: spellings)
     }
 
-    private static func mentions(at path: String, rootPath: String, names: Set<String>) -> [String: Set<NameMention>] {
+    private static func mentions(at path: String, rootPath: String, names: Set<String>) -> (sites: [String: Set<NameMention>], spellings: MemberSpellings) {
         guard let data = FileManager.default.contents(atPath: rootPath + "/" + path),
-              let source = String(data: data, encoding: .utf8) else { return [:] }
+              let source = String(data: data, encoding: .utf8) else { return ([:], MemberSpellings()) }
         // A file that never spells the name cannot mention it, and the substring check is far cheaper than a parse — the difference between scanning a monorepo and scanning the few files that could possibly match.
-        guard names.contains(where: { source.contains($0) }) else { return [:] }
-        return NestingGate.parseOrEmpty(source) { tree in
+        guard names.contains(where: { source.contains($0) }) else { return ([:], MemberSpellings()) }
+        let found = NestingGate.parseOrEmpty(source) { tree in
             let converter = SourceLocationConverter(fileName: path, tree: tree)
             let visitor = Visitor(names: names, path: path, converter: converter)
             visitor.walk(tree)
             return visitor.found
         }
+        return (found, MemberSpellings(of: found.keys, path: path, source: source))
     }
 }
 

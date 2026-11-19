@@ -116,6 +116,14 @@ public extension RunScan {
         }
     }
 
+    /// The tests a crashed run left unfinished, and how many there were before the log's cap.
+    ///
+    /// Suspects and never failures: a run that has one of these still recorded no failures, and is no part of any denominator.
+    struct Crashed: Sendable, Equatable {
+        public let named: [String]
+        public let distinct: Int
+    }
+
     /// One parsed log line.
     struct Entry: Sendable, Equatable {
         /// How the run filed itself — `swift build`, `swift test`, `xcodebuild test`, or `unfiltered` for a passthrough.
@@ -143,6 +151,9 @@ public extension RunScan {
         ///
         /// **`nil` is unknown and never zero**, and the reason it has to survive the read is on disk: lines written before this field existed carry nothing here, and every one of them would otherwise report as a run in which no test failed — turning a log that cannot answer "has this failed before?" into one that answers it wrongly.
         public let failures: Failures?
+
+        /// The tests a crashed test process left unfinished, or `nil` when the line recorded none.
+        public let crashed: Crashed?
 
         /// The content hash of the tree the run started on, or `nil` when the line recorded none.
         ///
@@ -177,6 +188,9 @@ public extension RunScan {
                 (object["failed_total"] as? Int).map {
                     Failures(named: named, distinct: $0, suites: (object["failedSuites"] as? [String: String]) ?? [:])
                 }
+            }
+            crashed = (object["crashed"] as? [String]).flatMap { named in
+                (object["crashed_total"] as? Int).map { Crashed(named: named, distinct: $0) }
             }
             tree = (object["tree"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             invocation = (object["invocation"] as? String).flatMap { $0.isEmpty ? nil : $0 }

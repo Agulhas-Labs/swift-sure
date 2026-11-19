@@ -71,7 +71,7 @@ struct FlakesSuiteMatchTests {
         let lines = try Self.answer("Depot", [old])
 
         #expect(lines.first?.contains("no run recorded a matching test failing") == true)
-        #expect(lines.contains("1 failing tests in scope carry no suite (recorded before this version, or unresolved) and could not be matched by one"))
+        #expect(lines.contains("1 test in scope carries no suite (crash records never do; failures recorded before this version, or unresolved) and could not be matched by one"))
     }
 
     @Test
@@ -79,7 +79,7 @@ struct FlakesSuiteMatchTests {
         let old = Self.run(failed: ["testOne()"])
         let lines = try Self.answer("somethingElse()", [old])
 
-        #expect(!lines.contains { $0.contains("carry no suite") })
+        #expect(!lines.contains { $0.contains("no suite (crash records never do") })
     }
 
     /// The test's redacted id is a hash of its bare name, so the suite beside it must not move it.
@@ -296,9 +296,9 @@ struct FlakesSuiteMatchTests {
     func aLowercaseWordQueryGetsNoSuiteLine() throws {
         let old = Self.run(failed: ["testOne()"])
 
-        #expect(try !Self.answer("somethingElse", [old]).contains { $0.contains("carry no suite") })
-        #expect(try Self.answer("Depot", [old]).contains { $0.contains("carry no suite") })
-        #expect(try Self.answer("depot.testOne", [old]).contains { $0.contains("carry no suite") })
+        #expect(try !Self.answer("somethingElse", [old]).contains { $0.contains("no suite (crash records never do") })
+        #expect(try Self.answer("Depot", [old]).contains { $0.contains("no suite (crash records never do") })
+        #expect(try Self.answer("depot.testOne", [old]).contains { $0.contains("no suite (crash records never do") })
     }
 
     @Test

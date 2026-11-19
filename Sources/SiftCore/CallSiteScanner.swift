@@ -19,8 +19,15 @@ struct CallSiteScanner {
     ///
     /// Names are base names — `refresh`, not `refresh(_:)` — because a call site's spelling carries argument labels that the declaration's own name may not.
     func callSites(named names: [String: SiteShape]) async -> [String: [SyntacticCallSite]] {
-        guard !names.isEmpty else { return [:] }
-        let scanned = await scan(named: names)
+        await callSites(named: names, spelling: false).sites
+    }
+
+    /// The same sites, and, when `spelling`, how each file holding a site writes the site's name after a `.` (`MemberSpellings`), for a too-common name followed only where its owner qualifies it.
+    ///
+    /// A projected `$label:` site's file is not recorded under the wrapper's name.
+    func callSites(named names: [String: SiteShape], spelling: Bool) async -> SpelledSites<SyntacticCallSite> {
+        guard !names.isEmpty else { return SpelledSites() }
+        let scanned = await scan(named: names, spelling: spelling)
         var collected = scanned.sites
         // `@T` calls an initializer only where T is a property wrapper: the same attribute is a result builder, a macro
         // or another module's wrapper otherwise. Every file declaring T spells T, so each declaration was seen.
@@ -31,7 +38,7 @@ struct CallSiteScanner {
         for (type, sites) in projected {
             collected[type, default: []].append(contentsOf: sites)
         }
-        return collected.mapValues { $0.sorted { ($0.path, $0.line) < ($1.path, $1.line) } }
+        return SpelledSites(sites: collected.mapValues { $0.sorted { ($0.path, $0.line) < ($1.path, $1.line) } }, spellings: scanned.spellings)
     }
 
     /// The base name a call site would be spelled with — `refresh` from `refresh(_:)`, `init` from `init(from:)`, `..<` from `..<(lhs:rhs:)` or `Lib.Box...<`.
@@ -57,8 +64,8 @@ struct CallSiteScanner {
 
     private static let operatorCharacters: Set<Character> = Set("/=-+!*%<>&|^~?.")
 
-    /// What every file spelling one of `names` holds, merged.
-    private func scan(named names: [String: SiteShape]) async -> ScannedCallSites {
+    /// What every file spelling one of `names` holds, merged, with each file's spellings of the names it holds sites of when `spelling`.
+    private func scan(named names: [String: SiteShape], spelling: Bool = false) async -> ScannedCallSites {
         let paths = enumerator.swiftFiles()
         guard !paths.isEmpty else { return ScannedCallSites() }
         let cores = ProcessInfo.processInfo.activeProcessorCount
@@ -69,7 +76,7 @@ struct CallSiteScanner {
             var iterator = paths.makeIterator()
             var inFlight = 0
             while inFlight < cores, let path = iterator.next() {
-                group.addTask { Self.sites(at: path, rootPath: rootPath, names: names, readsBuiltBodies: readsBuiltBodies) }
+                group.addTask { Self.sites(at: path, rootPath: rootPath, names: names, readsBuiltBodies: readsBuiltBodies, spelling: spelling) }
                 inFlight += 1
             }
             for await found in group {
@@ -77,8 +84,9 @@ struct CallSiteScanner {
                 merged.attributeSites.merge(found.attributeSites) { $0 + $1 }
                 merged.propertyWrappers.formUnion(found.propertyWrappers)
                 merged.wrappedParameters.merge(found.wrappedParameters) { $0 + $1 }
+                merged.spellings.merge(found.spellings)
                 if let path = iterator.next() {
-                    group.addTask { Self.sites(at: path, rootPath: rootPath, names: names, readsBuiltBodies: readsBuiltBodies) }
+                    group.addTask { Self.sites(at: path, rootPath: rootPath, names: names, readsBuiltBodies: readsBuiltBodies, spelling: spelling) }
                 }
             }
         }
@@ -123,7 +131,7 @@ struct CallSiteScanner {
         return projected.mapValues { entries in entries.values.map { $0.site.projecting($0.call) } }
     }
 
-    private static func sites(at path: String, rootPath: String, names: [String: SiteShape], readsBuiltBodies: Bool) -> ScannedCallSites {
+    private static func sites(at path: String, rootPath: String, names: [String: SiteShape], readsBuiltBodies: Bool, spelling: Bool) -> ScannedCallSites {
         guard let data = FileManager.default.contents(atPath: rootPath + "/" + path),
               let source = String(data: data, encoding: .utf8) else { return ScannedCallSites() }
         // A file that never spells the name cannot contain a call to it, and the substring check is far cheaper than a parse — the difference between scanning a monorepo and scanning the few files that could possibly match.
@@ -131,7 +139,11 @@ struct CallSiteScanner {
         let isInitializerSweep = names.values.contains(.initializer)
         let spelled = isInitializerSweep ? Array(names.keys) + ["init"] : Array(names.keys)
         guard spelled.contains(where: { source.contains($0) }) || isInitializerSweep && SelfCallSpelling.isWritten(in: source) else { return ScannedCallSites() }
-        return NestingGate.parseOrEmpty(source) { sites(in: $0, converter: SourceLocationConverter(fileName: path, tree: $0), path: path, names: names, readsBuiltBodies: readsBuiltBodies) }
+        var scanned = NestingGate.parseOrEmpty(source) { sites(in: $0, converter: SourceLocationConverter(fileName: path, tree: $0), path: path, names: names, readsBuiltBodies: readsBuiltBodies) }
+        if spelling {
+            scanned.spellings = MemberSpellings(of: Set(scanned.sites.keys).union(scanned.attributeSites.keys), path: path, source: source)
+        }
+        return scanned
     }
 
     /// What one already parsed file holds for `names`, for a caller that reads the same tree for something else too.

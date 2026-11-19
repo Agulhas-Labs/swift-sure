@@ -393,6 +393,7 @@ PosterBoard
 PreToolUse
 ProbeTests
 ProcessInfo
+ProcessLookupError
 ProductKit
 ProgressContract
 ProgressView
@@ -415,6 +416,7 @@ RateSampler
 RawRepresentable
 RawValue
 RealDerivedData
+ReapTests
 RecordDetail
 RecordDetailState
 RecordDetailView
@@ -519,6 +521,7 @@ TanagerKit
 TanagerWidget
 TanagerWidgetKit
 TechnologyRoot
+TestCase
 TestConfigurations
 TestDemo
 TestFailure
@@ -661,9 +664,13 @@ applyCoupon
 archivePath
 archiveVersion
 argNum
+assertEqual
 assertEventually
+assertIsNone
 assertLayout
+assertRaises
 assertThing
+assertTrue
 atPath
 atRoot
 attributesOfItem
@@ -1096,6 +1103,7 @@ scmProvider
 selectedDebuggerIdentifier
 selectedLauncherIdentifier
 sessionId
+setUp
 settingsGizmo
 shineDoublesTheCount
 shouldUseLaunchSchemeArgsEnv
@@ -1145,6 +1153,7 @@ tableName
 tanagerWidget
 targetEnvironment
 targetTemplates
+tearDown
 testA
 testARun
 testAttributedAndExcluded
