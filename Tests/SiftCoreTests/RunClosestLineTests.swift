@@ -74,7 +74,7 @@ struct RunClosestLineTests {
         let failure = try Self.failure(named: "single()", in: Self.blankCapture)
 
         #expect(failure.closestLine == "closest line: truncated: 11 more member lines — pass offset: 60")
-        #expect(failure.note?.contains("truncated: 11 more member lines") == true)
+        #expect(failure.note?.hasSuffix("reason → \"xyz (first of 3 lines — see the raw log)") == true)
     }
 
     /// A haystack line that ends in a quote of its own is not the end of the value while the next line still continues it.

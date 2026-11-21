@@ -199,17 +199,19 @@ extension PlanRunFake {
     }
 }
 
-/// Whether a shard call is the first of its run, claimed once under a lock by whichever call gets there first.
-private final class FirstCall: @unchecked Sendable {
-    private let lock = NSLock()
-    private var claimed = false
+private extension PlanRunFake {
+    /// Whether a shard call is the first of its run, claimed once under a lock by whichever call gets there first.
+    final class FirstCall: @unchecked Sendable {
+        private let lock = NSLock()
+        private var claimed = false
 
-    /// True for the first caller only.
-    func claim() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !claimed else { return false }
-        claimed = true
-        return true
+        /// True for the first caller only.
+        func claim() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !claimed else { return false }
+            claimed = true
+            return true
+        }
     }
 }

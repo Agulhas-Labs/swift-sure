@@ -84,7 +84,10 @@ public struct DiagnosticSites {
         pattern.enumerateMatches(in: response, range: NSRange(location: 0, length: text.length)) { match, _, stop in
             guard let match, let line = Int(text.substring(with: match.range(at: 2))), line > 0 else { return }
             let site = Site(path: text.substring(with: match.range(at: 1)), line: line, offset: match.range.location)
-            if !found.contains(site) {
+            // A site printed again keeps its place in the order but takes the later offset, so it pairs with the log of the run that printed it last.
+            if let seen = found.firstIndex(of: site) {
+                found[seen] = site
+            } else {
                 found.append(site)
             }
             if found.count == siteCap {

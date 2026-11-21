@@ -36,7 +36,7 @@ struct FilteredRunReachHintColdStoreTests {
         let first = try FilteredRunReachHintTests.lines(FilteredRunReachHintTests.widgetNames, arguments: FilteredRunReachHintTests.oneFilter, root: root)
         let second = try FilteredRunReachHintTests.lines(FilteredRunReachHintTests.widgetNames, arguments: FilteredRunReachHintTests.oneFilter, root: root)
 
-        #expect(first == ["  filtered: the working tree changes Core.swift; 2 suites reaching it did not run — run swift test --filter WidgetTests --filter LibTests.BystanderTests --filter LibTests.GadgetTests (swift-sure affected lists every suite)"])
+        #expect(first == ["  filtered: the working tree changes Core.swift; 2 suites reaching it did not run — run swift test --filter LibTests.BystanderTests --filter LibTests.GadgetTests (swift-sure affected lists every suite)"])
         #expect(second == first)
         #expect(Self.caches(in: root).isEmpty)
     }
@@ -50,6 +50,6 @@ struct FilteredRunReachHintColdStoreTests {
 
         let lines = try FilteredRunReachHintTests.lines(FilteredRunReachHintTests.widgetNames, arguments: FilteredRunReachHintTests.oneFilter, root: root)
 
-        #expect(lines == ["  filtered: the working tree changes Core.swift; 1 suite reaching it did not run — run swift test --filter WidgetTests --filter LibTests.GadgetTests (swift-sure affected lists every suite)"])
+        #expect(lines == ["  filtered: the working tree changes Core.swift; 1 suite reaching it did not run — run swift test --filter LibTests.GadgetTests (swift-sure affected lists every suite)"])
     }
 }

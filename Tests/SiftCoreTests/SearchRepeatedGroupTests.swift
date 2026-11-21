@@ -23,6 +23,7 @@ struct SearchRepeatedGroupTests {
     func aRepeatedGroupIsRefused(query: String) throws {
         let started = ContinuousClock.now
         let text = try #require(Self.refusal(query), "\(query) parsed")
+
         #expect(ContinuousClock.now - started < .seconds(5))
         #expect(!text.contains("\n"), "\(text)")
         #expect(text.contains("a repeated group can take unbounded time"), "\(text)")
@@ -33,6 +34,7 @@ struct SearchRepeatedGroupTests {
     @Test
     func theCatastrophicCaseReturnsAtOnce() throws {
         let started = ContinuousClock.now
+
         #expect(throws: EngineError.self) {
             try StructuralMatcher.matches(
                 in: "func aaaaaaaaaaaaaaaaaaaaaaaac() {}",

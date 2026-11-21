@@ -37,7 +37,6 @@ struct RootArgumentRefusalTests {
         #expect(Self.refusal(WhereCommand.self, ["Foo", "root=/tmp/repo"]) == Self.expected)
         #expect(Self.refusal(SearchCommand.self, ["kind:func", "root=/tmp/repo"]) == Self.expected)
         #expect(Self.refusal(StringsCommand.self, ["x", "root=/tmp/repo"]) == Self.expected)
-        #expect(Self.refusal(WhereCommand.self, ["Foo", "root=~/x"]) == "root=~/x is the MCP spelling; on the CLI pass --root '~/x'")
         #expect(Self.refusal(StringsCommand.self, ["x", "root=/tmp"]) == "root=/tmp is the MCP spelling; on the CLI pass --root /tmp")
     }
 
@@ -65,7 +64,7 @@ struct RootArgumentRefusalTests {
         _ = try StringsCommand.parse(["x", "--root", "/tmp/repo"])
     }
 
-    private static func refusal<Command: ParsableCommand>(_: Command.Type, _ arguments: [String]) -> String? {
+    static func refusal<Command: ParsableCommand>(_: Command.Type, _ arguments: [String]) -> String? {
         do {
             _ = try Command.parse(arguments)
             return nil

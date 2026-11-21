@@ -287,11 +287,11 @@ extension RunInventoryNoteTests {
     /// Drives `swift-sure run -- swift test` over a fake `swift` that prints `lines`, scoped to `repository`, and returns what it printed and what it threw; `emitting` runs on the thread that prints each line of the answer.
     ///
     /// Run on a thread of its own, as ``InPlaceAnswerTests/onItsOwnThread(_:)`` runs the answerer: the run blocks its caller while the concurrency pool brings the index up to date, and a suite of runs blocking the pool's own threads can starve it until the inventory check runs out of time.
-    static func run(in repository: URL, printing lines: [String], exiting code: Int32, extraArguments: [String] = [], flags: [String] = [], inventoryBudget: TimeInterval = inventoryBudgetForFixtures, bin existing: URL? = nil, emitting: @escaping @Sendable () -> Void = {}, finished: (@Sendable (Int32) -> Void)? = nil) async throws -> (RecordedOutput, ExitCode?) {
+    static func run(in repository: URL, printing lines: [String], exiting code: Int32, extraArguments: [String] = [], flags: [String] = [], inventoryBudget: TimeInterval = inventoryBudgetForFixtures, bin existing: URL? = nil, beforePrinting shell: String = "", emitting: @escaping @Sendable () -> Void = {}, finished: (@Sendable (Int32) -> Void)? = nil, configuring: (@Sendable (inout RunCommand) -> Void)? = nil) async throws -> (RecordedOutput, ExitCode?) {
         let bin = try existing ?? TemporaryDirectory.make("run-inventory-bin")
         try (lines.joined(separator: "\n") + "\n").write(to: bin.appendingPathComponent("transcript.txt"), atomically: true, encoding: .utf8)
         let swift = bin.appendingPathComponent("swift")
-        try "#!/bin/sh\ncat '\(bin.appendingPathComponent("transcript.txt").path)'\nexit \(code)\n".write(to: swift, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\n\(shell)\ncat '\(bin.appendingPathComponent("transcript.txt").path)'\nexit \(code)\n".write(to: swift, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: swift.path)
 
         let recorded = RecordedOutput()
@@ -311,6 +311,7 @@ extension RunInventoryNoteTests {
                 )
                 command.inventoryBudget = inventoryBudget
                 command.hintBudget = inventoryBudgetForFixtures
+                configuring?(&command)
                 if let finished {
                     command.environment = [:]
                     command.finishProgress = { progress, exitCode, logPath in

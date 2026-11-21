@@ -75,6 +75,19 @@ public struct SiftPaths {
         return paths.lazy.compactMap { $0.split(separator: "/").map(String.init).first { names.contains($0) } }.first ?? directoryName
     }
 
+    /// Every state directory that holds `paths`, each written with its trailing slash and joined with `and` in first-seen order (`.sift/ and .swift-sure/`).
+    ///
+    /// Falls back to the current name's directory when no path has a recognised name among its components.
+    public static func directoriesDescription(holding paths: [String]) -> String {
+        let names = directoryNames()
+        var seen: [String] = []
+        for path in paths {
+            guard let name = path.split(separator: "/").map(String.init).first(where: { names.contains($0) }), !seen.contains(name) else { continue }
+            seen.append(name)
+        }
+        return (seen.isEmpty ? [directoryName] : seen).map { "\($0)/" }.joined(separator: " and ")
+    }
+
     /// `<repoRoot>/.swift-sure.json` — this repository's configuration file, whether or not it exists.
     ///
     /// Resolved like ``cache(in:names:)``: the first name whose file exists, else the current name's.

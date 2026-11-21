@@ -10,9 +10,12 @@ import Foundation
 public struct LineWindow: Equatable, Sendable {
     /// Each stage's argv, in pipeline order: the first reads the file, every later one is handed what the one before it printed.
     public let stages: [[String]]
+    /// Whether a `Read` tool call asked for the window rather than a shell command: the same lines, priced apart, since a `Read` window inside one top-level declaration runs where a shell window's is answered (``InPlaceAnswerer/readsLinesNoDigestShows(_:windows:in:engine:spelling:)``).
+    public let isReadTool: Bool
 
-    public init(stages: [[String]]) {
+    public init(stages: [[String]], isReadTool: Bool = false) {
         self.stages = stages
+        self.isReadTool = isReadTool
     }
 
     /// The most lines a `Read` prints where it is given no `limit`.
@@ -20,7 +23,7 @@ public struct LineWindow: Equatable, Sendable {
 
     /// The window a `Read` with `offset`/`limit` is: `limit` lines from line `offset`, ``readDefaultLimit`` where no limit is given.
     public init(offset: Int?, limit: Int?) {
-        self.init(stages: [["tail", "-n", "+\(max(offset ?? 1, 1))"], ["head", "-n", "\(limit ?? Self.readDefaultLimit)"]])
+        self.init(stages: [["tail", "-n", "+\(max(offset ?? 1, 1))"], ["head", "-n", "\(limit ?? Self.readDefaultLimit)"]], isReadTool: true)
     }
 
     /// The lines the window prints of a file of `count` lines whose bytes are not known, in ascending order, or `nil` where a stage cannot be read without them — a byte count among them.

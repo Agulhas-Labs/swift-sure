@@ -49,7 +49,7 @@ struct RunFilteredReachHintTests {
         let lines = withLine.printed.split(separator: "\n").map(String.init)
         let note = lines.filter { $0.hasPrefix("  filtered:") }
         #expect(note.count == 1, "\(withLine.printed)")
-        #expect(note.first?.contains("1 suite reaching it did not run — run swift test --filter PalletTests --filter GizmoTests.GadgetTests") == true, "\(withLine.printed)")
+        #expect(note.first?.contains("1 suite reaching it did not run — run swift test --filter GizmoTests.GadgetTests") == true, "\(withLine.printed)")
         let totals = lines.firstIndex { $0.hasPrefix("totals:") }
         #expect(totals != nil && lines.firstIndex { $0.hasPrefix("  filtered:") } == totals.map { $0 + 1 }, "\(withLine.printed)")
         #expect(lines.filter { !$0.hasPrefix("  filtered:") && !$0.hasPrefix("raw:") } == without.printed.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("raw:") })
@@ -70,6 +70,6 @@ struct RunFilteredReachHintTests {
 
         let note = answer.printed.split(separator: "\n").filter { $0.hasPrefix("  filtered:") }
         #expect(note.count == 1, "\(answer.printed)")
-        #expect(note.first?.contains("--filter PalletTests --filter GizmoTests.GadgetTests") == true, "\(answer.printed)")
+        #expect(note.first?.contains("run swift test --filter GizmoTests.GadgetTests (") == true, "\(answer.printed)")
     }
 }

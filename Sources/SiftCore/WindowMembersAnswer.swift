@@ -75,6 +75,20 @@ struct WindowMembersAnswer {
         }
     }
 
+    /// Whether the members answer for `range` would list the members of one top-level declaration and nothing else — a window inside one type or extension, starting below its declaration line, across one or more of its members — so it would print that declaration's header and member lines, not the lines asked for.
+    ///
+    /// A range taking in the declaration's own line or its doc comment is reading the declaration, whose header its answer summarises, as ``namesOneMember(_:inFile:options:)`` reads it; a range between members, or in no declaration, is answered otherwise and is not one. Nor is one whose answer carries a SwiftUI view outline, a summary of its lines, as in ``namesOneMember(_:inFile:options:)``.
+    func listsOneTopLevelDeclaration(_ range: ClosedRange<Int>, inFile path: String, options: DigestOptions) throws -> Bool {
+        guard let file = try WalkedFile(renderer: renderer, path: path) else { return false }
+        let members = try printedMembers(range, of: file, options: options).members
+        if !options.signaturesOnly, members.contains(where: { $0.row.viewOutline?.isEmpty == false }) {
+            return false
+        }
+        let topLevel = members.filter { $0.depth == 0 }
+        guard topLevel.count == 1, let declaration = topLevel.first else { return false }
+        return declaration.descends && declaration.row.line < range.lowerBound
+    }
+
     /// Whether the first page of the file's digest reaches every one of `ranges`: one page holds the whole digest, or each range ends above the first declaration the page leaves for a later one, its leading doc comment included — the listing runs in source order, so a page names nothing at or past that line.
     func firstPageReaches(_ ranges: [ClosedRange<Int>], inFile path: String, options: DigestOptions) throws -> Bool {
         guard let file = try WalkedFile(renderer: renderer, path: path) else { return false }
@@ -166,5 +180,12 @@ private extension WindowMembersAnswer {
         }
         try render(file.topLevel, depth: 0)
         return (printed, gap)
+    }
+}
+
+public extension SiftEngine {
+    /// Whether the members answer for `range` in the file at `path` would list members of one top-level declaration only, the range starting below that declaration's own line, or `false` where the index holds no file there.
+    func listsOneTopLevelDeclaration(_ range: ClosedRange<Int>, inFile path: String, options: DigestOptions) throws -> Bool {
+        try WindowMembersAnswer(renderer: makeDigestRenderer()).listsOneTopLevelDeclaration(range, inFile: path, options: options)
     }
 }

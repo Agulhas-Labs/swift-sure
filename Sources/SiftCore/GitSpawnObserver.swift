@@ -11,11 +11,6 @@ import os
 struct GitSpawnObserver {
     typealias Handler = @Sendable (_ arguments: [String], _ directory: URL) -> Void
 
-    /// The handler, held in a struct: a bare function read back through the lock's `inout` state came out wrapped in one more reabstraction thunk on every call, until about 6,000 spawns into a run one call overflowed its thread's stack.
-    private struct Installed {
-        let handler: Handler
-    }
-
     private static let installed = OSAllocatedUnfairLock<Installed?>(initialState: nil)
 
     static func install(_ handler: @escaping Handler) {
@@ -28,5 +23,12 @@ struct GitSpawnObserver {
 
     static func notify(_ arguments: [String], in directory: URL) {
         installed.withLock { $0 }?.handler(arguments, directory)
+    }
+}
+
+extension GitSpawnObserver {
+    /// The handler, held in a struct: a bare function read back through the lock's `inout` state came out wrapped in one more reabstraction thunk on every call, until about 6,000 spawns into a run one call overflowed its thread's stack.
+    private struct Installed {
+        let handler: Handler
     }
 }

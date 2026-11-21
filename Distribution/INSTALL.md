@@ -21,9 +21,10 @@ swift-sure audit --since today     # the share, and every lookup that went aroun
 swift-sure report --since today    # what was called, how fast, and what it saved
 ```
 
-`audit` answers "was this worth having"; `report` is the call log behind it. Both are **pseudonymised
-by default** (names become stable salted pseudonyms, counts stay), so a report is safe to paste anywhere;
-`--unredact` prints the real names.
+`audit` answers "was this worth having"; `report` is the call log behind it. `audit` and `flakes` are
+**pseudonymised by default** (names become stable salted pseudonyms, counts stay), so their output is safe
+to paste anywhere; `--unredact` prints the real names. **`report` is not redacted**: its page holds the real
+roots, files and lookup targets, so keep it on your machine and share `audit` instead.
 
 ## What changed
 

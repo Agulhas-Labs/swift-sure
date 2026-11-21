@@ -53,6 +53,9 @@ struct WindowNamingOneMemberTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 405 ... 437, in: root))
 
+        if spelling.runsInsideOneDeclaration(outcome) {
+            return
+        }
         guard case let .answered(answered) = outcome else {
             Issue.record("a window across two members is answered, got \(outcome)")
             return
@@ -78,6 +81,26 @@ struct WindowNamingOneMemberTests {
 
         guard case let .answered(answered) = outcome else {
             Issue.record("a window inside a view body is answered, got \(outcome)")
+            return
+        }
+
+        #expect(answered.reason.contains("VStack :5"))
+    }
+
+    /// A window across a view's body and a helper of the same view stays answered with the outline, a `Read` as much as a shell window.
+    @Test(arguments: WindowReadSpelling.allCases)
+    func aWindowAcrossAViewBodyAndAHelperIsAnswered(spelling: WindowReadSpelling) async throws {
+        let root = try await InPlaceAnswerTests.indexedRepository()
+        let rows = (1 ... 12).map { "            Text(\"row \($0)\")\(Self.padding)\(Self.padding)\(Self.padding)" }
+        let filler = (1 ... 80).map { "func filler\($0)(value: Int) -> Int { value }" }
+        let source = ["import SwiftUI", "", "struct Screen: View {", "    var body: some View {", "        VStack {"] + rows + ["        }", "    }", "    func helper() -> Int {", "        1", "    }", "}", ""] + filler + [""]
+        try source.joined(separator: "\n").write(to: root.appendingPathComponent("Sources/App/Screen.swift"), atomically: true, encoding: .utf8)
+        try await SiftEngine(directory: root).ensureFresh()
+
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Screen.swift", lines: 6 ... 21, in: root))
+
+        guard case let .answered(answered) = outcome else {
+            Issue.record("a window across a view body and a helper is answered, got \(outcome)")
             return
         }
 

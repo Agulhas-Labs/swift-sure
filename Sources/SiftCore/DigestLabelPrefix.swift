@@ -45,7 +45,9 @@ struct DigestLabelPrefix {
                 return Answer(text: "resolved \(written) to \(first.name) (the only \(base) on \(typeName) whose labels begin \(begin))\n" + body, missed: false)
             }
             let only = synthesized[0]
-            let lines = ["resolved \(written) to \(only.label) (the only \(base) on \(typeName) whose labels begin \(begin))"] + SynthesizedInitializer.lines(for: only.found)
+            let paths = [only.found.path]
+            let banners = try renderer.parseErrorBanner(touching: paths) + renderer.guessedModuleBanner(touching: paths)
+            let lines = banners + ["resolved \(written) to \(only.label) (the only \(base) on \(typeName) whose labels begin \(begin))"] + SynthesizedInitializer.lines(for: only.found)
             return Answer(text: lines.joined(separator: "\n"), missed: false)
         }
         var lines = try renderer.absenceBanner()

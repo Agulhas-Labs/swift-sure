@@ -42,6 +42,7 @@ buildServer.json
 Benchmarks/results/*
 !Benchmarks/results/sample/
 
-# machine-local pre-commit check, never tracked
+# machine-local pre-commit and pre-push checks, never tracked
 githooks/pre-commit.local
+githooks/pre-push.local
 __pycache__/

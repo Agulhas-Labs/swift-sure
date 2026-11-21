@@ -39,7 +39,12 @@ struct MemberwiseParameters {
         // A `lazy` property always has one, so it reads as a parameter with a default, as the compiler makes it.
         let parameter: Bool? = shown.binding.initializer != nil ? Self.isDefaulted(shown) : isDefaultedAsWritten(property) ?? true
         guard let isDefaulted = parameter else { return .some(nil) }
-        return ParameterLabels.Parameter(label: WrittenArguments.label(identifier), isDefaulted: isDefaulted, isVariadic: false)
+        return ParameterLabels.Parameter(
+            label: WrittenArguments.label(identifier),
+            isDefaulted: isDefaulted,
+            isVariadic: false,
+            takesClosure: ClosureParameterType.takesClosure(bindings: shown.rest)
+        )
     }
 
     /// Whether the property `written` binds is a defaulted parameter, or `nil` where it is no parameter: a `let` with an initial value.

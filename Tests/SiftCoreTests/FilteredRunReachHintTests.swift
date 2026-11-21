@@ -66,7 +66,7 @@ struct FilteredRunReachHintTests {
         let root = try await Self.checkout()
         let lines = try Self.lines(Self.widgetNames, arguments: Self.oneFilter, root: root)
 
-        #expect(lines == ["  filtered: the working tree changes Core.swift; 1 suite reaching it did not run — run swift test --filter WidgetTests --filter LibTests.GadgetTests (swift-sure affected lists every suite)"])
+        #expect(lines == ["  filtered: the working tree changes Core.swift; 1 suite reaching it did not run — run swift test --filter LibTests.GadgetTests (swift-sure affected lists every suite)"])
     }
 
     @Test
@@ -86,7 +86,7 @@ struct FilteredRunReachHintTests {
 
         let line = try #require(lines.first)
 
-        #expect(line.contains("2 suites reaching it did not run in full: LibTests.WidgetTests (2 of 3 ran) — run swift test --filter 'testA|testB' --filter LibTests.GadgetTests --filter LibTests.WidgetTests"))
+        #expect(line.contains("2 suites reaching it did not run in full: LibTests.WidgetTests (2 of 3 ran) — run swift test --filter LibTests.GadgetTests --filter LibTests.WidgetTests"))
     }
 
     @Test
@@ -99,13 +99,13 @@ struct FilteredRunReachHintTests {
     @Test
     func theLineNamesFiveSuitesAndCountsTheRest() throws {
         let suites = (1 ... 8).map { FilteredRunReachHint.Suite(filter: "LibTests.Suite\($0)", ran: 0, declared: 2) }
-        let hint = FilteredRunReachHint(files: ["Sources/Lib/Core.swift", "Sources/Lib/More.swift", "Sources/Lib/Less.swift"], patterns: ["Other"], suites: suites)
+        let hint = FilteredRunReachHint(files: ["Sources/Lib/Core.swift", "Sources/Lib/More.swift", "Sources/Lib/Less.swift"], suites: suites)
         let line = try #require(hint.line)
 
         #expect(line.contains("changes Core.swift and 2 more files; 8 suites reaching it did not run"))
-        #expect(line.contains("--filter Other --filter LibTests.Suite1 --filter LibTests.Suite2 --filter LibTests.Suite3 --filter LibTests.Suite4 --filter LibTests.Suite5 (+3 more; swift-sure affected lists every suite)"))
+        #expect(line.contains("run swift test --filter LibTests.Suite1 --filter LibTests.Suite2 --filter LibTests.Suite3 --filter LibTests.Suite4 --filter LibTests.Suite5 (+3 more; swift-sure affected lists every suite)"))
         #expect(!line.contains("Suite6"))
-        #expect(FilteredRunReachHint(files: ["A.swift"], patterns: [], suites: []).line == nil)
+        #expect(FilteredRunReachHint(files: ["A.swift"], suites: []).line == nil)
     }
 
     @Test

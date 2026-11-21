@@ -158,6 +158,9 @@ struct RunCommand: ParsableCommand {
     /// How long the line under a refused `--filter` may take to find the suites before it is left out (``UnmatchedFilterHint/lookupBudget`` in every real invocation) — injected for the same reason as ``inventoryBudget``: a fixture's lookup competes with a loaded suite run for the CPU, and the wiring under test is not the wait.
     var hintBudget: TimeInterval = UnmatchedFilterHint.lookupBudget
 
+    /// How many ids a green filtered run may file for later runs to count; a seam so a test need not run 501 tests.
+    var recordedIdentifierLimit = FilteredRunReachHint.recordedIdentifierLimit
+
     /// When a wrapped `swift test` that never exits is stopped (``RunTestStall/standard`` in every real invocation) — injected so a fixture can be stopped in under a second rather than thirty.
     var stall: RunTestStall = .standard
 
@@ -181,6 +184,9 @@ struct RunCommand: ParsableCommand {
         if asked.rewritten {
             output.emit(RunRewrite.notice(for: asked.arguments))
         }
+        // Read before `--root` moves the process: the directory the command was started from is what tells the
+        // `raw:` line whether its log path must be absolute, and after the change it would always equal the run's own.
+        let startedIn = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         // Before anything reads the process's directory, so a `--root` run is a cd'd run by construction.
         if let directory {
             let logical = RunRootPath.logical(
@@ -340,10 +346,15 @@ struct RunCommand: ParsableCommand {
         // same command passes: a handoff that cites the path must still find it. A did-not-build log is already kept.
         // Settled on the code the run exits with, so a run the inventory turned into a 6 is a failure kept, never a pass that clears the kept ones.
         outcome.log?.settle(exitCode: requiredInventoryFailed ? RunInventoryRequirement.exitCode : exitCode, command: arguments, in: workingDirectory)
+        // Only a run that took the tree before pays for taking it after: a linter or a passthrough pays for neither.
+        let treeAfter = treeBefore == nil ? nil : builtRoot.flatMap { TreeKey.of(repositoryRoot: $0) }
+        // Asked once per run, and only by a filtered `swift test` with the ledger on, the one run that reads earlier records.
+        let toolchain = selector?.patterns.isEmpty == false && RunLedger.isOn(environment: environment) ? ToolchainIdentity.current() : nil
+        let earlier = toolchain.map { earlierCoverage(treeBefore: treeBefore, treeAfter: treeAfter, in: builtRoot, toolchain: $0) } ?? []
         let inventory = held.lines
             + UnmatchedFilterHint.lines(after: outcome, selector: selector, repositoryRoot: writesUnder ?? root, budget: hintBudget)
-            + FilteredRunReachHint.lines(after: outcome, selector: selector, repositoryRoot: writesUnder ?? root, budget: hintBudget)
-        var answerLines = report(outcome, workingDirectory: workingDirectory, accessibility: accessibility, bundles: bundles, selector: selector, inventory: inventory)
+            + FilteredRunReachHint.lines(after: outcome, selector: selector, repositoryRoot: writesUnder ?? root, budget: hintBudget, earlier: earlier)
+        var answerLines = report(outcome, workingDirectory: workingDirectory, startedIn: startedIn, accessibility: accessibility, bundles: bundles, selector: selector, inventory: inventory)
         if let coverageStart {
             let section = coverageSection(checkouts, workingDirectory: workingDirectory, treeBefore: coverageStart.tree, started: coverageStart.date)
             section.forEach(output.emit)
@@ -354,9 +365,9 @@ struct RunCommand: ParsableCommand {
         // Both keys, and they must agree: a tree edited while the command ran was read whole by neither
         // side of it, so a record of either key would stand for something never built or tested.
         let green = ownExitCode == nil && outcome.exitCode == 0 && !requiredInventoryFailed
-        if green || RunCommandKind.executesTests(arguments), let builtRoot, let treeBefore, TreeKey.of(repositoryRoot: builtRoot) == treeBefore.tree {
+        if green || RunCommandKind.executesTests(arguments), let builtRoot, let treeBefore, treeAfter == treeBefore.tree {
             if green {
-                prove(outcome, bundles: bundles, selector: selector, ran: treeBefore, in: builtRoot, milliseconds: elapsed)
+                prove(outcome, bundles: bundles, selector: selector, ran: treeBefore, in: builtRoot, milliseconds: elapsed, toolchain: toolchain)
                 recordGreenBuild(outcome, ran: treeBefore, in: builtRoot, milliseconds: elapsed)
             } else {
                 recordFailure(outcome, ran: treeBefore, in: builtRoot, milliseconds: elapsed, exitCode: finalExitCode)
@@ -445,17 +456,12 @@ struct RunCommand: ParsableCommand {
         return TreeKey.of(repositoryRoot: root).map { ProvableRun(tree: $0, workingDirectory: RunDirectory.name(of: workingDirectory, relativeTo: root)) }
     }
 
-    /// The ledger this run reads and writes: the real one for `root`, or the one under ``writesUnder`` where a test scoped this run.
-    private func ledger(in root: URL, note: @escaping @Sendable (String) -> Void = { _ in }) -> RunLedger {
-        RunLedger.inRepository(at: writesUnder ?? root, note: note)
-    }
-
     /// Files this run as a green proof of the tree it read, when it is one.
     ///
     /// **Both keys, and they must agree.** `ran` is the tree as it stood when the command launched; the caller takes it again after, and a tree edited while the suite ran records nothing — the suite read neither of the two trees whole, and the later gate would otherwise skip on a proof of something that was never tested.
     ///
     /// Silent on every way it can fail to apply, like the durations it sits beside: a proof is a saving offered to a later gate, never a reason to change what this run reported or exited with. Every refusal here costs one suite run, which is the direction each of them is chosen to fail in.
-    private func prove(_ outcome: RunOutcome, bundles: RunTestBundles, selector: RunTestSelector?, ran: ProvableRun, in root: URL, milliseconds: Int) {
+    private func prove(_ outcome: RunOutcome, bundles: RunTestBundles, selector: RunTestSelector?, ran: ProvableRun, in root: URL, milliseconds: Int, toolchain known: ToolchainIdentity? = nil) {
         guard RunCommandKind.executesTests(arguments) else {
             return
         }
@@ -465,11 +471,11 @@ struct RunCommand: ParsableCommand {
             return recordFailure(outcome, ran: ran, in: root, milliseconds: milliseconds)
         }
         // Switched off, a green proves nothing; only the red above still lands.
-        guard RunLedger.isOn(environment: environment), let toolchain = ToolchainIdentity.current() else {
+        guard RunLedger.isOn(environment: environment), let toolchain = known ?? ToolchainIdentity.current() else {
             return
         }
         ledger(in: root, note: { StandardStreams.emitError($0) })
-            .recordGreen(ledgerRecord(outcome, ran: ran, in: root, toolchain: toolchain.description, milliseconds: milliseconds))
+            .recordGreen(ledgerRecord(outcome, ran: ran, in: root, toolchain: toolchain.description, milliseconds: milliseconds, ranIdentifiers: recordedIdentifiers(outcome, selector: selector)))
     }
 
     /// Files this red run of tests in the ledger's ``RunLedger/failedRuns`` and drops the green runs of the same command on the same content it contradicts, so `--proved` does not stand on one.
@@ -489,7 +495,8 @@ struct RunCommand: ParsableCommand {
     ///
     /// - Parameter keyed: Whether the command is the proof key (build-location options removed, ``ProofKey``) rather than argv as spelled, which is what the green-build record the stop gate reads keeps.
     /// - Parameter exitCode: The exit code this run exits with, for a red record; `nil` for a green one, which leaves the exit code and the stopped mark out.
-    func ledgerRecord(_ outcome: RunOutcome, ran: ProvableRun, in root: URL, toolchain: String, milliseconds: Int, keyed: Bool = true, exitCode: Int32? = nil) -> RunLedger.Record {
+    /// - Parameter ranIdentifiers: The ids a green filtered run ran, filed for ``FilteredRunReachHint``; `nil` otherwise.
+    func ledgerRecord(_ outcome: RunOutcome, ran: ProvableRun, in root: URL, toolchain: String, milliseconds: Int, keyed: Bool = true, exitCode: Int32? = nil, ranIdentifiers: [String]? = nil) -> RunLedger.Record {
         RunLedger.Record(
             tree: ran.tree.value,
             command: keyed ? ProofKey.command(of: arguments) : arguments.joined(separator: " "),
@@ -501,7 +508,8 @@ struct RunCommand: ParsableCommand {
             workingDirectory: ran.workingDirectory,
             arguments: recordedArguments,
             exitCode: exitCode,
-            stoppedBySift: exitCode == nil ? nil : outcome.stoppedTest != nil
+            stoppedBySift: exitCode == nil ? nil : outcome.stoppedTest != nil,
+            ran: ranIdentifiers
         )
     }
 
@@ -588,10 +596,11 @@ extension RunCommand {
     ///
     /// That count is what the run log files as this run's `shown`, and it is taken from the thing that was printed rather than from anything counted on the way to it. `nil` where there is no measurement to make: a passthrough filtered nothing, and the two error branches below served no answer at all — the accessibility notes they still print are the one thing they handed the caller, and a `shown` of 1 beside a log nobody was served would read as a saving that never happened. The fail-open branch reports the whole transcript's length *and* those notes, because that is honestly what it printed — a run that served its raw log saved nothing, and recording the filtered answer it never printed would put a saving in the ledger that never happened.
     ///
+    /// - Parameter startedIn: The directory the process was started in, before `--root` moved it; `nil` reads the process's current one.
     /// - Parameter selector: The tests argv named to run, so a run that executed none of them answers `✘`.
     /// - Parameter bundles: What the package's manifest says this run was owed, read by the caller because that is where argv is: what `swift test` was pointed at decides whether the manifest beside the reader is the package that ran. The same value decides whether the run may stand for its tree, and one reading serves both.
     /// - Parameter inventory: What ``RunInventoryCheck`` said about the run, which only the filtered answer carries.
-    func report(_ outcome: RunOutcome, workingDirectory: URL, accessibility: [SimulatorAccessibility.Restoration], bundles: RunTestBundles, selector: RunTestSelector?, inventory: [String] = []) -> Int? {
+    func report(_ outcome: RunOutcome, workingDirectory: URL, startedIn: URL? = nil, accessibility: [SimulatorAccessibility.Restoration], bundles: RunTestBundles, selector: RunTestSelector?, inventory: [String] = []) -> Int? {
         // Owed by the run whichever way its answer goes out: in the filtered answer under its totals, beside the
         // passthrough note, or among the notes that close the raw log.
         let held = (outcome.heldOutput.map { [$0.note] } ?? []) + (outcome.exitCode != 0 && XcodebuildTestDiagnostics.turnsOff(in: asked.arguments) ? [XcodebuildTestDiagnostics.note] : [])
@@ -603,7 +612,7 @@ extension RunCommand {
         // A stopped `swift test` opens its answer with the stop, whichever way the rest goes out.
         let stopped = outcome.stoppedTest?.lines ?? []
         stopped.forEach(output.emit)
-        if let answer = outcome.filteredAnswer(workingDirectory: workingDirectory, accessibility: accessibility, testBundles: bundles, selector: selector, inventory: inventory + held, stamped: true) {
+        if let answer = outcome.filteredAnswer(workingDirectory: workingDirectory, accessibility: accessibility, testBundles: bundles, selector: selector, inventory: inventory + held, stamped: true, startedIn: startedIn) {
             output.emit(answer.text)
             return answer.lines + stopped.count
         }
@@ -650,6 +659,11 @@ extension RunCommand {
 }
 
 extension RunCommand {
+    /// The ledger this run reads and writes: the real one for `root`, or the one under ``writesUnder`` where a test scoped this run.
+    private func ledger(in root: URL, note: @escaping @Sendable (String) -> Void = { _ in }) -> RunLedger {
+        RunLedger.inRepository(at: writesUnder ?? root, note: note)
+    }
+
     /// The tree a run is about to read, bundled with the repository-relative directory it reads it from.
     ///
     /// The two travel together because a proof must agree on both: a suite run from a nested package's directory and one run at the repository root are different runs of the same argv, however identical their tree.
@@ -660,6 +674,38 @@ extension RunCommand {
 }
 
 extension RunCommand {
+    /// The test ids earlier green filtered runs of this tree filed, one array per run that `--proved` would still answer for: what a filtered run's reach line counts as already run.
+    ///
+    /// Empty unless the tree is the same before and after this run, so ids are never carried onto a tree that moved while it ran.
+    private func earlierCoverage(treeBefore: ProvableRun?, treeAfter: TreeKey?, in builtRoot: URL?, toolchain: ToolchainIdentity) -> [[String]] {
+        guard let builtRoot, let treeBefore, treeAfter == treeBefore.tree else {
+            return []
+        }
+        let ledger = ledger(in: builtRoot)
+        let candidates = ledger.provingRecords().filter {
+            $0.tree == treeBefore.tree.value && $0.ran != nil && ($0.workingDirectory ?? ".") == treeBefore.workingDirectory
+        }
+        var commands: [String] = []
+        for command in candidates.map(\.command) where !commands.contains(command) {
+            commands.append(command)
+        }
+        return commands.compactMap { command in
+            let trust = ledger.trust(tree: treeBefore.tree, command: command, toolchain: toolchain, workingDirectory: treeBefore.workingDirectory, checkout: builtRoot.path, environment: environment)
+            guard case let .proved(record) = trust else { return nil }
+            return record.ran
+        }
+    }
+
+    /// The ids a green filtered run files for later runs to count, sorted, or `nil` for an unfiltered run, one that cannot say what it ran, or one with more than ``FilteredRunReachHint/recordedIdentifierLimit``.
+    private func recordedIdentifiers(_ outcome: RunOutcome, selector: RunTestSelector?) -> [String]? {
+        guard let selector, !selector.patterns.isEmpty, let report = outcome.report, let ids = selector.ranIdentifiers(report),
+              ids.count <= recordedIdentifierLimit
+        else {
+            return nil
+        }
+        return ids.sorted()
+    }
+
     /// The lines ``RunInventoryCheck`` owes this run's answer: the unchecked line for an unnarrowed `xcodebuild` test run it does not bound, and none for any other run it does not bound.
     ///
     /// The package is the one the command tests, nested or not, and the index read is that of the repository holding it.

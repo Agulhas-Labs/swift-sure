@@ -49,6 +49,8 @@ extension InPlaceAnswerer {
     }
 
     /// Whether any of `windows` on the file at `path` reads lines no digest shows — only lines of a declaration's leading doc comment, which a digest carries the summary of at most, or lines whose members answer would name one member and nothing else, which the reader who chose the window already knew — so that window is never answered in place, whatever an answer would save.
+    ///
+    /// A `Read` window whose members answer would list the members of one top-level declaration only runs too, unless it prints most of the file and is weighed as its whole read (``WholeReadWorth/printsMost(_:ofFileAt:in:)``): nine in ten such answers were followed by the source of the same lines. A shell window keeps its own price.
     static func readsLinesNoDigestShows(_ path: String, windows: [LineWindow], in directory: String?, engine: SiftEngine, spelling: CallSpelling) throws -> Bool {
         guard !windows.isEmpty,
               let file = try OperandFile.indexed(path, in: directory, engine: engine),
@@ -56,7 +58,12 @@ extension InPlaceAnswerer {
         else {
             return false
         }
-        return try ranges.contains { try engine.liesInLeadingDocComment($0, inFile: file.relative) || engine.namesOneMember($0, inFile: file.relative, options: DigestOptions(spelling: spelling)) }
+        let options = DigestOptions(spelling: spelling)
+        let readInsideOneDeclaration = windows.allSatisfy(\.isReadTool) && !WholeReadWorth.printsMost(windows, ofFileAt: path, in: directory)
+        return try ranges.contains { range in
+            try engine.liesInLeadingDocComment(range, inFile: file.relative) || engine.namesOneMember(range, inFile: file.relative, options: options)
+                || readInsideOneDeclaration && engine.listsOneTopLevelDeclaration(range, inFile: file.relative, options: options)
+        }
     }
 
     /// The bytes the whole read of the file at `path` is weighed with: that read's own answer, computed by ``digestAnswer(_:windows:in:engine:freshness:spelling:cutting:onRender:)`` and chosen by ``served(_:under:)`` as a `cat` of the file is under `conditions` — the whole digest where it fits the size budget, its first page cut to fit otherwise — or `nil` where that read would not be answered.

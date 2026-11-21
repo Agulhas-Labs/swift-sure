@@ -548,6 +548,11 @@ extension IndexStore {
         try symbolRows(StoreStatement.everyTypealiasClause.sql) { _ in }
     }
 
+    /// Every nominal type, typealias and associated type declaration in the repository, top-level and nested.
+    func everyTypeLike() throws -> [SymbolRow] {
+        try symbolRows(StoreStatement.everyTypeLikeClause.sql) { _ in }
+    }
+
     /// Every `macro` declaration in the repository.
     func everyMacro() throws -> [SymbolRow] {
         try symbolRows(StoreStatement.everyMacroClause.sql) { _ in }
@@ -635,6 +640,11 @@ public extension IndexStore {
         ) { statement in
             statement.bind(1, path)
         }
+    }
+
+    /// The classes naming a class or typealias declared in the repository, and the extensions declaring a `test…()` method, across every file: the candidates `TestSymbolReader` walks for an XCTest case in a file importing no testing library, in one query rather than one per file.
+    func xcTestCaseCandidates() throws -> [SymbolRow] {
+        try symbolRows(StoreStatement.xcTestCaseCandidatesClause.sql) { _ in }
     }
 
     /// Top-level symbols of one module, in path + source order.

@@ -176,7 +176,7 @@ struct TestSymbolReaderTests {
         #expect(full.suiteIsNested)
     }
 
-    /// A method of a struct nested in a test case is no test, and the runner would reject a path naming it, so its reference counts for the case that encloses the struct.
+    /// A method of a struct nested in a test case is no test, and the runner would reject a path naming it, so its reference counts for the case that encloses the struct, which runs a test of its own.
     @Test
     func aMethodOfAStructNestedInATestCaseNamesTheCaseNotTheMethod() throws {
         let store = try Self.store(
@@ -189,6 +189,8 @@ struct TestSymbolReaderTests {
                         Widget().polish()
                     }
                 }
+
+                func testOne() {}
             }
             """,
             at: "Tests/LibTests/WidgetTests.swift"

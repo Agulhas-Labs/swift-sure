@@ -1,6 +1,7 @@
 """bench.py's `limited` reaps every process a run leaves standing in its directory, including ones that left
 the run's process group and session, and nothing outside it. Run: python3 -m unittest discover -s Benchmarks/tests"""
 
+import io
 import os
 import shutil
 import signal
@@ -114,6 +115,24 @@ class ReapTests(unittest.TestCase):
             for directory in (bench.REPO, bench.REPO.parent, Path.home()):
                 with self.assertRaises(bench.Halt):
                     bench.reap_under(directory)
+
+    def test_an_lsof_that_fails_with_no_output_halts_rather_than_reaping_nothing(self):
+        failed = subprocess.CompletedProcess(["lsof"], 1, stdout="", stderr="lsof: boom")
+        with mock.patch.object(bench.subprocess, "run", return_value=failed):
+            with self.assertRaises(bench.Halt):
+                bench.working_directories()
+
+    def test_a_process_still_standing_when_the_bound_runs_out_is_named(self):
+        standing = [(424242, self.run_dir)]
+        with mock.patch.object(bench, "working_directories", return_value=standing), \
+                mock.patch.object(bench.os, "kill"), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            bench.reap_under(self.run_dir, bound=0.2)
+        self.assertIn("still standing after 0.2 s: pid 424242 in %s" % self.run_dir, stderr.getvalue())
+
+    def test_wall_time_ends_before_the_reap(self):
+        with mock.patch.object(bench, "reap_under", side_effect=lambda _: time.sleep(0.5)):
+            bench.limited(["/usr/bin/true"], 60, self.run_dir, self.env)
+        self.assertLess(bench.LAST_ENDED, time.time() - 0.4, "LAST_ENDED was taken after the reap")
 
 
 if __name__ == "__main__":

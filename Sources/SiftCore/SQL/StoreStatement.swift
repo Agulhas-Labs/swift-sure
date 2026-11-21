@@ -44,6 +44,8 @@ enum StoreStatement {
     case symbolsInFileClause
     case everyTypealiasClause
     case everyMacroClause
+    case everyTypeLikeClause
+    case xcTestCaseCandidatesClause
 
     private static var fileColumns: String {
         [
@@ -158,6 +160,19 @@ enum StoreStatement {
         case .symbolsInFileClause: "WHERE f.\(FilesTable.path) = ?"
         case .everyTypealiasClause: "WHERE s.\(SymbolsTable.kind) = 'typealias'"
         case .everyMacroClause: "WHERE s.\(SymbolsTable.kind) = 'macro'"
+        case .everyTypeLikeClause: "WHERE s.\(SymbolsTable.kind) IN ('struct','class','actor','enum','protocol','typealias','associatedtype')"
+        case .xcTestCaseCandidatesClause:
+            // A class naming a class or typealias declared in the repository, generic arguments dropped, or an extension declaring a `test…()` method: the only rows a file importing no testing library can hold an XCTest case in.
+            """
+            WHERE (s.\(SymbolsTable.kind) = 'class' AND EXISTS (
+                SELECT 1 FROM \(InheritedTable.name) i JOIN \(SymbolsTable.name) t
+                  ON t.\(SymbolsTable.symbolName) = trim(substr(i.\(InheritedTable.inheritedName), 1, instr(i.\(InheritedTable.inheritedName) || '<', '<') - 1))
+                WHERE i.\(InheritedTable.symbolID) = s.\(SymbolsTable.id) AND t.\(SymbolsTable.kind) IN ('class','typealias')))
+            OR (s.\(SymbolsTable.kind) = 'extension' AND EXISTS (
+                SELECT 1 FROM \(SymbolsTable.name) c
+                WHERE c.\(SymbolsTable.parentID) = s.\(SymbolsTable.id) AND c.\(SymbolsTable.kind) = 'func' AND c.\(SymbolsTable.isStatic) = 0
+                  AND c.\(SymbolsTable.symbolName) GLOB 'test*()'))
+            """
         }
     }
 }

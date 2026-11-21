@@ -8,7 +8,7 @@ import SwiftSyntax
 
 /// The names a by-name scan of `where` looks for, each with the shape a written hit of it must take to be a use of what was asked about.
 ///
-/// A property, a case or a type is used by its name alone, so any whole word counts. A function or an initializer is reached by a call or a reference, and its base name is often a common word that a local or a parameter elsewhere also spells, so a bare-name scan for it lists every line writing the word. Its hits count where the name is followed by `(` and the label of an argument a call can open with, `(` straight into an argument where that one is unlabelled, `()` where every parameter can be left out, `{` or `() {` where it takes any parameter a trailing closure might fill, or nothing of those where it is reached as a member, `Type.f` handed on unapplied; whitespace, line breaks and comments inside the parenthesis are skipped, so a call written across lines and a compound reference are both kept. An initializer's type name is scanned in the same shape, `Box(label:)` calling it as `Box.init(label:)` does. An unapplied reference written without its labels or its owner, `f` alone, is the one use this does not see. Where several declarations share a name, a hit counts if any of their shapes takes it, and a bare one takes every hit.
+/// A property, a case or a type is used by its name alone, so any whole word counts. A function or an initializer is reached by a call or a reference, and its base name is often a common word that a local or a parameter elsewhere also spells, so a bare-name scan for it lists every line writing the word. Its hits count where the name is followed by `(` and the label of an argument a call can open with, `(` straight into an argument where that one is unlabelled, `()` where every parameter can be left out, `{` or `() {` where it takes any parameter a trailing closure might fill, or nothing of those where it is reached as a member, `Type.f` handed on unapplied; whitespace, line breaks and comments inside the parenthesis are skipped, so a call written across lines and a compound reference are both kept. An initializer's type name is scanned in the same shape, `Box(label:)` calling it as `Box.init(label:)` does. An initializer's `U.init` handed on unapplied is not counted where its receiver `U`, read without backticks, is a type the index, the standard library or Foundation proves is another, `String.init`, and the file does not rebind `U` as a generic parameter, a binding or a type of its own; a type the index declares is ruled out only at a use outside every type, extension and protocol declaration of the file, where no conformance can bring an associated type of its name into scope. An unapplied reference written without its labels or its owner, `f` alone, is the one use this does not see. Where several declarations share a name, a hit counts if any of their shapes takes it, and a bare one takes every hit.
 struct ScannedNames: ExpressibleByArrayLiteral {
     private var shapes: [String: CallShape] = [:]
     /// Whether a function's hit reached as a member counts through any receiver, `a.f`, `a().f`, `a?.f`, and not only `self`, a type or a leading dot: set by the check for targets not built, where a lowercase receiver's member is as likely the asked one as not, and a miss hides a use.
@@ -25,10 +25,19 @@ struct ScannedNames: ExpressibleByArrayLiteral {
 
     /// The base names of `rows`, each with the shape its declarations' signatures allow, and an initializer's type name, read from its container in `index`, with the initializer's.
     init(rows: [SymbolRow], in index: IndexStore) throws {
+        var declared: Set<String> = []
+        if rows.contains(where: { $0.kind == .function || $0.kind == .initializer }) {
+            declared = try ClosureParameterType.declaredClosedNames(in: index)
+        }
+        let ruling = InitReceiverRuling(index: index)
         for row in rows {
-            let shape = CallShape(row: row)
+            var shape = CallShape(row: row, standardNames: (try? ClosureParameterType.standardNames(for: row, in: index, declared: declared)) ?? [])
+            let parent = try row.kind == .initializer && !shape.isBare ? row.parentID.flatMap { try index.symbol(withID: $0) } : nil
+            if let parent {
+                shape.ruledOutReceivers = RuledOutReceivers(ruling: ruling, type: parent.name)
+            }
             add(shape, as: row.baseName)
-            guard row.kind == .initializer, !shape.isBare, let parentID = row.parentID, let parent = try index.symbol(withID: parentID),
+            guard let parent,
                   let typeName = parent.name.split(separator: ".").last.map({ String($0.prefix { $0 != "<" }) }), !typeName.isEmpty else { continue }
             add(shape.asTypeName, as: typeName)
         }
@@ -62,9 +71,10 @@ struct ScannedNames: ExpressibleByArrayLiteral {
         let needle = Array(name.utf8)
         let shape = shapes[name] ?? .bare
         let dropsStrings = countsCallsOnly && !shape.isBare
+        let rebindings = ReceiverRebinding.Memo()
         return SwiftMentionLexer.hits(writing: [needle], in: source).filter {
             !(dropsStrings && $0.place == .string)
-                && shape.accepts(hitAt: $0.offset, length: needle.count, in: source, anyReceiver: countsMemberOfAnyReceiver, callsOnly: countsCallsOnly)
+                && shape.accepts(hitAt: $0.offset, length: needle.count, in: source, anyReceiver: countsMemberOfAnyReceiver, callsOnly: countsCallsOnly, rebindings: rebindings)
         }
     }
 
@@ -107,29 +117,31 @@ extension ScannedNames {
         var opensEmpty = false
         /// Whether there is a parameter a trailing closure might fill, `name { … }` or `name() { … }`, its type a closure's or a typealias for one.
         var takesParameters = false
-        /// Whether a hit reached as a member, `Type.name`, is a reference with nothing after it: true for a function or an initializer, false for an initializer's type name, which a member access names as the type.
+        /// Whether a hit reached as a member, `Type.name`, is a reference with nothing after it: true for a function or an initializer, false for an initializer's type name, which a member access names as the type; an initializer's `U.init` whose receiver the index or the standard library proves is another type is not counted either (`ruledOutReceivers`).
         var takesMemberAccess = true
+        /// The receiver names whose `Receiver.init`, handed on unapplied, is not a reference to this initializer, which the index or the standard library proves is another type: those every declaration behind the name rules out.
+        var ruledOutReceivers: RuledOutReceivers?
         /// Whether the name can be followed by generic arguments before its call, `Box<Int>(label:)`.
         var takesGenericArguments = false
         /// The parameters of each declaration behind the name, which a written argument list must fit one of: labels, arity and defaults together.
         var declarations: [ParameterLabels] = []
 
         /// The shape `row` is called in: bare for anything but a function or an initializer, or for one whose signature does not parse back to its name.
-        init(row: SymbolRow) {
+        init(row: SymbolRow, standardNames: Set<String> = []) {
             guard row.kind == .function || row.kind == .initializer else {
                 isBare = true
                 return
             }
-            self = NestingGate.parseOrEmpty(row.signature) { Self(row: row, parsed: $0) }
+            self = NestingGate.parseOrEmpty(row.signature) { Self(row: row, parsed: $0, standardNames: standardNames) }
         }
 
         /// The shape of `row`, read from its signature's parse `tree` on the parse thread that made it.
-        private init(row: SymbolRow, parsed tree: SourceFileSyntax) {
+        private init(row: SymbolRow, parsed tree: SourceFileSyntax, standardNames: Set<String>) {
             guard let list = Self.parameters(of: row, in: tree) else {
                 isBare = true
                 return
             }
-            let labels = ParameterLabels(list)
+            let labels = ParameterLabels(list, standardNames: standardNames)
             opensEmpty = true
             declarations = [labels]
             takesParameters = !list.isEmpty
@@ -167,12 +179,13 @@ extension ScannedNames {
             merged.takesParameters = takesParameters || other.takesParameters
             merged.takesMemberAccess = takesMemberAccess || other.takesMemberAccess
             merged.takesGenericArguments = takesGenericArguments || other.takesGenericArguments
+            merged.ruledOutReceivers = ruledOutReceivers.flatMap { mine in other.ruledOutReceivers.map { mine.intersection($0) } }
             merged.declarations += other.declarations
             return merged
         }
 
         /// Whether the hit `length` bytes long at `start` in `source`, with what surrounds it, is a use of this shape.
-        func accepts(hitAt start: Int, length: Int, in source: UnsafeRawBufferPointer, anyReceiver: Bool = false, callsOnly: Bool = false) -> Bool {
+        func accepts(hitAt start: Int, length: Int, in source: UnsafeRawBufferPointer, anyReceiver: Bool = false, callsOnly: Bool = false, rebindings: ReceiverRebinding.Memo? = nil) -> Bool {
             guard !isBare else { return true }
             guard !callsOnly || !Self.isDeclaration(at: start, in: source) else { return false }
             var index = start + length
@@ -183,11 +196,11 @@ extension ScannedNames {
                 index = Self.skippingGenericArguments(from: index, in: source)
             }
             index = Self.skipping(from: index, in: source, lineBreaks: false)
-            guard index < source.count else { return takesMemberAccess && Self.isMemberAccess(at: start, in: source, anyReceiver: anyReceiver) }
+            guard index < source.count else { return takesMemberAccess && Self.isMemberAccess(at: start, in: source, anyReceiver: anyReceiver, ruledOut: ruledOutReceivers, rebindings: rebindings) }
             if source[index] == UInt8(ascii: "{") {
                 return takesParameters && !Self.typeDeclaringKeywords.contains(Self.word(endingBefore: start, in: source))
             }
-            guard source[index] == UInt8(ascii: "(") else { return takesMemberAccess && Self.isMemberAccess(at: start, in: source, anyReceiver: anyReceiver) }
+            guard source[index] == UInt8(ascii: "(") else { return takesMemberAccess && Self.isMemberAccess(at: start, in: source, anyReceiver: anyReceiver, ruledOut: ruledOutReceivers, rebindings: rebindings) }
             if !declarations.isEmpty, let arguments = Self.arguments(openingAt: index, in: source) {
                 return takes(arguments, in: source)
             }
@@ -409,7 +422,7 @@ extension ScannedNames {
         /// Whether the hit at `start` follows a single `.`, through a backtick, whitespace and line breaks, whose receiver is a type, `self`, `Self` or nothing (a leading-dot implicit member), and not a range's `...`: a lowercase value's property of the same name is not a reference to the function.
         ///
         /// Where the caller asks for any receiver, a value of any spelling is a receiver too, `a.f`, `a().f`, `a?.f`, `a!.f`, `a[0].f`.
-        private static func isMemberAccess(at start: Int, in source: UnsafeRawBufferPointer, anyReceiver: Bool) -> Bool {
+        private static func isMemberAccess(at start: Int, in source: UnsafeRawBufferPointer, anyReceiver: Bool, ruledOut: RuledOutReceivers?, rebindings: ReceiverRebinding.Memo?) -> Bool {
             var index = start - 1
             if index >= 0, source[index] == UInt8(ascii: "`") {
                 index -= 1
@@ -423,13 +436,17 @@ extension ScannedNames {
                 end -= 1
             }
             guard end > 0 else { return true }
-            if source[end - 1] == UInt8(ascii: ">") {
+            let closesGenerics = source[end - 1] == UInt8(ascii: ">")
+            if closesGenerics {
                 end = skippingGenericArgumentsBackward(from: end, in: source)
+            }
+            if !closesGenerics, let ruledOut, isRuledOut(receiverEndingAt: end, hitAt: start, in: source, ruledOut: ruledOut, rebindings: rebindings) {
+                return false
             }
             if anyReceiver, end > 0, isLabelByte(source[end - 1]) || [UInt8(ascii: ")"), UInt8(ascii: "]"), UInt8(ascii: "?"), UInt8(ascii: "!")].contains(source[end - 1]) {
                 return true
             }
-            let receiver = word(endingBefore: end, in: source)
+            let receiver = word(endingBefore: end, in: source).filter { $0 != "`" }
             if let first = receiver.unicodeScalars.first {
                 return receiver == "self" || first.properties.isUppercase
             }
@@ -547,6 +564,25 @@ extension ScannedNames {
 }
 
 extension ScannedNames.CallShape {
+    /// Whether the plain receiver ending at `end` of the hit at `start` is ruled out: a standard name wherever the file does not rebind it, a type the index declares only where the hit also lies outside every type, extension and protocol declaration of the file.
+    private static func isRuledOut(receiverEndingAt end: Int, hitAt start: Int, in source: UnsafeRawBufferPointer, ruledOut: RuledOutReceivers, rebindings: ReceiverRebinding.Memo?) -> Bool {
+        guard let name = plainReceiver(endingAt: end, in: source), let scope = ruledOut.scope(of: name) else { return false }
+        let file = rebindings ?? ReceiverRebinding.Memo()
+        return !file.rebinds(name, in: source) && (scope == .everywhere || !file.isInsideTypeDeclaration(start, in: source))
+    }
+
+    /// The receiver ending at `end` where it is a plain identifier, not written after a `.`, read as its bare name where it is written in backticks.
+    private static func plainReceiver(endingAt end: Int, in source: UnsafeRawBufferPointer) -> String? {
+        let receiver = word(endingBefore: end, in: source)
+        guard !receiver.isEmpty else { return nil }
+        var begin = end - receiver.utf8.count
+        while begin > 0, isSpace(source[begin - 1], lineBreaks: true) {
+            begin -= 1
+        }
+        let bare = receiver.filter { $0 != "`" }
+        return !bare.isEmpty && (begin == 0 || source[begin - 1] != UInt8(ascii: ".")) ? bare : nil
+    }
+
     /// The trailing closures written from `start`: none (`nil`), or the labels of those after the first, and whether a closure's braces did not close in `source`.
     private static func trailingClosures(from start: Int, in source: UnsafeRawBufferPointer) -> (labels: [String?], isUnreadable: Bool)? {
         var index = skipping(from: start, in: source, lineBreaks: true)

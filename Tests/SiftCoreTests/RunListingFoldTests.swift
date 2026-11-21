@@ -8,31 +8,25 @@ import Testing
 
 /// A failure listing says a test's repeated output once: one excerpt printed under several expectations, and the cases of one parameterized expectation.
 struct RunListingFoldTests {
-    /// Three failing `.contains` expectations on one twelve-line string print its excerpt once and point back to it twice, each keeping its own expression.
+    /// Three failing `.contains` expectations on one twelve-line string each say it in one line, so there is no excerpt left to fold or to point back to.
     @Test
-    func threeExpectationsOnOneStringPrintTheExcerptOnce() throws {
+    func threeExpectationsOnOneStringEachSayItInOneLine() throws {
         let lines = Self.answer(logging: Self.containsLog(needles: ["alpha", "beta", "gamma"], lines: 12))
         let start = try #require(lines.firstIndex { $0.hasPrefix("3 failures · 1 signature") })
-        let excerpt = (2 ... 11).map { "      line \($0) of the rendered gizmo" }
+        let clause = "(first of 12 lines — see the raw log)"
 
-        #expect(Array(lines[(start + 1)...].prefix(24)) == [
+        #expect(Array(lines[(start + 1)...].prefix(9)) == [
             "  render() — GizmoTests.swift:12:9",
-            "    Expectation failed: output.contains(\"alpha\") → false output → \"line 1 of the rendered gizmo",
+            "    Expectation failed: output.contains(\"alpha\") → false output → \"line 1 of the rendered gizmo \(clause)",
             "    no line shares text with it",
-        ] + excerpt + [
-            "      … (+1 more lines — see the raw log)",
             "  render() — GizmoTests.swift:13:9",
-            "    Expectation failed: output.contains(\"beta\") → false output → \"line 1 of the rendered gizmo",
+            "    Expectation failed: output.contains(\"beta\") → false output → \"line 1 of the rendered gizmo \(clause)",
             "    no line shares text with it",
-            "      (the same 10 lines as under the failure at GizmoTests.swift:12:9 above)",
-            "      … (+1 more lines — see the raw log)",
             "  render() — GizmoTests.swift:14:9",
-            "    Expectation failed: output.contains(\"gamma\") → false output → \"line 1 of the rendered gizmo",
+            "    Expectation failed: output.contains(\"gamma\") → false output → \"line 1 of the rendered gizmo \(clause)",
             "    no line shares text with it",
-            "      (the same 10 lines as under the failure at GizmoTests.swift:12:9 above)",
-            "      … (+1 more lines — see the raw log)",
         ])
-        #expect(lines.dropFirst(start + 25).first?.hasPrefix("totals:") == true)
+        #expect(lines.dropFirst(start + 10).first?.hasPrefix("totals:") == true)
     }
 
     /// An excerpt that is the first lines of the one printed above folds, and says how many lines its own excerpt runs to.

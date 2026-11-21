@@ -60,14 +60,14 @@ struct WindowMembersImportsTests {
     func aWindowBelowTheImportsIsAnsweredWithItsMembers(spelling: WindowReadSpelling) async throws {
         let root = try await Self.repository()
 
-        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Imports.swift", lines: 44 ... 80, in: root))
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Imports.swift", lines: 43 ... 80, in: root))
 
         guard case let .answered(answered) = outcome else {
             Issue.record("expected an answer, got \(outcome)")
             return
         }
 
-        #expect(answered.calls.map(\.target) == ["Sources/App/Imports.swift:44-80"])
+        #expect(answered.calls.map(\.target) == ["Sources/App/Imports.swift:43-80"])
         #expect(answered.reason.contains("func step3() -> Int  :74-88"))
         #expect(answered.reason.contains(FileDigestParts.larger))
         #expect(!answered.reason.contains("imports: Mod1"))

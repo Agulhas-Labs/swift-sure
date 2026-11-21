@@ -14,7 +14,19 @@ public struct RootArgumentRefusal {
     /// Only a remainder that is a path counts (it starts with `/` or `~`, or names an existing directory), so a query such as `root=foo` stays a query.
     public static func message(targets: [String]) -> String? {
         guard let path = targets.compactMap(Self.path(in:)).first else { return nil }
-        return "root=\(path) is the MCP spelling; on the CLI pass --root \(ShellWord.quoted(path))"
+        return "root=\(path) is the MCP spelling; on the CLI pass --root \(Self.spelled(path))"
+    }
+
+    /// `path` as a shell word for `--root`, leaving a leading `~/` outside the quotes so the shell still expands it (`~/'my dir'`); a bare `~` stays as written.
+    private static func spelled(_ path: String) -> String {
+        if path == "~" {
+            return path
+        }
+        guard path.hasPrefix("~/") else {
+            return ShellWord.quoted(path)
+        }
+        let rest = String(path.dropFirst(2))
+        return rest.isEmpty ? "~/" : "~/" + ShellWord.quoted(rest)
     }
 
     private static func path(in target: String) -> String? {

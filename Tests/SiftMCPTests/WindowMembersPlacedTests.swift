@@ -55,12 +55,33 @@ struct WindowMembersPlacedTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Outer.swift", lines: 85 ... 104, in: root))
 
+        if spelling.runsInsideOneDeclaration(outcome) {
+            return
+        }
         guard case let .answered(answered) = outcome else {
             Issue.record("expected an answer, got \(outcome)")
             return
         }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Outer.swift:85-104"])
+        #expect(answered.reason.contains("func n9() -> Int  :85-94"))
+        #expect(answered.reason.contains("func n10() -> Int  :95-104"))
+        #expect(answered.reason.contains("the whole digest names some of them without their lines"))
+    }
+
+    /// A window from `Outer`'s own declaration line over its nested type's members is answered with those members too; a `Read` of it prints most of the file, so it is weighed as that whole read and answered as the shell's is.
+    @Test(arguments: WindowReadSpelling.allCases)
+    func aWindowFromTheDeclarationOverANestedTypesMembersIsAnswered(spelling: WindowReadSpelling) async throws {
+        let root = try await Self.repository()
+
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Outer.swift", lines: 2 ... 104, in: root))
+
+        guard case let .answered(answered) = outcome else {
+            Issue.record("expected an answer, got \(outcome)")
+            return
+        }
+
+        #expect(answered.calls.map(\.target) == ["Sources/App/Outer.swift:2-104"])
         #expect(answered.reason.contains("func n9() -> Int  :85-94"))
         #expect(answered.reason.contains("func n10() -> Int  :95-104"))
         #expect(answered.reason.contains("the whole digest names some of them without their lines"))

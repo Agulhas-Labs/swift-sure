@@ -64,7 +64,9 @@ struct StopGitSpawnTests {
         #expect(spawns.count(in: directory) { $0.contains("--show-toplevel") } == 1)
     }
 
-    /// The installed handler is called at the same stack depth on the thousandth spawn as on the first. It lives in this serialized suite because the observer is process-wide: two tests installing it at once would replace each other's handler.
+    /// The installed handler is called at the same stack depth on the thousandth spawn as on the first.
+    ///
+    /// It lives in this serialized suite because the observer is process-wide: two tests installing it at once would replace each other's handler.
     @Test
     func theInstalledHandlerRunsAtTheSameDepthOnEverySpawn() throws {
         let probe = try TemporaryDirectory.make("depth")
@@ -80,6 +82,7 @@ struct StopGitSpawnTests {
         }
 
         let recorded = depths.recorded
+
         #expect(recorded.count == 1000)
         #expect(Set(recorded).count == 1, "the call went \(recorded.first.map { $0 - (recorded.last ?? $0) } ?? 0) bytes deeper over 1000 spawns")
     }

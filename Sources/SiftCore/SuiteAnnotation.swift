@@ -31,14 +31,17 @@ final class SuiteAnnotation {
     private var withheld = 0
     private var lastTests: [(suite: SymbolRow, test: SymbolRow)] = []
 
-    /// `nil` for a file that imports no testing library — every ordinary file, which takes none of this.
+    /// `nil` for a file that is no test file — every ordinary file, which takes none of this.
+    ///
+    /// A file importing no testing library is one where it holds an XCTest case, which a case inheriting its base from a test-support module does (``TestSymbolReader/holdsXCTestCase(inFile:)``); only a file holding a class or an extension is walked to find out.
     ///
     /// `signaturesOnly` asks for exactly the signatures, so it inlines nothing; the last test is still named, since it is a location rather than source.
-    init?(file: FileRow, store: IndexStore, repoRoot: URL, options: DigestOptions) {
+    init?(file: FileRow, store: IndexStore, repoRoot: URL, options: DigestOptions) throws {
         let styles = TestSymbolReader.styles(importedBy: file)
-        guard !styles.isEmpty else { return nil }
+        let reader = TestSymbolReader(store: store)
+        guard try !styles.isEmpty || reader.holdsXCTestCase(inFile: file.path) else { return nil }
         self.store = store
-        reader = TestSymbolReader(store: store)
+        self.reader = reader
         self.styles = styles
         self.repoRoot = repoRoot
         inlining = !options.signaturesOnly

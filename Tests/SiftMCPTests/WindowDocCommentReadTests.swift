@@ -27,7 +27,7 @@ struct WindowDocCommentReadTests {
         try rows.joined(separator: "\n").write(to: path, atomically: true, encoding: .utf8)
     }
 
-    /// A window of the six doc-comment lines above a function runs as `linesNotShown`, however much its answer would save; the same window taking in the function above and the declaration's own line as well is still answered, so the saving clears the floor and the doc comment alone is what lets it run.
+    /// A window of the six doc-comment lines above a function runs as `linesNotShown`, however much its answer would save; the same window taking in the function above and `Spawner`'s own declaration line as well is still answered, a `Read` of it no longer running inside one declaration, so the saving clears the floor and the doc comment alone is what lets it run.
     @Test(arguments: WindowReadSpelling.allCases)
     func aWindowOfADeclarationsLeadingDocCommentRuns(spelling: WindowReadSpelling) async throws {
         let root = try await InPlaceAnswerTests.indexedRepository()
@@ -45,7 +45,7 @@ struct WindowDocCommentReadTests {
         try await SiftEngine(directory: root).ensureFresh()
 
         let docOnly = try await Self.outcome(spelling.match(path: "Sources/App/Spawner.swift", lines: 5 ... 10, in: root))
-        let withDeclaration = try await Self.outcome(spelling.match(path: "Sources/App/Spawner.swift", lines: 3 ... 11, in: root))
+        let withDeclaration = try await Self.outcome(spelling.match(path: "Sources/App/Spawner.swift", lines: 2 ... 11, in: root))
 
         #expect(docOnly == .withheld(.linesNotShown))
         guard case .answered = withDeclaration else {
@@ -92,6 +92,29 @@ struct WindowDocCommentReadTests {
         try Self.widen(linesInFile: file, at: 50 ... 55, by: 900)
         try await SiftEngine(directory: root).ensureFresh()
         let wide = try await Self.outcome(spelling.match(path: "Sources/App/Depot.swift", lines: 50 ... 55, in: root))
+
+        #expect(narrow == .withheld(.linesNotShown))
+        if spelling.runsInsideOneDeclaration(wide) {
+            return
+        }
+        guard case .answered = wide else {
+            Issue.record("a window saving over the floor is answered, got \(wide)")
+            return
+        }
+    }
+
+    /// The same contrast for a window that starts on `Depot`'s own declaration line, so a `Read` of it is no longer inside one declaration: saving under the floor it runs as `linesNotShown`, and wide enough to save more it is answered, in both spellings.
+    @Test(arguments: WindowReadSpelling.allCases)
+    func aWindowFromTheDeclarationSavingUnderTheFloorWithoutItsLinesRuns(spelling: WindowReadSpelling) async throws {
+        let root = try await InPlaceAnswerTests.indexedRepository()
+        let file = root.appendingPathComponent("Sources/App/Depot.swift")
+        try Self.widen(linesInFile: file, at: 50 ... 55, by: 200)
+        try await SiftEngine(directory: root).ensureFresh()
+
+        let narrow = try await Self.outcome(spelling.match(path: "Sources/App/Depot.swift", lines: 2 ... 55, in: root))
+        try Self.widen(linesInFile: file, at: 50 ... 55, by: 900)
+        try await SiftEngine(directory: root).ensureFresh()
+        let wide = try await Self.outcome(spelling.match(path: "Sources/App/Depot.swift", lines: 2 ... 55, in: root))
 
         #expect(narrow == .withheld(.linesNotShown))
         guard case .answered = wide else {

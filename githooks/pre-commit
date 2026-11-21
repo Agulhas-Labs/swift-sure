@@ -13,6 +13,12 @@ if [ -x "$hook_dir/pre-commit.local" ]; then
   "$hook_dir/pre-commit.local"
 fi
 
+# The bench harness's own tests (a second or two), whenever anything under Benchmarks/ is staged.
+if git diff --cached --name-only --diff-filter=ACMRD | grep -q '^Benchmarks/'; then
+  echo "==== Benchmarks/tests ===="
+  python3 -m unittest discover -s Benchmarks/tests
+fi
+
 staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.swift$' || true)
 if [ -z "$staged" ]; then
   exit 0

@@ -72,12 +72,14 @@ struct SemanticContext {
         ([store] + inTreeStores).contains { candidate in paths.contains(where: candidate.answers(forFile:)) }
     }
 
-    /// The indexed test files, by the import rule ``TestFileRecognition`` applies, that no store holds a unit for, repo-relative and sorted, split by whether a build of the store's project would add them.
+    /// The indexed test files (``testFiles(in:reader:)``) that no store holds a unit for, repo-relative and sorted, split by whether a build of the store's project would add them.
     ///
     /// `unbuilt` is a test target the last build skipped, which a plain `swift build` always does, a target added since, or a file added to a built target since: the store records no reference from any of them. Where a test build ran, a file in a module no store holds a single unit for is `outsideTargets` instead when it sits in another project of the tree (``ProjectBoundary``: a project no store built, and for SwiftPM's store any project but the root package and those an in-tree store holds a unit in) or, for SwiftPM's store, in a module the root manifest declares no target for: no build of the store's project compiles it. Where no test build ran, every file stays `unbuilt`, since a test build is then what tells them apart; a manifest naming no target literally, or any target by a computed name, is read as declaring every module, so doubt lands on `unbuilt`.
-    func testFilesWithoutUnit(in index: IndexStore, projectDirectories: [String]) throws -> (unbuilt: [String], outsideTargets: [String]) {
+    ///
+    /// `reader` is the caller's, where it has one, so the inheritance walks it has already made are not made again.
+    func testFilesWithoutUnit(in index: IndexStore, projectDirectories: [String], reader: TestSymbolReader? = nil) throws -> (unbuilt: [String], outsideTargets: [String]) {
         let files = try index.fileInventory().values
-        let testFiles = files.filter { TestFileRecognition.isTestFile(imports: $0.imports) }
+        let testFiles = try Self.testFiles(in: files, reader: reader ?? TestSymbolReader(store: index))
         let withoutUnit = testFiles.filter { !anyStoreHasUnit(forFile: $0.path) }
         guard withoutUnit.count < testFiles.count else {
             return (withoutUnit.map(\.path).sorted(), [])
@@ -89,9 +91,15 @@ struct SemanticContext {
         )
     }
 
+    /// The test files among `files`: each importing a testing library, by the rule ``TestFileRecognition`` applies, and each holding an XCTest case although it imports none, which a case inheriting its base from a test-support module does.
+    private static func testFiles(in files: some Collection<FileRow>, reader: TestSymbolReader) throws -> [FileRow] {
+        let caseFiles = try reader.xcTestCaseFilesWithoutTestingImport()
+        return files.filter { TestFileRecognition.isTestFile(imports: $0.imports) || caseFiles.contains($0.path) }
+    }
+
     /// The indexed test files no store holds a unit for, classified by whether any test file has one — what every `where` reader of them decides its advice and its axis on.
     func testFileCoverage(in index: IndexStore) throws -> TestFileCoverage {
-        let testFiles = try index.fileInventory().values.filter { TestFileRecognition.isTestFile(imports: $0.imports) }
+        let testFiles = try Self.testFiles(in: index.fileInventory().values, reader: TestSymbolReader(store: index))
         let withoutUnit = testFiles.count { !anyStoreHasUnit(forFile: $0.path) }
         return TestFileCoverage(withoutUnit: withoutUnit, neverBuilt: withoutUnit > 0 && withoutUnit == testFiles.count, provenance: store.provenance, package: store.package, rootFlag: rootFlag)
     }

@@ -7,20 +7,20 @@ import SwiftSyntax
 
 /// A function's or an initializer's parameters as far as they decide which written calls can reach it.
 ///
-/// It answers one question, and answers it generously: could a call written with these labels be a call of this declaration? A "no" drops a site from a name-matched list, so every rule that lets Swift accept a call is honoured — a defaulted parameter left out, a variadic or a parameter pack taking any count, labels compared as the names they escape, an unlabeled trailing closure standing for any parameter — and nothing about types is judged.
+/// It answers one question, and answers it generously: could a call written with these labels be a call of this declaration? A "no" drops a site from a name-matched list, so every rule that lets Swift accept a call is honoured — a defaulted parameter left out, a variadic or a parameter pack taking any count, labels compared as the names they escape, a trailing closure standing only for a parameter that can take a closure — and the only type judged is whether a parameter's written type rules a closure out. A standard type's bare name does so only where the caller vouches for it: the index declares nothing of that name and no enclosing generic clause does.
 struct ParameterLabels: Sendable, Equatable {
     let parameters: [Parameter]
 
     /// The parameters of a stored signature, or `nil` when it does not parse back to a function or initializer spelled `name`.
     ///
     /// A signature is the declaration's head as the index stored it, whitespace collapsed; one that no longer parses to its own labeled name — a comment that swallowed the rest of the line, a head the parser could not finish — cannot be trusted to say which calls it takes, so it narrows nothing.
-    init?(signature: String, name: String) {
-        guard let labels = NestingGate.parseOrEmpty(signature, { ParameterLabels(parsed: $0, name: name) }) else { return nil }
+    init?(signature: String, name: String, standardNames: Set<String> = []) {
+        guard let labels = NestingGate.parseOrEmpty(signature, { ParameterLabels(parsed: $0, name: name, standardNames: standardNames) }) else { return nil }
         self = labels
     }
 
     /// The labels a signature's parse `tree` declares, read on the parse thread that made it.
-    private init?(parsed tree: SourceFileSyntax, name: String) {
+    private init?(parsed tree: SourceFileSyntax, name: String, standardNames: Set<String>) {
         guard !tree.hasError, let item = tree.statements.first?.item else { return nil }
         let list: FunctionParameterListSyntax
         let base: String
@@ -34,17 +34,19 @@ struct ParameterLabels: Sendable, Equatable {
             return nil
         }
         guard SymbolNaming.labeledName(base: base, parameters: list) == name else { return nil }
-        self.init(list)
+        self.init(list, standardNames: standardNames)
     }
 
-    /// The parameters a declaration's parameter clause writes.
-    init(_ list: FunctionParameterListSyntax) {
+    /// The parameters a declaration's parameter clause writes, where `standardNames` are the standard type names a bare written type may be judged by (``ClosureParameterType``).
+    init(_ list: FunctionParameterListSyntax, standardNames: Set<String> = []) {
+        let generics = ClosureParameterType.generics(enclosing: list)
         parameters = list.map { parameter in
             Parameter(
                 label: WrittenArguments.label(parameter.firstName),
                 isDefaulted: parameter.defaultValue != nil,
                 // A parameter pack takes any number of values, none included, exactly as a variadic does.
-                isVariadic: parameter.ellipsis != nil || parameter.type.is(PackExpansionTypeSyntax.self)
+                isVariadic: parameter.ellipsis != nil || parameter.type.is(PackExpansionTypeSyntax.self),
+                takesClosure: ClosureParameterType.takesClosure(parameter.type, generics: generics, standardNames: standardNames)
             )
         }
     }
@@ -102,7 +104,7 @@ struct ParameterLabels: Sendable, Equatable {
         }
         var candidate = parameter
         while candidate < parameters.count {
-            if matchesLabeledTrailing(from: candidate + 1, closure: 0, arguments) {
+            if parameters[candidate].takesClosure, matchesLabeledTrailing(from: candidate + 1, closure: 0, arguments) {
                 return true
             }
             guard parameters[candidate].isSkippable else { return false }
@@ -117,7 +119,7 @@ struct ParameterLabels: Sendable, Equatable {
         }
         var candidate = parameter
         while candidate < parameters.count {
-            if parameters[candidate].label == arguments.trailingLabels[closure],
+            if parameters[candidate].label == arguments.trailingLabels[closure], parameters[candidate].takesClosure,
                matchesLabeledTrailing(from: candidate + 1, closure: closure + 1, arguments)
             {
                 return true
@@ -141,6 +143,8 @@ extension ParameterLabels {
         let label: String?
         let isDefaulted: Bool
         let isVariadic: Bool
+        /// Whether a closure literal can be passed for it.
+        let takesClosure: Bool
 
         /// Whether a call may pass nothing for it.
         var isSkippable: Bool {

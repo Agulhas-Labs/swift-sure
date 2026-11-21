@@ -51,7 +51,7 @@ struct WhereCommand: AsyncParsableCommand {
             throw ValidationError(message)
         }
         if let stray = strays.first {
-            throw ValidationError("Unexpected argument '\(stray)'")
+            throw ValidationError(StrayArgument.message(stray, help: Self.helpMessage()))
         }
         if declarationsOnly, includeReferences || filesOnly {
             throw ValidationError("--decl answers where \(symbol) is declared, and --refs and --files every place it is written: pass one.")

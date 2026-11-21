@@ -77,14 +77,16 @@ public extension RunOutcome {
     /// - Parameter accessibility: What re-arming the accessibility preference did on each simulator this run named, in argv order — one line per device that owes one, and one qualification on its headline. Empty prints nothing about a device.
     /// - Parameter testBundles: How many test bundles this run was owed a count from, which its own log cannot say — taken as a value, since it is read from the package rather than from the run and the caller holds the argv that decides whether it can be read at all. The default is that nobody asked, and the answer then says nothing about a bundle that never reported.
     /// - Parameter inventory: What ``RunInventoryCheck`` said about the run, placed under its totals line; empty says nothing.
-    /// - Parameter stamped: Whether the `raw:` line opens with the tree and commit the run happened in, which costs two `git` processes; the faces that serve a person ask for it, the internal callers that read the answer back do not.
-    func filteredAnswer(workingDirectory: URL, accessibility: [SimulatorAccessibility.Restoration] = [], testBundles: RunTestBundles = .undetermined, selector: RunTestSelector? = nil, inventory: [String] = [], stamped: Bool = false) -> Answer? {
+    /// - Parameter stamped: Whether the `raw:` line names the log by its absolute path where the process is not in `workingDirectory`, and opens with the tree and commit the run happened in, which costs two `git` processes; the faces that serve a person ask for it, the internal callers that read the answer back do not.
+    /// - Parameter startedIn: With `stamped`, the directory the process was started in, which `--root` may have since moved; `nil` reads the current one.
+    func filteredAnswer(workingDirectory: URL, accessibility: [SimulatorAccessibility.Restoration] = [], testBundles: RunTestBundles = .undetermined, selector: RunTestSelector? = nil, inventory: [String] = [], stamped: Bool = false, startedIn: URL? = nil) -> Answer? {
         guard let report, report.isUsable(exitCode: exitCode) else {
             return nil
         }
         let text = RunReportRenderer(
             kind: kind,
             workingDirectory: workingDirectory,
+            callerDirectory: stamped ? startedIn ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath) : nil,
             changedFiles: changedFiles(of: report),
             sites: sites(of: report),
             accessibility: accessibility,

@@ -10,6 +10,8 @@ import Foundation
 public struct RunReportRenderer: Sendable {
     private let kind: RunCommandKind
     private let paths: RunAnswerPaths
+    /// How the `raw:` line spells the log's path: as the answer spells every path where it is read in the run's own directory, and as the run printed it (absolute) where `--root` pointed elsewhere, since the reader of that line has no way to know which directory it is relative to.
+    private let logPaths: RunAnswerPaths
     private let changedFiles: RunChangedFiles
     private let sites: RunFailureSites
     private let accessibility: [SimulatorAccessibility.Restoration]
@@ -21,6 +23,7 @@ public struct RunReportRenderer: Sendable {
     private let treeStamp: String?
 
     /// - Parameter workingDirectory: Where this answer is being read, which is the only thing the paths in it are stated relative to — and, since that is a fact about the reader rather than about the run, nothing this answer *measures*. See ``RunAnswerPaths``.
+    /// - Parameter callerDirectory: The directory the process printing this answer runs in. Where it is not `workingDirectory` the `raw:` line names the log by its absolute path; `nil` says the two are the same.
     /// - Parameter changedFiles: What the working tree has changed, for the classification's "is this mine?" field. Taken as a value rather than discovered here so this type stays pure — the caller has already paid a `git` process to find the repository root and is the right place to pay for one more. The default states that nobody asked, which is the honest reading and never a zero.
     /// - Parameter sites: The declarations the failure locations resolved to, taken as a value for the same reason and defaulting to nothing resolved — which renders the answer with no resolved lines at all.
     /// - Parameter accessibility: What re-arming the accessibility preference did, one entry per simulator the run named, in argv order — taken as a value for the same reason, since the spawns it costs are the caller's to pay. Empty is a run that put no test on a simulator, and prints no line about one.
@@ -30,6 +33,7 @@ public struct RunReportRenderer: Sendable {
     public init(
         kind: RunCommandKind,
         workingDirectory: URL,
+        callerDirectory: URL? = nil,
         changedFiles: RunChangedFiles = .unavailable(RunChangedFiles.notConsultedReason),
         sites: RunFailureSites = .none,
         accessibility: [SimulatorAccessibility.Restoration] = [],
@@ -42,6 +46,8 @@ public struct RunReportRenderer: Sendable {
         self.inventory = inventory
         self.kind = kind
         paths = .read(in: workingDirectory)
+        let sameDirectory = callerDirectory.map { $0.resolvingSymlinksInPath().path == workingDirectory.resolvingSymlinksInPath().path } ?? true
+        logPaths = sameDirectory ? paths : .asPrinted
         self.changedFiles = changedFiles
         self.sites = sites
         self.accessibility = accessibility
@@ -459,7 +465,8 @@ extension RunReportRenderer {
             return "Swift Testing \(described)\(skipNote(skipped, stated: counted, reported: skipsReported))"
         }
         // Said apart from the last tally, since the run's lines cannot say which tally each skip belongs to.
-        return "Swift Testing \(lines.count) tallies, not summed — \(described)\(skipped > 0 ? "; \(skipped) skipped across them" : skipNote(0, stated: counted, reported: skipsReported).replacingOccurrences(of: ", ", with: "; "))"
+        let cases = RunParameterizedCases.acrossTalliesNote(counts: outcomes.caseCounts, tests: readable.reduce(0) { $0 + $1.tests }, named: outcomes.swiftTestingNames.count)
+        return "Swift Testing \(lines.count) tallies, not summed — \(described)\(cases)\(skipped > 0 ? "; \(skipped) skipped across them" : skipNote(0, stated: counted, reported: skipsReported).replacingOccurrences(of: ", ", with: "; "))"
     }
 
     /// How many Swift Testing tests the run's own lines last reported skipped (a `.disabled` test, one a trait or a cancellation skipped), counted from the skip lines the runner printed.
@@ -673,7 +680,7 @@ extension RunReportRenderer {
             return "raw: none \(arithmetic) — the raw log could not be written, so what is above is all there is"
         }
         let named = treeStamp.map { "\($0) · " } ?? ""
-        return "raw: \(named)\(paths.shown(logURL.path)) \(arithmetic), \(RunLog.retention(ofPath: logURL.path))"
+        return "raw: \(named)\(logPaths.shown(logURL.path)) \(arithmetic), \(RunLog.retention(ofPath: logURL.path))"
     }
 
     /// The summary lines this answer prints: every one of ``summaries(of:)``, less those a plain totals line already restates.

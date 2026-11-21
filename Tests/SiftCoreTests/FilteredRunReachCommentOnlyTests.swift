@@ -29,6 +29,6 @@ struct FilteredRunReachCommentOnlyTests {
 
         let lines = try FilteredRunReachHintTests.lines(FilteredRunReachHintTests.widgetNames, arguments: FilteredRunReachHintTests.oneFilter, root: root)
 
-        #expect(lines == ["  filtered: the working tree changes Depot.swift; 1 suite reaching it did not run — run swift test --filter WidgetTests --filter LibTests.DepotKitTests (swift-sure affected lists every suite)"])
+        #expect(lines == ["  filtered: the working tree changes Depot.swift; 1 suite reaching it did not run — run swift test --filter LibTests.DepotKitTests (swift-sure affected lists every suite)"])
     }
 }

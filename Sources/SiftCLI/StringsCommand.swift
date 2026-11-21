@@ -31,7 +31,7 @@ struct StringsCommand: AsyncParsableCommand {
             throw ValidationError(message)
         }
         if let stray = strays.first {
-            throw ValidationError("Unexpected argument '\(stray)'")
+            throw ValidationError(StrayArgument.message(stray, help: Self.helpMessage()))
         }
     }
 

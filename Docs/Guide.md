@@ -1201,8 +1201,9 @@ after their digest and files opened cold in more than one context carry the most
 one habit to close. It names the **index calls that failed** too: the tool, the kind of failure, and what
 it was asked.
 
-**Both reports are pseudonymised by default, so sharing one is safe.** Every count, share, date and
-latency stays; file, project, symbol, root and target names become salted pseudonyms
+**`audit` and `flakes` are pseudonymised by default, so sharing their output is safe; `report` is not
+redacted.** The `report` page holds the real roots, files and lookup targets: keep it on your machine and
+share `audit` instead. In `audit` and `flakes`, every count, share, date and latency stays; file, project, symbol, root and target names become salted pseudonyms
 (`file-3f2a1b.swift`, `project-9c1d4e`), stable across reports from the same machine. The salt lives at
 `~/.swift-sure/redaction-salt` and never leaves the machine. `--unredact` prints the real names. The actionable
 parts survive redaction: searches break down by verb, never by query, and a failure carries its *kind*

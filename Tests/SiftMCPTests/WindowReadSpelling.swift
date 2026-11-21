@@ -19,4 +19,11 @@ enum WindowReadSpelling: CaseIterable, Sendable {
             try #require(InPlaceShape.match(forRead: path, in: root.path, window: LineWindow(offset: lines.lowerBound, limit: lines.count)), sourceLocation: sourceLocation)
         }
     }
+
+    /// For a window inside one top-level declaration, across several of its members: whether this spelling runs it, checked here — a `Read` runs as `linesNotShown` — so the caller returns; a shell window is answered with its members, for the caller to check.
+    func runsInsideOneDeclaration(_ outcome: InPlaceAnswerer.Outcome, sourceLocation: SourceLocation = #_sourceLocation) -> Bool {
+        guard self == .read else { return false }
+        #expect(outcome == .withheld(.linesNotShown), "a Read inside one top-level declaration runs", sourceLocation: sourceLocation)
+        return true
+    }
 }

@@ -16,10 +16,23 @@ struct RunParameterizedCases {
 
     /// The text that follows a test count when parameterized tests made the cases run outnumber the tests, ` (13 cases)`, and nothing where every test was one case, or where fewer distinct names ended in the log than the summary counts tests, since the console prints no suite and tests sharing a name were merged into one count.
     static func note(counts: [String: Int], tests: Int, named: Int) -> String {
-        guard named >= tests else {
-            return ""
-        }
-        let extra = counts.values.reduce(0) { $0 + max(0, $1 - 1) }
+        let extra = extraCases(counts: counts, tests: tests, named: named)
         return extra > 0 ? " (\(tests + extra) cases)" : ""
+    }
+
+    /// How many more cases than tests the parameterized tests ran, or zero where fewer distinct names ended in the log than `tests`, as in ``note(counts:tests:named:)``.
+    static func extraCases(counts: [String: Int], tests: Int, named: Int) -> Int {
+        guard named >= tests else {
+            return 0
+        }
+        return counts.values.reduce(0) { $0 + max(0, $1 - 1) }
+    }
+
+    /// The clause a run of several Swift Testing tallies that are not summed carries when parameterized tests made the cases outnumber the tests, `; 9 more cases than tests across them`, and nothing otherwise.
+    ///
+    /// The cases are the run's own and no tally's, since the log does not say which bundle ran which test, so the clause is said once for all of them, as the skipped clause is. `tests` is the sum of the tallies that could be read, which is all a count of the tests can then be.
+    static func acrossTalliesNote(counts: [String: Int], tests: Int, named: Int) -> String {
+        let extra = extraCases(counts: counts, tests: tests, named: named)
+        return extra > 0 ? "; \(extra) more cases than tests across them" : ""
     }
 }

@@ -13,10 +13,10 @@ struct FlakesQueryAnswer {
     /// The answer's lines, before the `log:` line, or `nil` when no run recorded which tests failed and none named a match anyway, so the ordinary empty state should speak.
     static func lines(for query: String, in named: RunFailureHistory.NamedFailures, scoped: String) -> [String]? {
         guard named.measured > 0 else {
-            guard named.incompleteNaming + named.conflatedNaming + named.crashedMatching.count > 0 else {
+            guard named.incompleteNaming + named.conflatedNaming + named.crashedMatching.count > 0 || !suiteLines(query, named).isEmpty else {
                 return nil
             }
-            return ["`\(query)` — no counted run recorded a matching test failing\(scoped)"] + crashOnlyLines(named, []) + uncountedLines(named)
+            return ["`\(query)` — no counted run recorded a matching test failing\(scoped)"] + crashOnlyLines(named, []) + uncountedLines(named) + suiteLines(query, named)
         }
         let over = "over \(counted(named.measured, "run")) that recorded which tests failed"
         let uncounted = uncountedLines(named)
@@ -43,7 +43,7 @@ struct FlakesQueryAnswer {
 
     /// The one line saying a suite query could not reach Swift Testing failures recorded without a suite.
     ///
-    /// Only for a query that reads as a suite or `Suite.member`: one starting with an uppercase letter, or carrying a `.` or `/`. A lowercase bare word or one carrying a `(` names a function, which a bare recorded name always matches. The count is of distinct suiteless test names, not of failures. Swift Testing records its failures by bare function name, and the suite is filed beside them only where the run could resolve it, so a record from before that or an unresolved one is invisible to a query by suite, and silence there would read as "never failed".
+    /// Only for a query that reads as a suite or `Suite.member`: one starting with an uppercase letter, or carrying a `.` or `/`. A lowercase bare word or one carrying a `(` names a function, which a bare recorded name always matches. The count is of distinct suiteless test names, not of failures, and includes the names crash records list (crash records never carry a suite). Swift Testing records its failures by bare function name, and the suite is filed beside them only where the run could resolve it, so a record from before that or an unresolved one is invisible to a query by suite, and silence there would read as "never failed".
     private static func suiteLines(_ query: String, _ named: RunFailureHistory.NamedFailures) -> [String] {
         let readsAsSuite = query.first?.isUppercase == true || query.contains(".") || query.contains("/")
         guard named.suiteless > 0, readsAsSuite, !query.contains("("), !Redactor.isTestToken(query) else {

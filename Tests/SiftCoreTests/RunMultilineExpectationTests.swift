@@ -60,7 +60,7 @@ struct RunMultilineExpectationTests {
 
         #expect(multiLineBlocks > 0)
         #expect(adjacent.isEmpty)
-        #expect(lines.contains(#"    Expectation failed: Gizmo.soleElement(of: note, width: 320)?.label == "note 0" → false Gizmo.soleElement(of: note, width: 320)?.label → nil some → "note 0""#))
+        #expect(lines.contains(#"    Expectation failed: Gizmo.soleElement(of: note, width: 320)?.label == "note 0" → false Gizmo.soleElement(of: note, width: 320)?.label → nil"#))
     }
 
     /// A line that is not indented ends the join before it starts, and the message keeps its first line alone.

@@ -2477,17 +2477,40 @@ is shared across a codebase (`run`, `load`, `update`), so the fallback for one m
 the word. The question already fixes the declaration, and its parameters narrow the list without a store:
 a call is kept only when its written labels could call one of the declarations of the name the query
 matched (every one, not only the few semantic relations are resolved for), with a defaulted argument left
-out, a variadic or parameter pack taking any count, an unlabeled trailing closure standing for any
-parameter and a labeled one for its own, and a backticked label read as the name it escapes; or when its
+out, a variadic or parameter pack taking any count, a trailing closure binding only a parameter whose
+written type can take one (a function type, an optional one, a generic parameter, or any type it cannot name
+as a non-function; array, dictionary or tuple sugar and a `Swift.` or `Foundation.` standard type rule it out, and
+a standard type's bare name, `String` or `Data`, only where the index declares nothing of that name and no
+enclosing generic clause does), an unlabeled
+one any such parameter and a labeled one its own, and a backticked label read as the name it escapes; or when its
 callee is spelled with compound labels equal to one of theirs. Overloads keep what any of them could take.
 
 - **An initializer is called through its type**, so its sites are scanned for by the type's name and listed
   as `Box.init`: the direct and `.init` forms, `self.init`/`Self.init`/`super.init`, `.init` where a
   binding's or return type is `Box`, and `@Box` wrapper attributes and `$label:` projected-value calls where
   `Box` is a property wrapper in the repository, with the arguments the attribute supplies. `Box.init` or
-  `Box.init call` handed on unapplied is a site; the type written with no call is not, nor is an `@Box`
-  that is no property wrapper (a result builder, a macro such as `@Entry`) or a qualifier naming another
-  module. The enumerated forms and the wrapper machinery live in the scanner's doc comments and tests.
+  `Box.init call` handed on unapplied is a site, unless its receiver, read without backticks, is a type the
+  index, the standard library or Foundation proves is another (`String.init`, a struct that is not `Box`, a
+  class outside `Box`'s subclasses where `Box` is a class) and the name is not kept: it is kept where any
+  indexed type declares it as a generic parameter, or the scanned file binds it anywhere, as its parse reads:
+  a generic parameter, a pattern's identifier, a closure capture, a closure, function, initializer, subscript
+  or enum-case parameter name, a declared type, protocol, typealias, associated type or macro, either side of
+  a `where` clause same-type requirement or the left side of a conformance requirement (a file that cannot be
+  parsed binds every name; the tree is discarded once the names and declaration ranges are read). A closed
+  standard-library or Foundation name the index does not declare that no SDK declares as an associated type,
+  type alias or generic parameter is ruled out wherever the file does not bind it (the residual risk, not read:
+  a dependency outside the index binding one of them, an associated type or type alias, or a generic parameter
+  an `extension Depot` of `Depot<Data>` sees; an Objective-C lightweight generic parameter an SDK header
+  declares; and an SDK newer than the list, which only a re-run of the script re-derives); a type the index
+  declares, or a closed name an SDK declares so (`Data`, SwiftUI's `DynamicViewContent` associated type, and
+  `Range`, a fixed list `Scripts/sdk-generic-names.sh` re-derives from the installed SDKs' interfaces), is
+  ruled out only at a use inside no type, extension or protocol declaration of the scanned file (file scope,
+  or a function, closure or variable outside any such declaration), since inside one a conformance or a
+  generic extension can bring an associated type or generic parameter of that name into scope unwritten
+  (`extension [Gizmo]` or a `Sequence` conformer binds `Element`), and those cannot be enumerated; the type
+  written with no call is not, nor is an `@Box` that is no property wrapper (a result builder, a macro such
+  as `@Entry`) or a qualifier naming another module. The enumerated forms and the wrapper
+  machinery live in the scanner's doc comments and tests.
 - **An implied `.init` in a body whose result builder comes from a protocol requirement is never dropped**
   (#949). A getter, function or subscript whose body is a bare `.init("x")` with no `return` and no builder
   attribute of its own takes its result builder from a requirement of the protocol its type conforms to
@@ -2959,13 +2982,13 @@ two more in a suite the filter did not select; nothing in the answer said a filt
 exit 4 or 5, which answer for themselves), and the working tree has uncommitted indexable `.swift` files
 (`affected`'s own input, `git status`, staged, unstaged and untracked), the answer adds one line under the totals,
 beside the refused-filter hint's place:
-`  filtered: the working tree changes ShellWord.swift; 1 suite reaching it did not run — run swift test --filter ShellWordTests --filter InstallHookQuotedPathTests (swift-sure affected lists every suite)`,
+`  filtered: the working tree changes ShellWord.swift; 1 suite reaching it did not run — run swift test --filter InstallHookQuotedPathTests (swift-sure affected lists every suite)`,
 indented like the hint and inventory lines so it never reads as a token beside `totals:`. The suites come from
 `affected`'s walk at its default depth, seeded from every declaration in each dirty file (not the diff's changed
-lines, since the stored rows of a dirty file are stale exactly where those lines fall; a file whose edit `affected` reads as comment-only, by the same diff and comparison, seeds nothing and is not named, and where every dirty file is such the line is left out; a file the comparison cannot be made for is seeded whole), each spelled as `--filter`
-takes it, nearest first, at most five named (the hint's `listedSuites`) with `+N more`; the command repeats the
-run's own `--filter`s and adds the named suites, so it is whole as written even when more are left unnamed, and more
-than one changed file reads `changes ShellWord.swift and N more files`. The sentence counts what it lists: a Swift Testing test declared at file scope is a test, not a suite (`2 suites and 1 test reaching it`), read as `Target.function()` where it is named in the `did not run in full` list, its escaped filter kept in the command. **"Did not run" needs positive evidence, on
+lines, since the stored rows of a dirty file are stale exactly where those lines fall; a file whose edit `affected` reads as comment-only, by the same diff and comparison, seeds nothing and is not named, and where every dirty file is such the line is left out; a file the comparison cannot be made for is seeded whole). The line answers for the uncommitted change alone: a file whose code changed in a commit since the last build and whose only uncommitted edit is to comments reads as comment-only, seeds nothing and gives no line, exactly as the same tree with the comment edit undone (clean, so no line) would, and `affected`'s `lastCommitTime` handling is not reproduced because it only widens the after-edit walk's diff seeds to the whole file, which every file this line seeds already is; a committed change is `affected <range>`'s question. A dirty test file seeds the walk like any other, with two rules that keep it to what it can reach (#1083): its tests are reached as themselves rather than walked on by name, since a test's name written in another file is that suite's own declaration of a test of the same name (every suite with a `@Test func runs()`), never a use of it, and its other declarations go on as routes: a suite's type to the subclasses inheriting its tests, a type nested in a suite to the suites building it, a shared fixture's helpers to the suites that call them, with a `private` helper's name counted in its own file only (the name walk's scope rule in `affected`'s section). Each suite is spelled as `--filter`
+takes it, nearest first, at most five named (the hint's `listedSuites`) with `+N more`; the command runs the named
+suites alone, never the run's own `--filter`s again (#1095: those already ran, and repeating five of them was about
+250 of a 430-character line), and more than one changed file reads `changes ShellWord.swift and N more files`. The sentence counts what it lists: a Swift Testing test declared at file scope is a test, not a suite (`2 suites and 1 test reaching it`), read as `Target.function()` where it is named in the `did not run in full` list, its escaped filter kept in the command. **"Did not run" needs positive evidence, on
 the terms `unmatchedFilters` uses:** the run was not `--parallel`, it has the Swift Testing event stream for any
 Swift Testing test it ran, and every XCTest it printed carries its module; otherwise the line is left out, never
 guessed. A reached suite counts as run only when every test the index declares in it reported; one that ran in
@@ -2999,6 +3022,23 @@ passing at **at least 8/12 on report-shell-word-failures in each arm** (2/12 and
 report-result-bundle-line-failures no lower than its 10/12; plus an iterate-style control, a swift-format test-fix
 task run with a deliberate `--filter` on a tree with several dirty files, whose cost must show no detectable
 difference, since there the line is noise.
+**Coverage split across filtered runs counts as coverage** (#1106). Seen 20 Nov on one unchanged tree: a first
+filtered run was told four reaching suites did not run, a second ran exactly those, and its line then named the
+suite the first run had passed, so an agent covering the affected set in two runs is always sent back to re-run
+the first, a build-and-run turn (~40 s) that proves nothing, and an agent that ignores the line learns to skip it.
+So a green filtered `swift test` files, beside its proof record, the test ids it ran (`ranIdentifiers`, the
+evidence the line already judges by), and only while there are at most 500 of them, so the ledger's 60 records stay
+small; a longer or unfiltered run files none and counts for nothing here. Before the line is written, every id a
+record on this tree may stand for is added to this run's own: a record counts exactly when `--proved` would answer
+*proved* for its command (same tree key, toolchain and working directory, within the hour, no later red of the same
+command), and only where the tree key taken after this run equals the one before it, so ids are never carried onto
+a tree that moved while the run ran. A suite is then left out, or ran in part, on the union, so `2 of 9` in one run
+and the other seven in another make it run in full. Suites still owed are named as before, alone. When the run left
+out some suites and earlier records cover every one, the line becomes
+`  filtered: every suite reaching the change has passed on this tree (this run and 2 earlier runs)`, counting the
+records that covered something, so the agent knows the split coverage is complete rather than reading silence as
+"no line was made". With the ledger switched off, outside a repository, or with no green filtered record, the line
+is unchanged. A red run is never told that every suite has passed: it uses the union only to name the suites still owed, and with none owed it prints no `filtered:` line. A red earlier run files no ids, so a suite that failed earlier is named again until it passes.
 Exit **5**: the run's build failed before any test process started (nonzero exit, no test opened,
 started or failed, a compiler error at a file and line, the linker's own, or a compiler crash), so it
 answers `✘ … did not build — no test ran`; passed through it is `swift test`'s 1 or `xcodebuild`'s 65, the codes of a failed
@@ -3529,6 +3569,200 @@ folded, so a fold can keep a listing that would otherwise have become a sample; 
 counts the folded lines. A grouped case still counts in the heading's failure count, and its test is named
 by the printed case's heading, so the section leaves no test unnamed and nothing leaves the answer but
 repeated text.
+
+**A long message or value is said once across the listing** (#1096). Two repeats survive those rules. Six
+tests that load one missing fixture each printed a 450-character `Caught error: Error Domain=NSCocoaErrorDomain
+Code=260 … UserInfo={NSFilePath=/var/folders/…/T/probe-tests-<UUID>/default.2.json, … NSUnderlyingError=0x104bb6c60 …}`,
+the six differing only in the UUID of each test's temporary directory and the address of the underlying error;
+and three `#expect(!gizmoNames.contains(…))` of one test each merged the whole `gizmoNames → [ … ]` value
+into its message line, about 1,000 characters each, cut at the line cap. Two more rules apply to the listing,
+after #952's, and only to a failure that has a location and was not read from the event stream.
+
+A *message line* here is the message as the listing prints it under a heading, with the note's first line
+merged into it where `RunFailureShape.merging` merges it (a `Caught error:`, or a message whose comment printed
+first, merges nothing), compared before the line cap (`messageCap`) clips it. Both rules point at an *earlier*
+failure: one listed above whose message line was printed rather than folded by the first rule (clipped or not),
+which has a location, and where no failure *of its test* listed between them shows that location. The pointer
+names it by test and location, the location spelled as that heading's location slot reads without
+`(body …)`: `under alpha() at P.swift:7:2`. Both thresholds are `wordsCap` (240), measured as `clipped` measures.
+
+- *The same message.* A failure, of any test, whose message line runs past 240 and is the same as an earlier
+  failure's prints, in its place, `    (the same message line as under alpha() at P.swift:7:2 above)`. It says
+  *line* because only the message line is compared: a note beneath it still prints, and may differ (#1104). Where the two
+  are the same only once two kinds of text are masked, the line names what was set aside, naming only the kinds
+  that differed: `(the same message line as under alpha() at P.swift:7:2 above, but for its temporary directories'
+  UUIDs and object addresses)`. A masked *UUID* is 8-4-4-4-12 hexadecimal digits, either case, inside a path
+  that runs under `/var/folders/`, `/private/var/folders/`, `/tmp/` or `/private/tmp/` (a `file://` URL
+  included), the path read back from the UUID to the nearest whitespace, `=`, `"` or `,`. A masked *address* is
+  `0x` and 9 to 16 lowercase hexadecimal digits only where Foundation prints an object: right after `=` and
+  immediately followed by ` {` (a `Key=0x… {` pair whose object's description follows, as in
+  `NSUnderlyingError=0x104bb6c60 {Error Domain=…}`), or after `: ` inside `<Type: 0x…>` (followed by `>` or `;`);
+  an `0x80070005` a test compared, or a `checksum=0x…` value, is no address. Masked text compares up to a
+  consistent renaming, each kind on its own: the k-th distinct UUID (address) of one message stands for the k-th
+  distinct one of the other, so a message naming one directory twice never matches one naming two. The target is
+  the nearest earlier failure that matches once masked, and the clause is added only when that one differs.
+  Nothing else is masked: two errors that differ in a code, a file name or any other text are printed twice, and
+  so are those under a simulator's temporary directory (`…/CoreSimulator/Devices/<UUID>/data/…/tmp/…`), whose
+  device UUID this does not read. The closest line and the note beneath stay, and #952's same-excerpt rule still
+  reads the note.
+- *A value printed above.* In a message line the rule above did not fold, a *piece* is one of the failure's
+  `markedLines` past the first, its depth spaces trimmed, that the message line still carries as one of its
+  space-joined pieces (the expansion rules may have dropped or rebuilt others), read as `<expression> → <value>`
+  split at its first ` → ` no string literal holds. A piece whose value runs past 240 and which is the same,
+  expression and value, as a piece of an earlier failure *of the same test* keeps its expression and prints its
+  value as `(the value printed under many() at P.swift:12:5 above)`:
+  `gizmoNames → (the value printed under many() at P.swift:12:5 above)`. The earlier failure's printed (clipped)
+  message line must show that piece's expression, its ` → ` and at least the first 240 of its value, so the
+  pointer never names text the cap cut away; the value may still have been clipped there, and the pointer says
+  where the reader saw it, not that it was printed whole. Exact comparison; nothing is masked. A failure this
+  rule folded a piece of is still an earlier failure for any other piece it printed.
+
+Each folded entry is charged against the byte budget folded, as #952's are, and the `raw:` line's `M out`
+counts the folded lines. A fold never removes a heading, so every failing test is still named.
+
+**A containment failure's haystack is said in one line** (#859). An expectation over a whole answer string,
+`#expect(output.contains("folded in here"), "\(output)")`, made Swift Testing print that string twice
+beneath the issue line, once as the comment and once as the receiver's value, and the note printed the first
+twelve lines of it under every such failure: about 34 of a 40-line negative gate, whose question was only
+which tests fail. The closest line (above) already names the haystack line that matters, so the haystack
+itself need not be printed. Only a containment failure's note is compacted, because only there does a line
+stand in for the value: the note the closest-line search holds whole (`bufferNoteLine`, up to
+``closestLineNoteLimit``; a note past it is not compacted) is rebuilt, once it closes, from its held lines with
+the joins the filter makes (a `↳` line joined to the line above by a space, an unmarked line on its own line,
+held blanks kept out), by two rules, and the twelve-line cap applies to what is left:
+
+- *The haystack.* The value the search reads as the call's receiver (`printedValues`: a `↳` line reading
+  `<expression> → "<text>` and the unmarked lines beneath it up to the one that closes the quote), where it
+  has two lines or more and closes its quote, prints as its `↳` line alone: the line as the log printed it,
+  trimmed as held, `output → "line 1 of the answer: widget 7`, with no closing quote added, since the
+  value goes on, then ` (first of N lines — see the raw log)`, N its lines as the search holds them, blank
+  ones included. Where its first line is blank, the `↳` line is kept as the log printed it, ending on the
+  open quote, and the first non-blank line, line k, follows on a line of its own carrying the clause ` (line k of
+  N lines — see the raw log)`; a value of blank lines only is printed as before. A
+  haystack that never closes its quote is printed as before.
+- *A comment that repeats it.* A block of the note, a `↳` line printing no ` → "` and the unmarked lines
+  beneath it, of two lines or more, whose lines are the haystack's lines exactly, each as held (trimmed of the
+  indentation both readers strip, so a comment's two-space and a value's four- or six-space depth compare
+  alike), is dropped, and the haystack's clause reads ` (first of N lines; the comment repeats them — see the
+  raw log)` (or `line k of N lines; …`). A comment that differs by one character other than leading
+  whitespace prints as before; leading whitespace is never compared, since no note line prints it. A comment
+  whose first line is blank arrives as a bare `↳` line, which carries the note on as an empty held line, as a
+  blank inside a note does, rather than ending it before the value is read.
+
+The clause sits directly after the haystack's first line, wherever that line lands: merged into the message
+(`RunFailureShape.merging`) or on a note line. The compacted line is built to fit the note-line cap
+(``wordsCap``) with its clause: a first line too long for it is clipped there, ending `…`, and the clause, outside
+the clip, reads ` (first of N lines, the first clipped — see the raw log)` (`line k …, clipped`, `; the comment
+repeats them` kept), so no later clip of the line drops it. A merged message longer than the message cap can
+still clip it; that cap is the message's own. The `(by adjacency)` marker goes on the compacted note's first
+line, and on nothing when that line merges into the message, as where the dropped comment was the note's first
+line. The `… (+N more lines — see the raw log)` count is of the lines left past the cap; dropped lines are never
+counted. Everything else is untouched: a non-containment failure's note (an equality between two multi-line
+strings, `#expect(report.isEmpty)` over a list of offenders, where the value is the answer), a comment that
+repeats no haystack, a one-line value, an expansion such as `output.contains("x") → false`. The closest-line
+search and the dominant-class reading (`markedLines`) read the note as the log printed it; every reader of a
+failure's note gets the compacted one. Measured on the probe that motivated it, a package whose answer string is
+twelve lines, three containment failures that printed fifteen, fifteen and five lines print two each:
+
+```
+  containsFolded() — GizmoTests.swift:6:5
+    Expectation failed: output.contains("folded in here") → false output → "line 1 of the answer: widget 7 (first of 12 lines; the comment repeats them — see the raw log)
+    no line shares text with it
+  secondTest() — GizmoTests.swift:12:5
+    Expectation failed: output.contains("other note") → false output → "line 1 of the answer: widget 7 (first of 12 lines; the comment repeats them — see the raw log)
+    no line shares text with it
+  containsFolded() — GizmoTests.swift:7:5
+    Expectation failed: !output.contains("widget 14") → true output.contains("widget 14") → false output → "line 1 of the answer: widget 7 (first of 12 lines; the comment repeats them — see the raw log)
+    closest line: line 2 of the answer: widget 14
+```
+
+The third had printed `(the same 11 lines as under the failure at GizmoTests.swift:6:5 above)`; a compacted note
+leaves #952's same-excerpt fold nothing to fold, and that also settles the second shape the issue asked for (a
+comment several issues of one test repeat, printed once): each repeat is now a clause. Two other shapes it
+proposed were not built: dropping a `↳` line that repeats the closest line (its measured case was a comment
+repeating the haystack, which the second rule removes), and naming a sample's `also:` tests before the example's
+note (with the haystack compacted, the note beneath an example is a line or two; a long comment that is not an
+exact copy, `"got: \(output)"`, still prints under the cap).
+
+**An expansion does not echo the literals it compares against** (#1097). Swift Testing expands every operand
+of a failed expectation, and two of its expansions repeat what the reader already holds. A string literal
+whose source spelling differs from its value (it holds an escape) is expanded as itself, `"a\nb" → "a⏎b"`, and
+an optional comparison adds `some → V` beneath an operand whose value is `V`, printed after that operand's own
+line or, where the operand is a literal Swift Testing left unexpanded, after whatever line came before. A
+golden-string `==` failure printed its expected string up to three times, about 200 repeated characters, more
+once the string holds newlines:
+
+```
+  title() — GizmoTests.swift:4:5
+    Expectation failed: label(of: 7) == "Gizmo 7, wide\nsecond row" → false label(of: 7) → nil "Gizmo 7, wide\nsecond row" → "Gizmo 7, wide
+      second row" some → "Gizmo 7, wide
+      second row"
+```
+
+prints as
+
+```
+  title() — GizmoTests.swift:4:5
+    Expectation failed: label(of: 7) == "Gizmo 7, wide\nsecond row" → false label(of: 7) → nil
+```
+
+The note of a failure whose message opens `Expectation failed: ` is held whole as a containment failure's is
+(up to ``closestLineNoteLimit``; a note past it, or one read from the event stream, prints as before), each held
+line keeping the depth the log printed it at, and rebuilt once it closes: the echo rules first, then the
+haystack compaction over what they leave, then the twelve-line cap over what is left. A note they drop nothing
+from stays exactly as it streamed. A *line* here is a `↳` line with the unmarked lines beneath it up to the next
+`↳` line; its *value* is its text after the first ` → ` no string literal holds (`firstArrow`), with those
+lines; its *parent* is the nearest `↳` line above it printed one level (two columns) shallower, dropped or not, the search stopping at any shallower line (where it
+stops, the line has no parent).
+The rules read only the expansion: from the first `↳` line, in log order, that `RunFailureShape.merging`
+accepts for the message (so a comment printed above it is never read) to the note's end; where no line is
+accepted, nothing is dropped. Two rules drop a line:
+
+- *A literal's self-expansion.* A line whose expression is one string literal with no interpolation, `"…"` or a
+  raw `#"…"#` (a `"""` literal never shares the line, so it is never read), and whose value is that literal's contents in double quotes,
+  the escapes `\n \t \r \0 \\ \" \'` and `\u{…}` decoded for an ordinary literal. A raw literal holding `\#`,
+  an ordinary one holding any other escape, and an interpolation are kept: `"k is \(k)" → "k is 5"` is the
+  interpolation's answer. So is a value that is not the quoted contents, `"lower" → Tag(LOWER)`, the
+  expansion of a type that is `ExpressibleByStringLiteral`.
+  An array literal of such string literals is read the same way (#1099): a line whose expression is `[`, its
+  elements separated by `,`, an optional trailing `,` and `]`, with whitespace allowed between the tokens, each
+  element such a string literal or, in turn, such an array literal, and whose value is the rendering built
+  from the literal's source alone: `[`, each element rendered (a string as its contents quoted) and joined by
+  `, `, and `]`, so `[ ]` renders `[]`. Each string is quoted as `String.debugDescription` quotes it: in double
+  quotes, with `\ " '` and the newline, tab, return and NUL written `\\ \" \' \n \t \r \0`, every other scalar as
+  itself. Swift Testing prints no line for a literal whose source spelling already is that rendering, so the
+  lines this reads are the ones spelled otherwise: spaced, with a trailing comma, raw, or holding an escape. A
+  golden-array `==` failure printed its expected array twice:
+  `body() == [#"a "q" b"#, "c\nd",] → false` / `body() → ["x"]` / `[#"a "q" b"#, "c\nd",] → ["a \"q\" b", "c\nd"]`,
+  and the third line goes. Kept: any element the string rule would keep (an interpolation, an undecoded
+  escape); the scalars `debugDescription` writes as `\u{…}`, which the rendering does not reproduce: a control
+  scalar below U+0020 other than those four, U+007F, and a grapheme-extending scalar opening an element or
+  following an escape (`["\u{301}x"] → ["\u{0301}x"]`), so any element holding a grapheme-extending scalar
+  keeps its line wherever it stands, rather than the rule tracking where one is escaped; and every value that differs (a `[Tag]` printing
+  `[Tag(LOWER)]`, a set printing its elements in another order). A dictionary literal is not read: its printed
+  order need not be the source's. An array literal written across several lines never gets a line of its own
+  (Swift Testing expands only a one-line literal), so it is never read.
+- *A `some` echo.* A line reading `some → V`, `V` not `nil`, where `V` is its parent's value, or where the line
+  cannot be its parent's own Optional payload: its parent prints `nil`, or already has a `some` line beneath it,
+  or it has no parent (the search stops at a shallower line). Such a `some` is the payload of an operand Swift
+  Testing printed no line for, which it does only when the operand's source spelling is its value, so `V` is
+  already in the expression. `some → nil` is always kept, since it alone says the value is `.some(.none)`; so is a
+  `some` a struct's property of that name prints, `pair() → Pair` / `first → "a"` / `some → "a"`, whose parent's
+  value is not `V` and has no earlier `some` beneath it. Such a property is dropped where it has no parent
+  (#1103): under `Box(some: ["a"]) == Box(some: ["b"])` Swift Testing leaves each operand unexpanded, since its
+  spelling is its value, so `some → ["a"]` prints with no line one level above it and reads as an echo. Nothing
+  is lost, since `["a"]` is in the expression.
+
+Values compare exactly, by Unicode scalars, line by line, blank lines included, each line as held: trimmed of
+its leading and trailing whitespace, as the #859 rules compare, since no note line prints either, and a
+literal's decoded lines trimmed alike. A value that differs by one character elsewhere is kept, and so is every other line:
+`failure.note → nil`, which is the answer; an operand's own `→ V` however long, `name → "x"` under `name !=
+"x"`; a value under a `"""` literal. What is dropped is text the
+answer already says, verbatim or as the literal's source spelling, so nothing says it was dropped; the `raw:`
+line's `M out` counts what is left. The closest-line search and `markedLines` (so the dominant-class reading)
+read the note as the log printed it. A containment failure over a literal, `"x\nyy".contains("zz")`, loses the
+literal's self-expansion, which leaves the compaction no haystack to compact, and prints the rest of its note
+with the closest line found as before.
 
 **Where that section leaves a failing test unnamed, one more block lists them all.** A sample names the lead
 of each signature it illustrates and a few others beneath it, so the tests it counts but never names are the
@@ -5039,7 +5273,7 @@ scope reader behind `where` sits five hops from its first test), while walking e
 of a suite; the walk-on is under the same expansion cap, which makes a capped answer not a strict superset of the one before the walk-on existed (a helper expanded early spends cap a later ordinary row would have used), and it never feeds the name-matched fallback, which past
 the bound would match far more than it narrows. **The freshness contract applies in
 full**, through the same machinery `where` uses, and a name written in more than 40 files is dropped from
-the fallback and named as dropped. One exception keeps such a name narrowed: a member of a type, whether a changed declaration itself (on the first hop, its owner read from its own declaration) or one reached on an earlier hop, is still followed at the sites that write it qualified by its owner (`Gizmo.line`, `Module.Gizmo.line`, `Gizmo<T>.line`), a spelling as narrow as the type's own name and held to the same 40-file cap. A file is parsed for this only if its text spells `Gizmo.line` or `>.line`, so a qualified spelling split across lines (`Gizmo` then `.line` on the next) is missed. `Self.line`, `x.line` and a bare `line` inside the type are not admitted, since telling them from another type's member needs resolution a cold store cannot give. Nor is an unqualified `Gizmo.line` or `Gizmo<T>.line` in a file that declares a `Gizmo` of its own at file scope, such as a test's `private enum Gizmo`, other than the file holding the real owner's declaration; `Module.Gizmo.line` there still counts. A nested or local `Gizmo` and a `typealias Gizmo` shadow nothing, since the real type can still be meant outside the nested one's parent and a typealias usually names the real type: their files' sites are admitted. A file is read alone, so a shadowing `Gizmo` declared in another file of the same module is not seen and the sites beside it are still admitted. The name is then listed in its own note, with one example spelling, as followed only where its type qualifies it, because its other sites were dropped and nothing is reported through them. A name match in a file whose module cannot load the module declaring the
+the fallback and named as dropped. One exception keeps such a name narrowed: a member of a type, whether a changed declaration itself (on the first hop, its owner read from its own declaration) or one reached on an earlier hop, is still followed at the sites that write it qualified by its owner (`Gizmo.line`, `Module.Gizmo.line`, `Gizmo<T>.line`), a spelling as narrow as the type's own name and held to the same 40-file cap. A file is parsed for this only if its text spells `Gizmo.line` or `>.line`, so a qualified spelling split across lines (`Gizmo` then `.line` on the next) is missed. `Self.line`, `x.line` and a bare `line` inside the type are not admitted, since telling them from another type's member needs resolution a cold store cannot give. Nor is an unqualified `Gizmo.line` or `Gizmo<T>.line` in a file that declares a `Gizmo` of its own at file scope, such as a test's `private enum Gizmo`, other than the file holding the real owner's declaration; `Module.Gizmo.line` there still counts. A nested or local `Gizmo` and a `typealias Gizmo` shadow nothing, since the real type can still be meant outside the nested one's parent and a typealias usually names the real type: their files' sites are admitted. A file is read alone, so a shadowing `Gizmo` declared in another file of the same module is not seen and the sites beside it are still admitted. The name is then listed in its own note, with one example spelling, as followed only where its type qualifies it, because its other sites were dropped and nothing is reported through them. **A `private` or `fileprivate` name counts only in its own file**, since no other file can spell it: a seed from such a declaration, a changed one or one reached on a later hop, carries its file, and a name every seed of which is so confined is matched only in those files, before the 40-file cap is counted (seen 20 Nov: a changed test file's `private static func run` reached nine suites that wrote some other `run`). A wider declaration of the same name reached later reopens the name, which is scanned again across the tree; the diff's own seed for a change stays unconfined where the diff changed its access, since a declaration just made private still has callers elsewhere spelling it, a fallback type is never confined, and a member is confined only where it can witness no protocol requirement that another file calls through the protocol: nothing in its file writes an inheritance clause, since a conformance a `fileprivate` member witnesses has to be written in that file, whether the member sits on the conforming type, on a superclass it inherits from or in a protocol extension as a default (a generic constraint's colon counts too, which only leaves a name unconfined). A declaration at file scope is always confined. A name match in a file whose module cannot load the module declaring the
 name is set aside, since Swift lets no code name a declaration from a module it never loads: a module loads
 itself and every tree module an import in any of its files names, followed transitively (the module-wide
 union, not the file's own imports, because a member can leak between one module's files). It never sets
@@ -6004,7 +6238,7 @@ failure, so it gets no note. **The located block quotes the file as it is at hoo
 `swift-sure run` answer (the first `raw: … · <path>.log` line after it) whose file changed after that log was last
 written (the later of the file's mtime and ctime, `FileChangeStat`, past the log's modification date) carries one line
 under its heading, `  <File>.swift changed after this diagnostic; the lines below are the file as it is now`; a site
-with no such log (a bare `swift build` or `xcodebuild`) carries none.
+with no such log (a bare `swift build` or `xcodebuild`) carries none. The log's path is relative to the run's directory and absolute where `--root` pointed elsewhere than the printing process's directory, so the hook reads either (#1065).
 
 The same offer covers SwiftSure's four read-only lookups (#610). Claude Code delivers the MCP tools to a subagent as
 names only, and over the week measured to 5 October 150 of 399 sift-using subagent contexts spent a `ToolSearch`
@@ -6707,8 +6941,10 @@ stay separable without a reason of their own.
 
 **Where the size bound alone settles it, `notWorthTheTurn` is decided before the answer is built** (#621).
 No answer is smaller than nothing, so a read that would not be worth the turn even with D = 0 is not worth it
-with any answer: a whole read, or `Read` windows printing at least three quarters of the file, where
-(1 − 0.34) · F ≤ 0.47 · R + 0.85 · turn, and a narrower `Read` window where W ≤ 0.48 · (W + turn), or `sed -n` window where W ≤ 0.15 · (W + turn). Such a read
+with any answer: a whole read, or `Read` or `sed -n` windows printing at least three quarters of the file (the
+whole-read bound, which the late path holds a `sed -n` window of that share to as well, #1062), where
+(1 − 0.34) · F ≤ 0.47 · R + 0.85 · turn, and a narrower `Read` window where W ≤ 0.48 · (W + turn), or `sed -n` window where W ≤ 0.15 · (W + turn).
+`head`, `tail` and `awk` windows are never weighed before their answer: no re-run share is measured for them. Such a read
 is let through as `notWorthTheTurn` without opening an engine, refreshing the store or building the answer
 (`WorthBeforeAnswer`), which spared the hook most of a small whole read's cost (a median of 153 ms against 20 ms
 for a Read that is no lookup, measured before the change). **Precedence:** everything decided before the
@@ -7049,7 +7285,17 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   decided on what the answer prints, so a window reaching past the member onto a blank or brace line counts;
   `digest File.swift:a-b` there serves the whole member, bigger than the window), and any window saving under `windowSavingFloor` (4 KiB) whose answer does
   not hold the text of every non-blank line it prints — a denial that cannot stand in for the read makes the
-  identical re-run certain, and a week of real sessions priced letting such a window run, under 4 KiB, cheaper than answering it (#480). **A window the hook lets run
+  identical re-run certain, and a week of real sessions priced letting such a window run, under 4 KiB, cheaper than answering it (#480).
+  So does **a `Read` window whose members answer would list members of one top-level declaration only**
+  (a window inside one type or extension, across several of its members; #1098), unless the window prints at
+  least `windowShare` of the file and is weighed as its whole read. Over 14 days to 20 Nov, 10 such windows
+  were answered with their members and 9 were followed within three calls by a fetch of the same lines'
+  source, 8 of them the identical re-run (windows spanning several top-level declarations: 3 of 5), so the
+  re-run share the `Read` price assumes (0.48, below) is far under this population's own, at which no such
+  window's members answer pays. Answering it with the source of those lines instead, as `digest
+  File.swift:a-b` would, hands back what the read prints at the cost of a denial; it runs. A `sed -n` window
+  keeps its own price, and a window whose answer carries a SwiftUI view outline stays answered, as it does
+  naming one member. **A window the hook lets run
   as `notSmaller` is not worth answering, and out of the share**: answering it would save nothing, so it is
   neither a miss nor a lookup won. The replay counts it on a `not worth` row of its own and takes it out of
   the replayed share's denominator (below). The live audit counts one as not worth only where the hook's
@@ -7437,9 +7683,9 @@ subdirectory between the root and the call's directory carrying the tree's name 
 checkout by the suffix match; and a checkout reached through a symlink under another name decides none of its
 own reads, the opposite error, toward a lower share. A digest with neither an absolute anchor nor a
 resolved-to note records nothing. Only a first touch with no such answer is judged against the disk as it
-stands, and the audit says how many were, and how many of those files it could not read. Both are
-pseudonymised by default so a report can be shared as it is, `--unredact` prints the real names, and `report`
-(§3) is the same material as one page on disk.
+stands, and the audit says how many were, and how many of those files it could not read. The audit is
+pseudonymised by default so it can be shared as it is, and `--unredact` prints the real names; `report` (§3) is
+the same material as one page on disk, and it is not redacted: it holds the real names and stays on the machine.
 
 **`audit` prices each refusal by the round trip it cost, not by its text.** A refusal's own result is a few
 hundred bytes; what it costs is the turn the context takes to act on it, which re-sends everything the context

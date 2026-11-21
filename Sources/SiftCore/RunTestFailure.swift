@@ -57,6 +57,31 @@ public extension RunTestFailure {
         return RunTestFailure(name: name, arguments: arguments, location: location, message: message, note: joined, closestLine: closestLine, markedLines: marked, readFromStream: readFromStream)
     }
 
+    /// The failure of an expectation once its whole `note` is held: carrying its closest line, and its note rebuilt where ``RunFailureCensus/droppingEchoes(message:note:)`` drops anything or ``RunFailureCensus/compactedHaystack(message:note:truncated:)`` compacts what is left, with how many lines past `cap` the rebuilt note left out (`nil` where the note streamed in stands).
+    ///
+    /// The rebuilt note joins its lines as ``noting(_:apart:indent:)`` does — a `↳` line to the one above by a space, an unmarked line on its own line, held blanks left out — and keeps `cap` of them. A failure read from the event stream is never rebuilt.
+    func closingNote(note: [RunFailureCensus.NoteLine], truncated: Bool, cap: Int) -> (failure: RunTestFailure, elided: Int?) {
+        let closest = RunFailureCensus.closestLine(message: message, note: note, truncated: truncated)
+        let found = closest.map { withClosestLine($0) } ?? self
+        guard !readFromStream else {
+            return (found, nil)
+        }
+        let held = truncated ? note : RunFailureCensus.droppingEchoes(message: message, note: note)
+        guard let compacted = RunFailureCensus.compactedHaystack(message: message, note: held, truncated: truncated) ?? (held.count == note.count ? nil : held) else {
+            return (found, nil)
+        }
+        let shown = compacted.filter { !$0.text.isEmpty }
+        let joined = shown.prefix(cap).reduce(into: String?.none) { joined, line in
+            joined = joined.map { "\($0)\(line.marked ? " " : "\n")\(line.text)" } ?? line.text
+        }
+        return (found.withNote(joined), max(0, shown.count - cap))
+    }
+
+    /// The same failure with `note` in place of the one it holds, ``markedLines`` as the log printed them.
+    func withNote(_ note: String?) -> RunTestFailure {
+        RunTestFailure(name: name, arguments: arguments, location: location, message: message, note: note, closestLine: closestLine, markedLines: markedLines, readFromStream: readFromStream)
+    }
+
     /// The same failure carrying `closestLine`.
     func withClosestLine(_ closestLine: String) -> RunTestFailure {
         RunTestFailure(name: name, arguments: arguments, location: location, message: message, note: note, closestLine: closestLine, markedLines: markedLines, readFromStream: readFromStream)

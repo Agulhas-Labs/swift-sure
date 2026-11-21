@@ -21,7 +21,7 @@ public struct RunTestSelector: Sendable, Equatable {
     /// Each selector as the command line spelled it, `--filter <pattern>` or `-only-testing:<identifier>`, in argv order.
     public let spellings: [String]
     /// Each `swift test --filter` pattern, in argv order, beside its entry in ``spellings``; empty for an `xcodebuild` selector.
-    let patterns: [String]
+    public let patterns: [String]
     /// The `-only-testing` identifiers that name a test below a bundle and end without `()`, the spelling a Swift Testing function is not matched by.
     let unparenthesised: [String]
     /// Whether the run is an `xcodebuild` without `-quiet`, which prints a line for every test it runs, serial or parallel, so its printed success banner over no such line is a zero rather than silence.

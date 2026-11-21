@@ -145,8 +145,11 @@ public extension RunLedger {
         public let runToken: String?
         /// How many shards the sharded run ran; `nil` on a record of any other run and on one written before this field existed.
         public let shards: Int?
+        /// The test ids a green filtered `swift test` ran, sorted, so a later filtered run on the same tree can count them as covered; `nil` for a run with no filter, one with more than ``FilteredRunReachHint/recordedIdentifierLimit`` ids, a red run, and a record written before this field existed.
+        public let ran: [String]?
 
-        public init(tree: String, command: String, toolchain: String, finishedAt: Date, log: String?, milliseconds: Int, checkout: String? = nil, workingDirectory: String? = nil, arguments: [String]? = nil, exitCode: Int32? = nil, stoppedBySift: Bool? = nil, runToken: String? = nil, shards: Int? = nil) {
+        public init(tree: String, command: String, toolchain: String, finishedAt: Date, log: String?, milliseconds: Int, checkout: String? = nil, workingDirectory: String? = nil, arguments: [String]? = nil, exitCode: Int32? = nil, stoppedBySift: Bool? = nil, runToken: String? = nil, shards: Int? = nil, ran: [String]? = nil) {
+            self.ran = ran
             self.runToken = runToken
             self.shards = shards
             self.arguments = arguments
@@ -434,7 +437,7 @@ public extension RunLedger {
 
 extension RunLedger {
     /// The records on file that may stand as a proof, newest first: those stamped with this ``writerFormat`` or a later one, since a green an older SwiftSure wrote may have cleared a red that finished after it.
-    func provingRecords() -> [Record] {
+    public func provingRecords() -> [Record] {
         records().filter { ($0.writerFormat ?? 0) >= Self.writerFormat }
     }
 

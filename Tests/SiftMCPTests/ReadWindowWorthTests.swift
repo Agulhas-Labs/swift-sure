@@ -153,13 +153,15 @@ struct ReadWindowWorthTests {
         return payload
     }
 
-    /// Half of `Depot`'s lines, twenty of its forty padded members: answered at the default context, let through at 200,000 tokens, where the re-run's turn outweighs what the answer spares.
+    /// Half of `Depot`'s lines, its doc comment and declaration line and twenty of its forty padded members: answered at the default context, let through at 200,000 tokens, where the re-run's turn outweighs what the answer spares.
+    ///
+    /// The window takes in `Depot`'s own line, since a `Read` starting inside the one type runs whatever its context.
     @Test(arguments: [(nil, "in-place"), (200_000, "allowed\t\tnotWorthTheTurn")] as [(Int?, String)])
     func aRealReadWindowIsWeighedByItsContext(tokens: Int?, verdict expected: String) async throws {
         let root = try await WorthAnsweringFixture.repository()
         let file = root.appendingPathComponent("Sources/App/Depot.swift")
 
-        let verdict = try await Self.decide({ tokens.map { Self.inContext($0, Self.read(file, offset: 3, limit: 100)) } ?? Self.read(file, offset: 3, limit: 100) }, in: root)
+        let verdict = try await Self.decide({ tokens.map { Self.inContext($0, Self.read(file, offset: 1, limit: 102)) } ?? Self.read(file, offset: 1, limit: 102) }, in: root)
 
         #expect(expected == "in-place" ? verdict.hasPrefix("in-place") : verdict == expected, "\(verdict)")
     }

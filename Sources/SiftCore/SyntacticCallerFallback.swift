@@ -170,13 +170,20 @@ struct SyntacticCallerFallback {
                 try !row.isStatic && [.function, .variable, .subscriptKind].contains(row.kind) && owner(of: row) != nil
             }
         }
+        // A name the index cannot be read for rules nothing out.
+        let declaredStandard = try sameNamed.map { try ClosureParameterType.declaredClosedNames(in: $0.store) }
+        let standardNames: (SymbolRow) -> Set<String> = { row in
+            guard let store = sameNamed?.store else { return [] }
+            return (try? ClosureParameterType.standardNames(for: row, in: store, declared: declaredStandard)) ?? []
+        }
         let kept = found.reduce(into: [String: LabelNarrowed]()) { kept, entry in
             guard shapes[entry.key] != .use,
                   let narrowed = LabelNarrowed(
                       entry.value,
                       by: rowsByBase[entry.key] ?? [],
                       ownedBy: ownersByBase[entry.key] ?? [],
-                      initializerLabelsWereNamed: initializerLabelsWereNamed
+                      initializerLabelsWereNamed: initializerLabelsWereNamed,
+                      standardNames: standardNames
                   )
             else { return }
             kept[entry.key] = narrowed
@@ -184,9 +191,9 @@ struct SyntacticCallerFallback {
         // The count beside the list of the sites of `base` it does not list, narrowed by the labels of its declarations and, where `reach` is given, by the type a `T.f` is written on.
         func unlistedLines(of base: String, judgedBy reach: ((SyntacticCallSite) throws -> ReceiverReach)?) throws -> [String] {
             let owners = functionOwnersByBase[base] ?? []
-            let scope = fileScope(of: rowsByBase[base] ?? [])
+            let scope = fileScope(of: rowsByBase[base] ?? [], in: sameNamed?.store)
             let unlisted = (scanned[base] ?? []).filter { !$0.isListed(ownedBy: owners) && scope?.paths.contains($0.path) != false }
-            let reaching = LabelNarrowed.reaching(unlisted, by: rowsByBase[base] ?? [])
+            let reaching = LabelNarrowed.reaching(unlisted, by: rowsByBase[base] ?? [], standardNames: standardNames)
             // A `T.f` is judged by its `T` as a call on `T` is; a bare `f`, an `x.f` and anything else the scan gives no receiver are untyped and kept.
             let judged = try reaching.map { site in try (site: site, reach: reach?(site) ?? .reaches) }
             let kept = judged.filter(\.reach.isKept)
@@ -242,7 +249,7 @@ struct SyntacticCallerFallback {
             }
             // A private member is usable only in its own file, so a site anywhere else is another declaration's: the one narrowing the language makes sound, and said even where it dropped nothing.
             // Every declaration of the name counts, not only those asked of the store: one past that cap usable beyond its file keeps a site anywhere a use.
-            let scope = fileScope(of: rowsByBase[base] ?? [])
+            let scope = fileScope(of: rowsByBase[base] ?? [], in: sameNamed?.store)
             let inFile = scope.map { scope in sites.filter { scope.paths.contains($0.path) } } ?? sites
             if let scope {
                 let elsewhere = sites.count - inFile.count
@@ -421,8 +428,16 @@ extension SyntacticCallerFallback {
     }
 
     /// The files every site of `rows` must sit in, and the widest of their access levels, where each is `private` or `fileprivate`; `nil` where any is usable beyond its file.
-    static func fileScope(of rows: [SymbolRow]) -> (paths: Set<String>, level: AccessLevel)? {
+    ///
+    /// Given the `store`, a member is confined only where it can witness no protocol requirement (``AffectedNameSeed/fileScope(of:in:)``), since a call through the protocol from another file reaches it; with none, or where the store cannot be read, the access level alone decides in the first case and nothing is ruled out in the second.
+    static func fileScope(of rows: [SymbolRow], in store: IndexStore?) -> (paths: Set<String>, level: AccessLevel)? {
         guard let level = rows.map(\.accessLevel).max(), level <= .fileprivateLevel else { return nil }
+        if let store {
+            for row in rows {
+                // A failed read rules nothing out: the member is treated as reachable from any file.
+                guard (try? AffectedNameSeed.fileScope(of: row, in: store)) != nil else { return nil }
+            }
+        }
         return (Set(rows.map(\.path)), level)
     }
 
@@ -456,8 +471,16 @@ extension SyntacticCallerFallback {
         /// A site with no written arguments — a use rather than a call, or a reference by a bare name — is never dropped, and a reference by a compound name, `T.f(x:)`, is kept only where it spells one declaration's labels exactly, and neither is any site of a name one of whose declarations is something else: a property called through a closure it holds, or a type called as its initializer, takes labels no function signature states. A site matching none of an initializer's declared labels stays listed unless the query itself named labels: it can only be a call of an initializer the compiler wrote — a memberwise one, `init(rawValue:)`, a decoding `init(from:)` — or one inherited from a superclass, since a call matching no initializer at all would not compile; label narrowing only chooses between declared initializers otherwise. When the query does name labels, only sites matching those labels are kept, as a function's are.
         ///
         /// A call `Self.run(x)` is kept whatever its labels wherever it is written inside a type declared as one of `owners`, the types declaring the name, generic arguments and sugar set aside, but only where an instance method of the name is among the declarations: there `x` may be the instance an unapplied method runs on, and where every declaration is static, or an initializer, no instance can be handed over and its labels decide.
-        init?(_ sites: [SyntacticCallSite], by rows: [SymbolRow], ownedBy owners: Set<String>, initializerLabelsWereNamed: Bool = false) {
-            guard let declared = Self.declared(rows) else { return nil }
+        ///
+        /// `standardNames` gives, for a row, the standard type names its parameters' bare written types may be judged by (``ClosureParameterType``); none by default, so a bare name rules nothing out.
+        init?(
+            _ sites: [SyntacticCallSite],
+            by rows: [SymbolRow],
+            ownedBy owners: Set<String>,
+            initializerLabelsWereNamed: Bool = false,
+            standardNames: (SymbolRow) -> Set<String> = { _ in [] }
+        ) {
+            guard let declared = Self.declared(rows, standardNames: standardNames) else { return nil }
             let isInitializer = rows.allSatisfy { $0.kind == .initializer }
             var keptWithoutMatch: [(site: SyntacticCallSite, flag: String)] = []
             let kept = sites.filter { site in
@@ -491,17 +514,17 @@ extension SyntacticCallerFallback {
         }
 
         /// The sites whose written labels could reach one of `rows`, or all of them where the rows cannot narrow.
-        static func reaching(_ sites: [SyntacticCallSite], by rows: [SymbolRow]) -> [SyntacticCallSite] {
-            guard let declared = declared(rows) else { return sites }
+        static func reaching(_ sites: [SyntacticCallSite], by rows: [SymbolRow], standardNames: (SymbolRow) -> Set<String> = { _ in [] }) -> [SyntacticCallSite] {
+            guard let declared = declared(rows, standardNames: standardNames) else { return sites }
             return sites.filter { site in site.arguments.map { arguments in declared.contains { $0.accepts(arguments) } } ?? true }
         }
 
         /// The labels of every row, or `nil` unless all are functions, or all initializers, whose labels can be read.
-        private static func declared(_ rows: [SymbolRow]) -> [Declaration]? {
+        private static func declared(_ rows: [SymbolRow], standardNames: (SymbolRow) -> Set<String>) -> [Declaration]? {
             guard !rows.isEmpty, rows.allSatisfy({ $0.kind == .function }) || rows.allSatisfy({ $0.kind == .initializer }) else { return nil }
             var declared: [Declaration] = []
             for row in rows {
-                guard let labels = ParameterLabels(signature: row.signature, name: row.name) else { return nil }
+                guard let labels = ParameterLabels(signature: row.signature, name: row.name, standardNames: standardNames(row)) else { return nil }
                 // A static or class member and a free function have no instance a call could hand them first.
                 declared.append(Declaration(labels: labels, takesInstance: row.kind == .function && !row.isStatic && row.parentID != nil))
             }

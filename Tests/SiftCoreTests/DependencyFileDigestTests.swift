@@ -56,6 +56,18 @@ struct DependencyFileDigestTests {
         #expect(!answer.contains("exists but is not indexed"))
     }
 
+    /// The module line names the target an `import` spells, `Sources/<Target>/`, not the checkout's directory.
+    @Test
+    func theModuleIsTheTargetDirectoryNotThePackage() async throws {
+        let file = ".build/checkouts/depot-kit/Sources/DepotStore/Depot.swift"
+        let (engine, _) = try await Self.engine(checkoutFile: file)
+
+        let answer = try engine.digest(target: file, options: DigestOptions())
+
+        #expect(answer.contains("\(file) — module: DepotStore"), "\(answer)")
+        #expect(!answer.contains("module: depot-kit"), "\(answer)")
+    }
+
     @Test
     func theOlderResolvedFormatNamesTheVersionToo() async throws {
         let (engine, _) = try await Self.engine(resolved: Self.resolvedV1)

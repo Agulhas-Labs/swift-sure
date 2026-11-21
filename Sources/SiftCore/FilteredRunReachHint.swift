@@ -10,8 +10,6 @@ import Foundation
 public struct FilteredRunReachHint: Sendable, Equatable {
     /// The uncommitted files, as paths from the root.
     let files: [String]
-    /// The run's own `--filter` patterns, which the command repeats.
-    let patterns: [String]
     /// The reaching suites the run left out or ran in part, nearest first.
     let suites: [Suite]
 
@@ -20,6 +18,14 @@ public struct FilteredRunReachHint: Sendable, Equatable {
 
     /// How long finding the suites may take before the line is left out rather than waited on.
     public static let lookupBudget = UnmatchedFilterHint.lookupBudget
+
+    /// How many ids a green filtered run may file in the ledger for later runs to count; a longer run files none, so the ledger's records stay small.
+    public static let recordedIdentifierLimit = 500
+
+    /// The line a run owes when it left suites out that earlier runs on this tree covered: every reaching suite has passed, counting `covering` earlier runs.
+    static func coveredLine(covering: Int) -> String {
+        "  filtered: every suite reaching the change has passed on this tree (this run and \(covering) earlier run\(covering == 1 ? "" : "s"))"
+    }
 
     /// The line, indented as the answer's other notes are, or `nil` where every reaching suite ran in full.
     var line: String? {
@@ -31,8 +37,8 @@ public struct FilteredRunReachHint: Sendable, Equatable {
         let tests = suites.filter { $0.testName != nil }.count
         let counted = [(suites.count - tests, "suite"), (tests, "test")].filter { $0.0 > 0 }.map { "\($0.0) \($0.1)\($0.0 == 1 ? "" : "s")" }.joined(separator: " and ")
         let verdict = partial.isEmpty ? "did not run" : "did not run in full: \(partial.joined(separator: ", "))"
-        let named = patterns + listed.map(\.filter).filter { !patterns.contains($0) }
-        let command = named.map { "--filter " + TestRunRequest.shellQuoted($0) }.joined(separator: " ")
+        // Only the suites to add: the run's own filters already ran, and repeating them was most of the line.
+        let command = listed.map(\.filter).map { "--filter " + TestRunRequest.shellQuoted($0) }.joined(separator: " ")
         let more = rest > 0 ? "+\(rest) more; " : ""
         return "  filtered: the working tree changes \(changed); \(counted) reaching it \(verdict) — run swift test \(command) (\(more)\(ProductName.current.binary) affected lists every suite)"
     }
@@ -71,8 +77,10 @@ public struct FilteredRunReachHint: Sendable, Equatable {
 
     /// The lines a filtered run on a changed tree owes: empty for every run that does not meet the design's conditions, so a run pays nothing for them.
     ///
+    /// `earlier` holds the ids earlier green filtered runs of this tree ran, one array per run: a suite they covered is not named, and where they cover every suite this run left out the line says so.
+    ///
     /// It needs a `swift test` that carried a `--filter`, whose own answer is not a refusal or a failed build, and that shows what it ran on the evidence ``RunTestSelector/ranIdentifiers(_:)`` asks for.
-    public static func lines(after outcome: RunOutcome, selector: RunTestSelector?, repositoryRoot: URL?, budget: TimeInterval = lookupBudget) -> [String] {
+    public static func lines(after outcome: RunOutcome, selector: RunTestSelector?, repositoryRoot: URL?, budget: TimeInterval = lookupBudget, earlier: [[String]] = []) -> [String] {
         guard let report = outcome.report, let selector, !selector.patterns.isEmpty, let repositoryRoot, outcome.stoppedTest == nil,
               selector.ownExitCode(report, exitCode: outcome.exitCode) == nil,
               let ran = selector.ranIdentifiers(report)
@@ -81,6 +89,7 @@ public struct FilteredRunReachHint: Sendable, Equatable {
         }
         let database = SiftPaths.cache(in: repositoryRoot).appendingPathComponent(SiftPaths.indexFileName)
         guard FileManager.default.fileExists(atPath: database.path) else { return [] }
+        let passed = outcome.exitCode == 0
         let box = HintBox()
         let finished = DispatchSemaphore(value: 0)
         let lookup = Task.detached {
@@ -95,8 +104,16 @@ public struct FilteredRunReachHint: Sendable, Equatable {
                 try await engine.ensureFresh()
                 if let (files, reached) = try await engine.suitesReachingWorkingTree() {
                     let inventory = try TestInventory.read(store: engine.store, repositoryRoot: repositoryRoot).tests
-                    let hint = FilteredRunReachHint(files: files, patterns: selector.patterns, suites: leftOut(reached, inventory: inventory, ran: ran))
-                    box.store(hint.line.map { [$0] } ?? [])
+                    let own = leftOut(reached, inventory: inventory, ran: ran)
+                    let union = earlier.reduce(into: ran) { $0.formUnion($1) }
+                    let all = earlier.isEmpty ? own : leftOut(reached, inventory: inventory, ran: union)
+                    if !own.isEmpty, all.isEmpty {
+                        // A red run is never told every suite passed, and with nothing owed it has no line.
+                        let covering = earlier.filter { leftOut(reached, inventory: inventory, ran: ran.union($0)) != own }.count
+                        box.store(passed ? [coveredLine(covering: covering)] : [])
+                    } else {
+                        box.store(FilteredRunReachHint(files: files, suites: all).line.map { [$0] } ?? [])
+                    }
                 }
             } catch {
                 box.store([])

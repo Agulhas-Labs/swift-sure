@@ -111,7 +111,7 @@ public struct HelpTopics {
         tests that both failed and passed on identical bytes under one command line (`2 of 9 on one tree`), then those that failed \
         only on trees they never passed on — which is what a deliberate red, such as a negative gate, looks \
         like — and apart from both, runs recorded before the log kept a tree, whose tier is unknown. \
-        Test names are pseudonymised by default, as `report` and `audit` are; \
+        Test names are pseudonymised by default, as `audit`'s names are (the `report` page is not redacted); \
         `--unredact` prints them, and `--root` narrows to one repo. `\(ProductName.current.binary) flakes <name>` answers for one named test \
         instead: every test whose recorded name contains it (`.` and `/` read alike), printed by its real name, \
         with every population it was recorded failing in, including a test that failed in every run. Two things it withholds rather than \

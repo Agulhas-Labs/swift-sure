@@ -216,7 +216,7 @@ public struct DigestRenderer {
         // A suite named as a type takes what its file digest takes, over the members of every one of its
         // extensions too — naming the suite is the natural call, and its helpers are often declared apart.
         let suites = try store.fileRow(path: primary.path).flatMap {
-            SuiteAnnotation(file: $0, store: store, repoRoot: repoRoot, options: options)
+            try SuiteAnnotation(file: $0, store: store, repoRoot: repoRoot, options: options)
         }
         let suite = try suites?.suite(owning: primary)
         // Eligibility is decided now, over every member whatever page ends up served — a test has to be recorded as its suite's latest regardless of pagination.
@@ -406,7 +406,7 @@ public struct DigestRenderer {
         lines.append("")
         var outlineBudget = DigestCaps.outlineCap
         // `nil` for every ordinary file, which takes none of what a suite's digest adds.
-        let suites = SuiteAnnotation(file: file, store: store, repoRoot: repoRoot, options: options)
+        let suites = try SuiteAnnotation(file: file, store: store, repoRoot: repoRoot, options: options)
         // No access filter on this path, unlike the module digest below. `private` is scoped to the file, so a
         // file's private declarations *are* the file — filtering them answers a different question than the one
         // asked, and answers it silently: a file digest would list a fraction of the members its own summary line

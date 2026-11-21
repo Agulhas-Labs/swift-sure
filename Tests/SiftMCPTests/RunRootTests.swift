@@ -223,7 +223,7 @@ struct RunRootTests {
     }
 }
 
-private extension RunRootTests {
+extension RunRootTests {
     /// `real/child` and a symbolic link `link` to it, in `base`; returns the link.
     static func makeLinkedChild(in base: URL) throws -> URL {
         let child = base.appendingPathComponent("real/child")
@@ -247,7 +247,7 @@ private extension RunRootTests {
     }
 }
 
-private extension RunRootTests {
+extension RunRootTests {
     static func sift(_ arguments: [String], in directory: URL, pwd: String? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -> (status: Int32, output: String) {
         let binary = try #require(BuiltExecutable.sift, "no `swift-sure` built beside the test bundle, at \(BuiltExecutable.expected.path)", sourceLocation: sourceLocation)
         return try spawn(binary.path, arguments, in: directory, isolated: true, pwd: pwd)

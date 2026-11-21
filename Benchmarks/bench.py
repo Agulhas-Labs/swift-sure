@@ -183,6 +183,8 @@ HARNESS_TOTALS = {"session": 0.0, "prepare": 0.0, "check": 0.0, "cleanup": 0.0}
 
 # The pgid of the child running now, so an interrupt can stop it and everything it started.
 CURRENT_GROUP = None
+# When the last command `limited` ran ended, before its reap: a run's wall time stops here.
+LAST_ENDED = 0.0
 
 
 class Halt(Exception):
@@ -219,13 +221,15 @@ def limited(command, seconds, cwd, env, stdin=None, stdout=None, stderr=None):
     """Runs `command` in its own process group under a wall-clock alarm (macOS has no `timeout`), then
     kills whatever of the group is left, and every process still standing in `cwd`, so nothing a run
     started outlives it into the next one at the same path. Returns (exit code, timed out)."""
-    global CURRENT_GROUP
+    global CURRENT_GROUP, LAST_ENDED
     wrapped = ["perl", "-e", "setpgrp(0,0); alarm shift; exec @ARGV", str(seconds)] + [str(c) for c in command]
     process = subprocess.Popen(wrapped, cwd=str(cwd), env=env, stdin=stdin, stdout=stdout, stderr=stderr)
     CURRENT_GROUP = process.pid
     try:
         code = process.wait()
     finally:
+        # Taken before the reap, so a caller timing the command does not time this tool's cleanup too.
+        LAST_ENDED = time.time()
         kill_group(process.pid)
         CURRENT_GROUP = None
         reap_under(cwd)
@@ -338,7 +342,11 @@ def reap_under(directory, bound: float = 5.0) -> list:
                 os.kill(pid, signal.SIGKILL)
             except Exception:  # already gone
                 pass
-        if not found or time.time() >= deadline:
+        if not found:
+            return killed
+        if time.time() >= deadline:
+            for pid, cwd in found:
+                print("still standing after %.1f s: pid %d in %s" % (bound, pid, cwd), file=sys.stderr, flush=True)
             return killed
         time.sleep(0.1)
 
@@ -351,10 +359,15 @@ def path_within(path: str, root: str) -> bool:
 def working_directories() -> list:
     """(pid, working directory) for every process of this user, reparented ones too (`ps` has no cwd column
     on macOS, `lsof` has)."""
-    listed = subprocess.run(["lsof", "-a", "-d", "cwd", "-F", "pn", "-u", str(os.getuid())],
-                            capture_output=True, text=True, cwd="/").stdout
+    result = subprocess.run(["lsof", "-a", "-d", "cwd", "-F", "pn", "-u", str(os.getuid())],
+                            capture_output=True, text=True, cwd="/")
+    # This user always has a process with a working directory (this one), so an empty listing with a failing
+    # exit is lsof failing, not a clean tree: reaping nothing then would bring back the corpus-lock hang unannounced.
+    if result.returncode != 0 and not result.stdout.strip():
+        raise Halt("lsof failed (exit %d), so no process left in the corpus can be found: %s"
+                   % (result.returncode, result.stderr.strip() or "no output"))
     found, pid = [], None
-    for line in listed.splitlines():
+    for line in result.stdout.splitlines():
         if line.startswith("p"):
             pid = int(line[1:])
         elif line.startswith("n") and pid is not None:
@@ -1409,6 +1422,9 @@ def run_one(tasks: dict, task: dict, arm: str, repeat: int, position: int, optio
             inject(task)
             commit_corpus(env_base)
         sift_on = arm == "B" or options.sift_on_a
+        if not sift_on:
+            # An arm without SwiftSure gets no trace of it: --index-corpus's index would show to `ls -a`.
+            shutil.rmtree(RUN / PRODUCT.directory, ignore_errors=True)
         arm_path = str(WRAPPER_DIR) + os.pathsep + base_path if sift_on else base_path
         arm_env = clean_env(arm_path)
         if options.mod_b:
@@ -1479,7 +1495,8 @@ def run_one(tasks: dict, task: dict, arm: str, repeat: int, position: int, optio
         prepare_seconds = started - prepare_began
         with open(prompt) as stdin, open(stream, "w") as stdout, open(errors, "w") as stderr:
             code, timed_out = limited(command, options.timeout, RUN, arm_env, stdin=stdin, stdout=stdout, stderr=stderr)
-        wall = time.time() - started
+        # The session's own time: the reap `limited` ends with (about 0.15 s, up to its bound) is harness time.
+        wall = LAST_ENDED - started
         parsed = parse(stream, arm, sift_on, options.mod["mod_name"] if options.mod_b else None, mcp_expected,
                        options.plugin["plugin_name"] if options.plugin_b else None)
         if timed_out:
@@ -1552,6 +1569,9 @@ def fixed_overhead(env: dict, rule: Path) -> dict:
     estimates = {}
     try:
         checked(["cp", "-c", "-Rp", TEMPLATE, probe])
+        # A template indexed by --index-corpus carries SwiftSure's index; timed with it, "cold" would be a check
+        # of an index already up to date.
+        shutil.rmtree(probe / PRODUCT.directory, ignore_errors=True)
         commit_corpus(env)
         if STORE.exists():
             (probe / PRODUCT.config).write_text(json.dumps({"indexStorePath": str(STORE)}) + "\n")

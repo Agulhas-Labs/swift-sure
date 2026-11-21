@@ -4,7 +4,7 @@
 
 /// Answers the two questions the affected-tests walk asks of the syntactic index: which declaration encloses a given line, and whether that declaration is (or sits inside) a test.
 ///
-/// **Recognition is by shape, from rows the index already holds, not from the build system.** A file whose import list carries `Testing` or `XCTest` is a test file and its module is the test target; a `func` whose signature carries `@Test` is a swift-testing test; a `test…` instance method inside a class whose inheritance reaches `XCTestCase` is an XCTest one. Reading `.testTarget` out of a SwiftPM manifest would have been the other candidate and would have covered exactly one of the three build systems this tool resolves modules from — the same "supported at the paths we look in" mistake Docs/Design.md §2 records against XcodeGen. Shape covers all three at once, and it covers a repository whose build files the resolver cannot read at all.
+/// **Recognition is by shape, from rows the index already holds, not from the build system.** A file whose import list carries `Testing` or `XCTest` is a test file and its module is the test target; a `func` whose signature carries `@Test` in such a file is a swift-testing test; a `test…` instance method inside a class whose inheritance reaches `XCTestCase` is an XCTest one, whatever its own file imports, since a case inheriting a base from a test-support module needs no import of XCTest itself. Reading `.testTarget` out of a SwiftPM manifest would have been the other candidate and would have covered exactly one of the three build systems this tool resolves modules from — the same "supported at the paths we look in" mistake Docs/Design.md §2 records against XcodeGen. Shape covers all three at once, and it covers a repository whose build files the resolver cannot read at all.
 ///
 /// The cost of that choice is stated where it is felt: `-only-testing:` names the *module*, which is the target name for SwiftPM and for any Xcode target that has not overridden `PRODUCT_MODULE_NAME` — see `AffectedBlindSpots`.
 final class TestSymbolReader {
@@ -13,6 +13,9 @@ final class TestSymbolReader {
     private var fileRows: [String: FileRow?] = [:]
     private var suiteCache: [Int64: TestSymbol.Style?] = [:]
     private var extensionSuiteCache: [Int64: TestSymbol.Style?] = [:]
+    private var lineageCache: [Int64: Lineage] = [:]
+    private var testBearingCache: [Int64: Bool] = [:]
+    private var caseFiles: Set<String>?
 
     init(store: IndexStore) {
         self.store = store
@@ -37,6 +40,24 @@ final class TestSymbolReader {
             .min { ($0.endLine - $0.line, $0.line) < ($1.endLine - $1.line, $1.line) }
     }
 
+    /// The tests and suites among `rows`, each reached as itself, and the rows a walk by name goes on from: every row but a test function, whose name written elsewhere is another suite's declaration of a test of the same name (every suite writing `@Test func runs()`), never a use.
+    ///
+    /// A suite's type and a type nested in it go on, since another suite subclasses the one or builds the other.
+    func routes(among rows: [SymbolRow]) throws -> (tests: [TestDeclaration], routes: [SymbolRow]) {
+        var tests: [TestDeclaration] = []
+        var routes: [SymbolRow] = []
+        for row in rows {
+            let test = try testSymbol(enclosing: row)
+            if let test {
+                tests.append(test)
+            }
+            if test?.symbol.function == nil {
+                routes.append(row)
+            }
+        }
+        return (tests, routes)
+    }
+
     /// The test this declaration is, or sits inside — `nil` when it is ordinary code, including a helper inside a test target.
     ///
     /// Three grains, coarsening outward. A `@Test`/`test…` function is named individually. A reference landing anywhere else *inside a suite* — a stored property, a private helper method, the inheritance clause, a helper type nested in it that is no suite — names the **whole suite**, because nothing in the evidence singles out which of its tests uses that member, and a suite's own private members are suite-scoped by construction: `makeBuiltRepo()` is used by every test in the suite that declares it. Over-inclusive is the direction to err. The suite is not the end of the road, though: a helper of one suite is often called from the tests of others, so `affected` records the suite and follows the helper's own references as well. Anything in a test target that is not inside a suite at all — a shared fixture type, a file of free helpers — is not a test: the walk follows its references rather than reporting it.
@@ -44,9 +65,9 @@ final class TestSymbolReader {
         guard let file = try fileRow(path: row.path) else { return nil }
         let styles = Self.styles(importedBy: file)
         let chain = try store.parentChain(of: row) + [row]
-        // A file with no test-library import holds no test of its own, but an extension in it can still extend a suite declared in another file, so only the outward walk below may go on.
-        guard !styles.isEmpty || chain.contains(where: { $0.kind == .extensionKind }) else { return nil }
-        for index in chain.indices.reversed() where !styles.isEmpty {
+        // A file with no test-library import holds no swift-testing test, but a class in it can still inherit an XCTest case's base from another file, and an extension in it can still extend a suite declared elsewhere.
+        guard !styles.isEmpty || chain.contains(where: { $0.kind == .classKind || $0.kind == .extensionKind }) else { return nil }
+        for index in chain.indices.reversed() {
             let owners = Array(chain[..<index])
             guard let style = try testStyle(of: chain[index], styles: styles, owners: owners) else { continue }
             let symbol = try TestSymbol(
@@ -116,18 +137,23 @@ final class TestSymbolReader {
 
     /// The library one declaration is a test of, given the libraries its file imports and the declarations that enclose it, or `nil` when it is not a test function.
     ///
-    /// A `@Test` marker is swift-testing's whatever else the file imports, because the marker is that library's own. The XCTest arm restates the runtime's own discovery rule — an instance method taking no arguments whose name begins with `test`, on an `XCTestCase` — rather than inventing a looser one, because a name that only *looks* like a test would put an identifier in the `-only-testing:` list that the runner then rejects, and a rejected argument fails the whole invocation rather than one test.
+    /// A `@Test` marker is swift-testing's whatever else the file imports, because the marker is that library's own, but only in a file importing a testing library, since elsewhere the name is some other attribute's. The XCTest arm restates the runtime's own discovery rule — an instance method taking no arguments whose name begins with `test`, on an `XCTestCase` — rather than inventing a looser one, because a name that only *looks* like a test would put an identifier in the `-only-testing:` list that the runner then rejects, and a rejected argument fails the whole invocation rather than one test.
     ///
     /// Not `private`: `SuiteAnnotation` classifies a suite's own members the same way, to tell its tests from its helpers.
     func testStyle(of row: SymbolRow, styles: Set<TestSymbol.Style>, owners: [SymbolRow]) throws -> TestSymbol.Style? {
         guard row.kind == .function else { return nil }
-        if AttributeScanner.attributeNames(in: row.signature).contains("Test") {
+        if !styles.isEmpty, AttributeScanner.attributeNames(in: row.signature).contains("Test") {
             return .swiftTesting
         }
-        guard styles.contains(.xcTest), !row.isStatic, row.baseName.hasPrefix("test"), row.name.hasSuffix("()") else { return nil }
+        guard Self.isXCTestShaped(row) else { return nil }
         // The innermost enclosing declaration, not the innermost class: a method of a struct nested in a test case is a test of neither, and the runner rejects the path that would name it.
         guard let owner = owners.last, owner.kind == .classKind || owner.kind == .extensionKind else { return nil }
-        return try inheritsXCTestCase(owner) ? .xcTest : nil
+        return try lineage(of: owner).reachesXCTestCase ? .xcTest : nil
+    }
+
+    /// Whether a function has the shape XCTest's runtime discovers a test by: an instance method taking no arguments whose name begins with `test`.
+    private static func isXCTestShaped(_ row: SymbolRow) -> Bool {
+        row.kind == .function && !row.isStatic && row.baseName.hasPrefix("test") && row.name.hasSuffix("()")
     }
 
     /// The library an enclosing type or extension is a suite of, for the outward walk: an extension that is no suite by its own signature or members still counts when the type it extends, in the same module, is one.
@@ -154,12 +180,14 @@ final class TestSymbolReader {
 
     /// The library a type is a suite of, when it is a suite whose every test the reference implicates, or `nil` when it is none.
     ///
+    /// An XCTest class is a suite only where it runs a test: one its own body or an extension of it declares, or one a class above it does. A shared base with none runs nothing, so a filter naming it selects nothing and a change to it reaches tests only through the cases that inherit it.
+    ///
     /// Not `private`: `SuiteAnnotation` reads this to decide which of a file's top-level declarations to look inside for tests and helpers at all.
     func suiteStyle(of row: SymbolRow, styles: Set<TestSymbol.Style>) throws -> TestSymbol.Style? {
         if let cached = suiteCache[row.id] {
             return cached
         }
-        let verdict: TestSymbol.Style? = if styles.contains(.xcTest), try inheritsXCTestCase(row) {
+        let verdict: TestSymbol.Style? = if try runsXCTests(row) {
             .xcTest
         } else if !styles.contains(.swiftTesting) {
             nil
@@ -173,37 +201,131 @@ final class TestSymbolReader {
         return verdict
     }
 
-    /// Whether a class's written inheritance reaches `XCTestCase`, following named superclasses declared in this repository and the typealiases visible from wherever each name was written.
+    /// Whether a class, or the class an extension extends, reaches `XCTestCase` and runs at least one test: its own, an extension's, or one a class above it declares.
+    private func runsXCTests(_ row: SymbolRow) throws -> Bool {
+        let lineage = try lineage(of: row)
+        return try lineage.reachesXCTestCase && lineage.classes.contains { try declaresXCTests($0) }
+    }
+
+    /// Whether a class's own body or an extension of it declares a `test…` method: an extension that resolves to this class, not one of a same-named class in another module.
+    private func declaresXCTests(_ declaration: SymbolRow) throws -> Bool {
+        if let cached = testBearingCache[declaration.id] {
+            return cached
+        }
+        var verdict = try store.children(of: declaration.id).contains(where: Self.isXCTestShaped)
+        if !verdict {
+            verdict = try store.extensions(ofTypeNamed: declaration.name).contains { extensionRow in
+                try store.children(of: extensionRow.id).contains(where: Self.isXCTestShaped) && extendedDeclaration(of: extensionRow)?.id == declaration.id
+            }
+        }
+        testBearingCache[declaration.id] = verdict
+        return verdict
+    }
+
+    /// What a class's written inheritance reaches, following named superclasses declared in this repository and the typealiases visible from wherever each name was written.
     ///
     /// Unbounded but cycle-guarded rather than depth-capped: a shared base test case two or three subclasses deep is ordinary, and a cap would silently stop recognising tests at whatever depth it was set to — the failure mode this whole command exists to avoid. Syntax cannot tell a superclass from a protocol, so every inherited name is followed; a protocol name simply resolves to a protocol declaration that inherits nothing called `XCTestCase`.
     ///
-    /// An extension answers for the class it extends, because XCTest runs the `test…` methods an extension adds and an extension's own clause can only add conformances — but only for a same-named type its own file can see, since an extension can extend nothing else. Only a class qualifies at the start, since nothing else can inherit one.
-    private func inheritsXCTestCase(_ row: SymbolRow) throws -> Bool {
-        let classes = try (row.kind == .extensionKind ? exactlyExtendedTypes(of: row) : [row]).filter { $0.kind == .classKind }
-        var seen = Set(classes.map(\.id))
+    /// `XCTestCase` counts only where the file that wrote it imports XCTest, so a user type of that name, written where XCTest is not imported, makes nothing a test; the type itself is followed like any other.
+    ///
+    /// Each name is resolved as the compiler resolves it where it was written (``declarations(named:writtenIn:)``), so a same-named class in a module that file cannot see, or one its own module shadows, is never on the way; a name resolving to more than one declaration ends that branch rather than guessing, and a typealias is followed only where no declaration answers. Guessing would offer a class whose only tests are another module's as a suite, whose filter then runs nothing.
+    ///
+    /// An extension answers for the class it extends, because XCTest runs the `test…` methods an extension adds and an extension's own clause can only add conformances — but only for the type its own file resolves the name to (``extendedDeclaration(of:)``), since an extension can extend nothing else. Only a class qualifies at the start, since nothing else can inherit one.
+    private func lineage(of row: SymbolRow) throws -> Lineage {
+        if let cached = lineageCache[row.id] {
+            return cached
+        }
+        var lineage = Lineage()
+        lineage.classes = try (row.kind == .extensionKind ? extendedDeclaration(of: row).map { [$0] } ?? [] : [row]).filter { $0.kind == .classKind }
+        var seen = Set(lineage.classes.map(\.id))
         var pending: [(name: String, path: String)] = []
-        for declaration in classes {
+        for declaration in lineage.classes {
             try pending.append(contentsOf: store.inheritedNames(of: declaration.id).map { (Self.unspecialised($0), declaration.path) })
         }
         while let (name, path) = pending.popLast() {
-            if name == "XCTestCase" {
-                return true
+            if name == "XCTestCase", try fileRow(path: path)?.imports.contains("XCTest") == true {
+                lineage.reachesXCTestCase = true
+                continue
             }
-            for declaration in try store.typeDeclarations(named: name) where seen.insert(declaration.id).inserted {
+            let declarations = try declarations(named: name, writtenIn: path)
+            if declarations.count == 1, let declaration = declarations.first, seen.insert(declaration.id).inserted {
+                if declaration.kind == .classKind {
+                    lineage.classes.append(declaration)
+                }
                 try pending.append(contentsOf: store.inheritedNames(of: declaration.id).map { (Self.unspecialised($0), declaration.path) })
             }
+            guard declarations.isEmpty else { continue }
             for alias in try typealiases(named: name, visibleFrom: path) where seen.insert(alias.id).inserted {
                 if let aliased = Self.aliasedName(in: alias.signature) {
                     pending.append((aliased, alias.path))
                 }
             }
         }
-        return false
+        lineageCache[row.id] = lineage
+        return lineage
+    }
+
+    /// The type declarations a name written in the file at `path` resolves to: those in that file's own module, which shadow the rest, else those in the modules it imports.
+    ///
+    /// More than one is a name the compiler rejects unless it is qualified.
+    private func declarations(named name: String, writtenIn path: String) throws -> [SymbolRow] {
+        guard let file = try fileRow(path: path) else { return [] }
+        let visible = Set(file.imports).union([file.module])
+        let declarations = try store.typeDeclarations(named: name).filter { visible.contains($0.module) }
+        let local = declarations.filter { $0.module == file.module }
+        return local.isEmpty ? declarations : local
+    }
+
+    /// The one type declaration an extension extends, resolved as ``declarations(named:writtenIn:)`` resolves a name: its own module's before an imported one's, and `nil` where that still leaves more than one.
+    private func extendedDeclaration(of row: SymbolRow) throws -> SymbolRow? {
+        let candidates = try exactlyExtendedTypes(of: row)
+        let local = candidates.filter { $0.module == row.module }
+        let resolved = local.isEmpty ? candidates : local
+        return resolved.count == 1 ? resolved.first : nil
+    }
+
+    /// Whether the file at `path` holds an XCTest case whatever it imports: a class whose inheritance reaches `XCTestCase`, or an extension declaring a `test…` method of one.
+    ///
+    /// A case inheriting its base from a test-support module needs no import of XCTest itself, so the import rule alone (``TestFileRecognition``) misses its file.
+    ///
+    /// Only a class or an extension can be one, so a file holding neither is answered from its rows alone.
+    func holdsXCTestCase(inFile path: String) throws -> Bool {
+        let rows = try symbols(inFile: path)
+        return try rows.contains { row in
+            switch row.kind {
+            case .classKind: try lineage(of: row).reachesXCTestCase
+            case .extensionKind: try rows.contains { $0.parentID == row.id && Self.isXCTestShaped($0) } && lineage(of: row).reachesXCTestCase
+            default: false
+            }
+        }
+    }
+
+    /// The files importing no testing library that hold an XCTest case, as ``holdsXCTestCase(inFile:)`` decides one, read from the store's candidate rows in one query (``IndexStore/xcTestCaseCandidates()``) rather than file by file, and cached.
+    ///
+    /// A file that imports none can reach `XCTestCase` only through a class or typealias declared in the repository, since the name itself counts only where XCTest is imported, so a class naming neither is no candidate.
+    func xcTestCaseFilesWithoutTestingImport() throws -> Set<String> {
+        if let caseFiles {
+            return caseFiles
+        }
+        var paths: Set<String> = []
+        for row in try store.xcTestCaseCandidates() where !paths.contains(row.path) {
+            guard let file = try fileRow(path: row.path), !TestFileRecognition.isTestFile(imports: file.imports) else { continue }
+            if try lineage(of: row).reachesXCTestCase {
+                paths.insert(row.path)
+            }
+        }
+        caseFiles = paths
+        return paths
+    }
+
+    /// Whether a file is a test file: one importing a testing library, or one holding an XCTest case although it imports none (``holdsXCTestCase(inFile:)``).
+    func isTestFile(_ file: FileRow) throws -> Bool {
+        try TestFileRecognition.isTestFile(imports: file.imports) || holdsXCTestCase(inFile: file.path)
     }
 
     /// The class a class's written superclass names, resolved within the modules its file can see, or `nil` where the chain leaves the repository.
     ///
-    /// Only the clause's first entry can be a superclass, so it is the only one read. A name resolves in the declaring file's own module before the modules it imports, and through the typealiases visible from wherever it was written, as ``inheritsXCTestCase(_:)`` resolves it. A name that resolves to no class — `XCTestCase` itself, a type from outside the repository — or to more than one ends the chain rather than guessing between them.
+    /// Only the clause's first entry can be a superclass, so it is the only one read. A name resolves in the declaring file's own module before the modules it imports, and through the typealiases visible from wherever it was written, as ``lineage(of:)`` resolves it. A name that resolves to no class — `XCTestCase` itself, a type from outside the repository — or to more than one ends the chain rather than guessing between them.
     ///
     /// Not `private`: `TestInventory` walks this chain to declare the `test…` methods a case inherits.
     func superclass(of row: SymbolRow) throws -> SymbolRow? {
@@ -276,5 +398,13 @@ final class TestSymbolReader {
         case .swiftTesting: row.name
         case .xcTest: row.baseName
         }
+    }
+}
+
+private extension TestSymbolReader {
+    /// What a class's written inheritance reaches: whether it is `XCTestCase`, and every class declaration on the way, the class itself included.
+    struct Lineage {
+        var reachesXCTestCase = false
+        var classes: [SymbolRow] = []
     }
 }

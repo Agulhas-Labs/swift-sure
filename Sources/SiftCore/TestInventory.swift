@@ -8,7 +8,7 @@ import Foundation
 ///
 /// This is the count of what is *supposed* to run, which no runner's output carries: a crash loses the tests that never started, a retry counts attempts, a plan's exclusion leaves no trace, and a test target in no plan compiles on every build and is never run by anything.
 ///
-/// Recognition is `TestSymbolReader`'s, unchanged — a file whose imports name a testing library, a `@Test` function or a `test…()` method on an `XCTestCase` — so a test counted here is the same declaration `affected` names.
+/// Recognition is `TestSymbolReader`'s, unchanged — a `@Test` function in a file whose imports name a testing library, or a `test…()` method on an `XCTestCase` in any file — so a test counted here is the same declaration `affected` names.
 ///
 /// One addition is the runner's rather than the declaration's: a case also declares every `test…` method its superclasses in the repository declare, because XCTest runs each of them under the subclass as well.
 public struct TestInventory: Sendable {
@@ -34,12 +34,14 @@ public struct TestInventory: Sendable {
         var caseCompilations: [String: DeclaredTest.Compilation] = [:]
         for (path, file) in files.sorted(by: { $0.key < $1.key }) {
             let styles = TestSymbolReader.styles(importedBy: file)
-            guard !styles.isEmpty else { continue }
             let rows = try reader.symbols(inFile: path)
+            // A file importing no testing library can still hold an XCTest case, one whose base in another file reaches `XCTestCase`, and only a class or an extension can be one.
+            guard !styles.isEmpty || rows.contains(where: { $0.kind == .classKind || $0.kind == .extensionKind }) else { continue }
             let rowsByID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            let openings = styles.contains(.xcTest) ? openings(ofFileAt: path, under: repositoryRoot) : [:]
-            let regions = rows.contains { $0.ifConfigCondition != nil } ? compilationRegions(ofFileAt: path, under: repositoryRoot) : []
-            for row in rows where row.kind == .classKind && styles.contains(.xcTest) {
+            // Both parse the file, so they wait for the first case or test that needs them.
+            lazy var bodyOpenings = Self.openings(ofFileAt: path, under: repositoryRoot)
+            lazy var regions = rows.contains { $0.ifConfigCondition != nil } ? Self.compilationRegions(ofFileAt: path, under: repositoryRoot) : []
+            for row in rows where row.kind == .classKind {
                 let chain = Self.owners(of: row, in: rowsByID) + [row]
                 guard try reader.suiteStyle(of: row, styles: styles) == .xcTest, let suite = try TestSymbolReader.suiteName(of: chain, store: store) else { continue }
                 cases.append((row, suite))
@@ -60,7 +62,7 @@ public struct TestInventory: Sendable {
                     function: row.name,
                     style: style,
                     displayName: displayName(inAttributeArguments: attributeArguments),
-                    disposition: disposition(of: row, style: style, attributeArguments: attributeArguments, owners: owners, openings: openings),
+                    disposition: disposition(of: row, style: style, attributeArguments: attributeArguments, owners: owners, openings: style == .xcTest ? bodyOpenings : [:]),
                     path: path,
                     line: row.line,
                     compilation: compilation(of: row, in: regions)

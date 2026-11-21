@@ -101,7 +101,9 @@ struct AffectedAfterEditSeeds {
                     }
                 }
                 touchedRows += changeRows
-                let changeSeeds = seeds(of: change, module: module, throughItsType: !wholeContainer && reachedThroughItsType(change, rows: changeRows))
+                // Its own name is confined to this file where every row it touched is private to the file and the diff left its access alone: a declaration this diff made private still has callers elsewhere spelling it.
+                let confined = try !changeRows.isEmpty && change.oldAccess == nil && changeRows.allSatisfy { try AffectedNameSeed.fileScope(of: $0, in: store) != nil }
+                let changeSeeds = seeds(of: change, module: module, file: confined ? diff.path : nil, throughItsType: !wholeContainer && reachedThroughItsType(change, rows: changeRows))
                 // A removed declaration, a rename's old name among them, is expected to have no site left: its callers are seeded by what they call now.
                 if change.kind != .removed, let outermost = outermostType(of: change) {
                     for seed in changeSeeds where seed.kind == change.symbolKind || seed.kind == .initializer {
@@ -220,7 +222,9 @@ struct AffectedAfterEditSeeds {
     ]
 
     /// The names one change is seeded by, read off whichever side holds them: a removed declaration and a wholly removed container's functions from the before side, the container type a subscript or an extension stands for, and the type declaring a change reached through it.
-    private static func seeds(of change: DeclarationChange, module: String, throughItsType: Bool) -> [AffectedNameSeed] {
+    ///
+    /// `file` is the one file the change's own name can be written in, where it is private to it.
+    private static func seeds(of change: DeclarationChange, module: String, file: String?, throughItsType: Bool) -> [AffectedNameSeed] {
         let containerType = change.containerPath.isEmpty ? nil : DeclaredTypeName.last(ofPath: change.containerPath)
         var seeds: [AffectedNameSeed] = []
         if throughItsType, let containerType {
@@ -234,7 +238,7 @@ struct AffectedAfterEditSeeds {
         case .extensionKind:
             seeds.append(AffectedNameSeed(name: DeclaredTypeName.last(ofPath: change.name), module: module, kind: .extensionKind))
         default:
-            seeds.append(AffectedNameSeed(name: CallSiteScanner.baseName(of: change.name), module: module, kind: change.symbolKind))
+            seeds.append(AffectedNameSeed(name: CallSiteScanner.baseName(of: change.name), module: module, kind: change.symbolKind, file: file))
         }
         if change.kind == .removed {
             seeds += change.nestedFunctions.map { AffectedNameSeed(name: CallSiteScanner.baseName(of: $0.name), module: module, kind: .function) }

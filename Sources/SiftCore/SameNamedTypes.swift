@@ -75,10 +75,10 @@ struct SameNamedTypes {
 
     /// The labels of the initializers `row` has that nobody declared under it — a struct's memberwise one where its body declares none, an enum's `init(rawValue:)` where it has a raw type, a decoding `init(from:)`, those `lent` by protocol extensions — or `nil` for a class or actor, which may inherit any.
     private func unwritten(of row: SymbolRow, lent: [ParameterLabels]) throws -> [ParameterLabels]? {
-        let decoding = ParameterLabels(parameters: [ParameterLabels.Parameter(label: "from", isDefaulted: false, isVariadic: false)])
+        let decoding = ParameterLabels(parameters: [ParameterLabels.Parameter(label: "from", isDefaulted: false, isVariadic: false, takesClosure: true)])
         switch row.kind {
         case .enumKind:
-            let raw = ParameterLabels(parameters: [ParameterLabels.Parameter(label: "rawValue", isDefaulted: false, isVariadic: false)])
+            let raw = ParameterLabels(parameters: [ParameterLabels.Parameter(label: "rawValue", isDefaulted: false, isVariadic: false, takesClosure: true)])
             return try lent + [decoding] + (store.inheritedNames(of: row.id).isEmpty ? [] : [raw])
         case .structKind:
             let members = try store.children(of: row.id)
@@ -126,7 +126,12 @@ struct SameNamedTypes {
         if declaration.bindingSpecifier.tokenKind == .keyword(.let), binding.initializer != nil {
             return .some(nil)
         }
-        return ParameterLabels.Parameter(label: WrittenArguments.label(identifier), isDefaulted: true, isVariadic: false)
+        return ParameterLabels.Parameter(
+            label: WrittenArguments.label(identifier),
+            isDefaulted: true,
+            isVariadic: false,
+            takesClosure: ClosureParameterType.takesClosure(bindings: Array(declaration.bindings.drop(while: { $0 != binding })))
+        )
     }
 }
 

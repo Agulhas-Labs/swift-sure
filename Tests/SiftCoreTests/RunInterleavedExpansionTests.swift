@@ -32,7 +32,7 @@ struct RunInterleavedExpansionTests {
         let first = try #require(multiLine.markedLines.dropFirst().first)
 
         #expect(helper.markedLines == ["label(of: 4) == \"x4\" → false", "  label(of: 4) → nil", "    some → \"x4\""])
-        #expect(helper.note == "label(of: 4) == \"x4\" → false label(of: 4) → nil some → \"x4\"")
+        #expect(helper.note == "label(of: 4) == \"x4\" → false label(of: 4) → nil")
         #expect(first.hasPrefix("  Gizmo.soleElement("))
         #expect(!first.hasPrefix("   "))
         #expect(first.hasSuffix("→ nil"))

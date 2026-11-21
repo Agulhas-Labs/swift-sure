@@ -198,6 +198,10 @@ public extension RunFailureHistory {
         tests.sort { $0.failed == $1.failed ? $0.name < $1.name : $0.failed > $1.failed }
         let incompleteNaming = read.incompleteNames.filter { $0.contains { matches($0, wanted) } }.count
         let conflatedNaming = read.conflatedNames.filter { $0.contains { matches($0, wanted) } }.count
+        var unmatched = read.suiteless.subtracting(read.suites.keys)
+        if wanted.contains("."), let member = wanted.split(separator: ".", omittingEmptySubsequences: false).last, !member.isEmpty {
+            unmatched = unmatched.filter { $0.contains(member) }
+        }
         return NamedFailures(
             tests: tests,
             measured: read.measured,
@@ -209,7 +213,7 @@ public extension RunFailureHistory {
             incompleteNaming: incompleteNaming,
             conflatedNaming: conflatedNaming,
             incompleteSilent: read.incomplete - incompleteNaming,
-            suiteless: read.suiteless.subtracting(read.suites.keys).count
+            suiteless: unmatched.count
         )
     }
 }
@@ -246,7 +250,9 @@ public extension RunFailureHistory {
         /// Runs whose names ran past the cap and whose recorded names do not match the query.
         public let incompleteSilent: Int
 
-        /// How many distinct Swift Testing failure names in the counted runs carry no recorded suite, so a query by suite could not have matched them.
+        /// How many distinct Swift Testing names carry no recorded suite, so a query by suite could not have matched them.
+        ///
+        /// These are the counted runs' failure names and the crash records' names (crashes never carry a suite). A `Suite.member` query counts only the names that contain its member.
         public let suiteless: Int
     }
 }
@@ -341,7 +347,7 @@ private extension RunFailureHistory {
         var conflatedNames: [[String]] = []
         /// Each name's recorded suites, over every counted run.
         var suites: [String: Set<String>] = [:]
-        /// Names in the counted runs that look like Swift Testing's (no `/`) and a run recorded with no suite.
+        /// Names that look like Swift Testing's (no `/`) and a run recorded with no suite: failure names from the counted runs and crash names from runs that are not counted.
         var suiteless: Set<String> = []
 
         var measured: Int {

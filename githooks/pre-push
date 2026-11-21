@@ -107,6 +107,14 @@ if [ -n "$status" ]; then
     exit 1
 fi
 
+# An optional machine-local check, not tracked (see .gitignore), run over the tree being pushed, as
+# pre-commit runs pre-commit.local over what is staged: a whole-tree check catches what a staged-files
+# one never saw, such as a merge commit, which runs no pre-commit hook.
+hook_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+if [ -x "$hook_dir/pre-push.local" ]; then
+    "$hook_dir/pre-push.local"
+fi
+
 # Through `swift-sure run` where this machine has it: the suite prints some six thousand lines, every one of them
 # re-read by whichever agent pushed, and the wrapper answers with the failures and the tallies instead — the
 # exit code passed through exactly, the whole log kept under .swift-sure/runs/ (.sift/runs/ for the earlier command) and named in the answer. A clone

@@ -50,6 +50,7 @@ struct EscapedMemberPatternTests {
             Issue.record("no names call for the Grep")
             return
         }
+
         #expect(names == ["Depot.pending"])
         #expect(paths.isEmpty)
         #expect(uncovered.isEmpty)

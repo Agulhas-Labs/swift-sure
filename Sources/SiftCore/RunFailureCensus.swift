@@ -299,6 +299,8 @@ public extension RunFailureCensus {
     struct NoteLine: Equatable {
         let text: String
         let marked: Bool
+        /// The whitespace the log printed between the `↳` and the text, which is the line's depth in the expansion; empty for an unmarked line.
+        var indent = ""
     }
 
     /// How much of a note is kept for ``closestLine(message:note:truncated:)`` to search: a haystack past either bound is searched as far as the bound, and said to be.
@@ -321,9 +323,8 @@ public extension RunFailureCensus {
             return nil
         }
         let values = printedValues(in: note)
-        let receiver = message[message.startIndex ..< call.lowerBound]
         guard
-            let haystack = values.first(where: { !$0.expression.isEmpty && receiver.hasSuffix($0.expression) }),
+            let haystack = receiverValue(before: call, in: message, values: values),
             haystack.lines.count > 1
         else {
             return nil
@@ -361,6 +362,8 @@ private extension RunFailureCensus {
         let expression: String
         var lines: [String]
         var complete: Bool
+        /// The positions in the note of the lines the value occupies: its `↳` line and the unmarked lines beneath it.
+        var span: Range<Int>
     }
 
     static let containmentShapes: [(name: String, line: ContainmentLine)] = [
@@ -377,6 +380,12 @@ private extension RunFailureCensus {
             }
         }
         return nil
+    }
+
+    /// The value the note printed for the call's receiver — the expression the message names just before `call` — or `nil` where it printed none.
+    static func receiverValue(before call: Range<String.Index>, in message: String, values: [PrintedValue]) -> PrintedValue? {
+        let receiver = message[message.startIndex ..< call.lowerBound]
+        return values.first(where: { !$0.expression.isEmpty && receiver.hasSuffix($0.expression) })
     }
 
     /// The needle a `contains` call was passed: its literal, or the value the note printed for the expression in its place.
@@ -403,6 +412,7 @@ private extension RunFailureCensus {
                 let closes = line.text.hasSuffix("\"") && !continued
                 value.lines.append(closes ? String(line.text.dropLast()) : line.text)
                 value.complete = closes
+                value.span = value.span.lowerBound ..< offset + 1
                 if closes {
                     values.append(value)
                 }
@@ -419,9 +429,9 @@ private extension RunFailureCensus {
             let expression = line.text[line.text.startIndex ..< arrow.lowerBound].trimmingCharacters(in: .whitespaces)
             let rest = line.text[arrow.upperBound...]
             if rest.hasSuffix("\""), !continued {
-                values.append(PrintedValue(expression: expression, lines: [String(rest.dropLast())], complete: true))
+                values.append(PrintedValue(expression: expression, lines: [String(rest.dropLast())], complete: true, span: offset ..< offset + 1))
             } else {
-                open = PrintedValue(expression: expression, lines: [String(rest)], complete: false)
+                open = PrintedValue(expression: expression, lines: [String(rest)], complete: false, span: offset ..< offset + 1)
             }
         }
         if let open {
@@ -551,5 +561,100 @@ private extension RunFailureCensus {
         case let .unavailable(reason):
             .unavailable(reason)
         }
+    }
+}
+
+extension RunFailureCensus {
+    /// A containment failure's held `note` with its multi-line receiver said in one line, or `nil` where nothing compacts.
+    ///
+    /// The receiver is the value ``closestLine(message:note:truncated:)`` reads: where it has two lines or more and closes its quote, only its `↳` line is kept, followed by ` (first of N lines — see the raw log)`, N counting blank lines too; a first line too long to fit ``wordsCap`` with its clause is clipped, ending `…`, and the clause then reads `, the first clipped` (`line k of N lines, clipped`). A value whose first line is blank keeps that `↳` line and then its first non-blank line, line k, followed by ` (line k of N lines — see the raw log)`. A comment block — a `↳` line printing no ` → "` and the unmarked lines beneath it, two lines or more — whose lines equal the receiver's exactly is dropped, and the clause then reads `; the comment repeats them` before the dash. A note cut off at ``closestLineNoteLimit``, a receiver that never closes its quote, one of blank lines only, and a comment that differs by a character all leave the lines as they were.
+    static func compactedHaystack(message: String, note: [NoteLine], truncated: Bool) -> [NoteLine]? {
+        guard
+            !truncated,
+            let (call, _) = containmentCall(in: message),
+            let haystack = receiverValue(before: call, in: message, values: printedValues(in: note)),
+            haystack.complete, haystack.lines.count > 1,
+            let shown = haystack.lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+        else {
+            return nil
+        }
+        let repeats = repeatingBlocks(of: haystack.lines, in: note)
+        let position = shown == 0 ? "first" : "line \(shown + 1)"
+        let suffix = "\(repeats.isEmpty ? "" : "; the comment repeats them") — see the raw log)"
+        let clause = " (\(position) of \(haystack.lines.count) lines\(suffix)"
+        let clippedClause = " (\(position) of \(haystack.lines.count) lines, \(shown == 0 ? "the first " : "")clipped\(suffix)"
+        var compacted: [NoteLine] = []
+        var offset = 0
+        while offset < note.count {
+            if let dropped = repeats.first(where: { $0.lowerBound == offset }) {
+                offset = dropped.upperBound
+            } else if offset == haystack.span.lowerBound {
+                if shown == 0 {
+                    let joinedOnto = joinedLength(ending: compacted)
+                    compacted.append(NoteLine(text: fitted(note[offset].text, within: wordsCap - joinedOnto, clause: clause, clippedClause: clippedClause), marked: true))
+                } else {
+                    compacted.append(note[offset])
+                    compacted.append(NoteLine(text: fitted(haystack.lines[shown], within: wordsCap, clause: clause, clippedClause: clippedClause), marked: false))
+                }
+                offset = haystack.span.upperBound
+            } else {
+                compacted.append(note[offset])
+                offset += 1
+            }
+        }
+        return compacted
+    }
+
+    /// `line` followed by `clause`, fitting `cap` bytes: a line too long for it is clipped on a character boundary, ending `…`, and followed by `clippedClause`, so the clause is never inside what a later clip cuts.
+    private static func fitted(_ line: String, within cap: Int, clause: String, clippedClause: String) -> String {
+        guard line.utf8.count + clause.utf8.count > cap else {
+            return line + clause
+        }
+        let budget = max(0, cap - clippedClause.utf8.count - "…".utf8.count)
+        var kept = line.startIndex
+        var bytes = 0
+        for index in line.indices {
+            bytes += line[index].utf8.count
+            guard bytes <= budget else {
+                break
+            }
+            kept = line.index(after: index)
+        }
+        return line[..<kept] + "…" + clippedClause
+    }
+
+    /// How many bytes of printed line a `↳` line appended after `lines` follows.
+    ///
+    /// A marked line joins the line above it with a space, so it shares one printed line with every marked line back to the nearest unmarked one, that one included. Empty held lines print nothing and join nothing.
+    private static func joinedLength(ending lines: [NoteLine]) -> Int {
+        var length = 0
+        for line in lines.reversed() where !line.text.isEmpty {
+            length += line.text.utf8.count + 1
+            if !line.marked {
+                break
+            }
+        }
+        return length
+    }
+
+    /// The positions of every comment block in `note` whose lines are exactly `lines`: a `↳` line printing no ` → "` with the unmarked lines beneath it, two lines or more.
+    private static func repeatingBlocks(of lines: [String], in note: [NoteLine]) -> [Range<Int>] {
+        var blocks: [Range<Int>] = []
+        var offset = 0
+        while offset < note.count {
+            guard note[offset].marked, !note[offset].text.contains(" → \"") else {
+                offset += 1
+                continue
+            }
+            var end = offset + 1
+            while end < note.count, !note[end].marked {
+                end += 1
+            }
+            if end - offset >= 2, note[offset ..< end].map(\.text) == lines {
+                blocks.append(offset ..< end)
+            }
+            offset = end
+        }
+        return blocks
     }
 }

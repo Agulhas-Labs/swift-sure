@@ -27,6 +27,8 @@ extension RunListingFolds {
         var cases: String?
         /// The earlier listed failure whose printed excerpt this one's repeats.
         var repeated: Repeat?
+        /// What the entry prints, unclipped, in place of its message line where a long message or value was printed above.
+        var messageLine: String?
     }
 
     /// An excerpt printed above, which a later failure's excerpt equals or begins.
@@ -74,6 +76,7 @@ extension RunListingFolds {
                 printedExcerpt[failure.name] = (index, excerpt)
             }
         }
+        foldLongMessages(failures, listed: listed, folds: &folds, placedAt: placedAt)
         return RunListingFolds(listed: listed, folds: folds)
     }
 

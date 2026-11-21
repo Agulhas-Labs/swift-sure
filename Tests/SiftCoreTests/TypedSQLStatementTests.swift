@@ -225,6 +225,10 @@ struct TypedSQLStatementTests {
             ),
             PinnedPair("symbolsInFileClause", StoreStatement.symbolsInFileClause.sql, "WHERE f.path = ?"),
             PinnedPair("everyTypealiasClause", StoreStatement.everyTypealiasClause.sql, "WHERE s.kind = 'typealias'"),
+            PinnedPair(
+                "everyTypeLikeClause", StoreStatement.everyTypeLikeClause.sql,
+                "WHERE s.kind IN ('struct','class','actor','enum','protocol','typealias','associatedtype')"
+            ),
             PinnedPair("everyMacroClause", StoreStatement.everyMacroClause.sql, "WHERE s.kind = 'macro'"),
             PinnedPair(
                 "typeDeclarationsClause(hasModule: false)", StoreStatement.typeDeclarationsClause(hasModule: false),

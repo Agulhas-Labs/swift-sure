@@ -34,6 +34,16 @@ struct RunRawLineNamesTreeTests {
     }
 
     @Test
+    func theLogPathIsAbsoluteWhereTheRunsDirectoryIsNotTheReadersAndRelativeWhereItIs() {
+        let root = URL(fileURLWithPath: "/Users/dev/Widget")
+        let elsewhere = RunReportRenderer(kind: .swiftTest, workingDirectory: root, callerDirectory: URL(fileURLWithPath: "/Users/dev/Other"))
+        let here = RunReportRenderer(kind: .swiftTest, workingDirectory: root, callerDirectory: root)
+
+        #expect(Self.rawLine(of: elsewhere) == "raw: /Users/dev/Widget/.swift-sure/runs/run-a.log (1 lines in, 3 out), kept for the next 4 runs")
+        #expect(Self.rawLine(of: here) == "raw: .swift-sure/runs/run-a.log (1 lines in, 3 out), kept for the next 4 runs")
+    }
+
+    @Test
     func aRendererGivenNoStampKeepsTheBareLine() {
         let renderer = RunReportRenderer(kind: .swiftTest, workingDirectory: URL(fileURLWithPath: "/Users/dev/Widget"))
 
@@ -83,7 +93,8 @@ struct RunRawLineNamesTreeTests {
         let line = Self.rawLine(in: answer)
 
         #expect(line.hasPrefix("raw: \(WorkingTree.describing(root).rendered) @ "))
-        #expect(line.contains(" · .swift-sure/runs/"))
+        #expect(line.contains(" · /"))
+        #expect(line.contains("/.swift-sure/runs/"))
         #expect(!line.contains("(Swift clean)"))
         #expect(!line.contains("(Swift dirty"))
     }

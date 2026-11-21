@@ -50,6 +50,9 @@ struct WindowMembersPreferredTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Walk.swift", lines: 40 ... 70, in: root))
 
+        if spelling.runsInsideOneDeclaration(outcome) {
+            return
+        }
         guard case let .answered(answered) = outcome else {
             Issue.record("expected an answer, got \(outcome)")
             return
@@ -60,6 +63,24 @@ struct WindowMembersPreferredTests {
         #expect(answered.reason.contains("func prepare() -> Int  :66-77"))
         #expect(answered.reason.contains("the whole digest is larger than they are"))
         #expect(!answered.reason.contains("func m1() -> Int"))
+    }
+
+    /// A window from `Walk`'s own declaration line through the two long functions is answered with its members, as the same window starting inside `perform()` is; a `Read` of it prints most of the file, so it is weighed as that whole read and answered as the shell's is.
+    @Test(arguments: WindowReadSpelling.allCases)
+    func aWindowFromTheDeclarationThroughTwoMembersIsAnswered(spelling: WindowReadSpelling) async throws {
+        let root = try await Self.repository()
+
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Walk.swift", lines: 2 ... 70, in: root))
+
+        guard case let .answered(answered) = outcome else {
+            Issue.record("expected an answer, got \(outcome)")
+            return
+        }
+
+        #expect(answered.calls.map(\.target) == ["Sources/App/Walk.swift:2-70"])
+        #expect(answered.reason.contains("func perform() -> Int  :23-64"))
+        #expect(answered.reason.contains("func prepare() -> Int  :66-77"))
+        #expect(answered.reason.contains("the whole digest is larger than they are"))
     }
 
     /// Beside another file's whole read on one shell line, the same window is answered with its two functions too, the line weighed as one against the digests it would otherwise serve.

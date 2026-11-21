@@ -41,7 +41,7 @@ struct RunFailureGroupOnceTests {
             "  \(label) — ProbeTests.swift:26:9  ×3",
             "  \(label) — ProbeTests.swift:22:9  ×3",
         ])
-        #expect(answer.contains("    Expectation failed: exitCode(patterns) == nil → false exitCode(patterns) → 2 some → 2"))
+        #expect(answer.contains("    Expectation failed: exitCode(patterns) == nil → false exitCode(patterns) → 2"))
         #expect(answer.contains(#"    Expectation failed: judged(patterns).isEmpty → false judged(patterns) → ["SwiftNamedTests", "ProbeTests.XCAlphaTests/testA$"] isEmpty → false"#))
     }
 

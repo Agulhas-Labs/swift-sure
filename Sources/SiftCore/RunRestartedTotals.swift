@@ -59,16 +59,20 @@ struct RunRestartedTotals {
         }
         let tallies = lines.dropFirst(last.summariesBefore).map { RunTestTally.parse(String(RunOutputFilter.undecorated($0))) }
         let after: String
+        let afterTests: Int
         if !tallies.isEmpty, tallies.allSatisfy({ $0 != nil }) {
             let readable = tallies.compactMap(\.self)
-            after = "\(count(readable.reduce(0) { $0 + $1.tests }, "test")) in \(count(readable.reduce(0) { $0 + $1.suites }, "suite"))"
+            afterTests = readable.reduce(0) { $0 + $1.tests }
+            after = "\(count(afterTests, "test")) in \(count(readable.reduce(0) { $0 + $1.suites }, "suite"))"
         } else {
-            let afterReported = RunRestartReader.reported(in: report.testOutcomes) - restarts.reduce(0) { $0 + $1.reported }
-            after = count(afterReported, "test")
+            afterTests = RunRestartReader.reported(in: report.testOutcomes) - restarts.reduce(0) { $0 + $1.reported }
+            after = count(afterTests, "test")
         }
+        let outcomes = report.testOutcomes
+        let cases = RunParameterizedCases.note(counts: outcomes.caseCounts, tests: afterTests + restarts.reduce(0) { $0 + $1.reported }, named: outcomes.swiftTestingNames.count)
         let failures = lines.compactMap { RunTestTally.parse(String(RunOutputFilter.undecorated($0)))?.failures }.reduce(0, +)
         let passes = passes(after: after, before: restarts.map(\.reported))
-        return "Swift Testing \(passes.joined(separator: ", "))\(failingSwiftTesting(report: report, issues: failures))\(skipNote)"
+        return "Swift Testing \(passes.joined(separator: ", "))\(cases)\(failingSwiftTesting(report: report, issues: failures))\(skipNote)"
     }
 
     /// Whether the restarts leave a Swift Testing count to split: a Swift Testing test was open or had reported before a marker.

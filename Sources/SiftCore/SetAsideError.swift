@@ -147,7 +147,7 @@ extension SetAsideError {
 
     private func nothingUncommitted(_ named: String, matchesFiles: Bool, leftInPlace: [String], committedSince: String?) -> String {
         guard leftInPlace.isEmpty else {
-            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoryName(holding: leftInPlace))/"
+            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoriesDescription(holding: leftInPlace))"
             return "\(ProductName.current.binary) run --without: the only uncommitted changes under \(named) are in \(paths) — this tool's own directory, which a set-aside never moves — so there is nothing to set aside. Nothing was run."
         }
         guard matchesFiles else {
@@ -162,7 +162,7 @@ extension SetAsideError {
 
     private func nothingSince(_ named: String, since: String, matchesFiles: Bool, leftInPlace: [String]) -> String {
         guard leftInPlace.isEmpty else {
-            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoryName(holding: leftInPlace))/"
+            let paths = leftInPlace.count == 1 ? leftInPlace[0] : "\(leftInPlace.count) paths under \(SiftPaths.directoriesDescription(holding: leftInPlace))"
             return "\(ProductName.current.binary) run --without: the only changes under \(named) since \(Self.shown(since)) are in \(paths) — this tool's own directory, which a set-aside never moves — so there is nothing to set aside. Nothing was run."
         }
         guard matchesFiles else {

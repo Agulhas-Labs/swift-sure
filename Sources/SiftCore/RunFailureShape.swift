@@ -272,7 +272,7 @@ private extension RunFailureShape {
         // A note's first line is the `↳` sentence; a list printed beneath it keeps its own lines.
         let noteLines = failure.note.map { $0.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) } ?? []
         let merged = noteLines.first.flatMap { Self.merging(failure.message, with: $0) }
-        var lines = [heading, "    \(RunFailureCensus.clipped(merged ?? failure.message, to: RunFailureCensus.messageCap))"]
+        var lines = [heading, "    \(RunFailureCensus.clipped(fold?.messageLine ?? merged ?? failure.message, to: RunFailureCensus.messageCap))"]
         if let closest = failure.closestLine {
             lines.append("    \(closest)")
         }
@@ -505,7 +505,7 @@ extension RunFailureShape {
     }
 
     /// The first ` → ` of `note` that no string literal, raw ones included, holds, or `nil` where it has none.
-    private static func firstArrow(in note: String) -> Range<String.Index>? {
+    static func firstArrow(in note: String) -> Range<String.Index>? {
         var index = note.startIndex
         while index < note.endIndex {
             if note[index] == "\"" || note[index] == "#" {

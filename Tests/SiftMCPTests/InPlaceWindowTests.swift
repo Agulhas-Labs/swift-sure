@@ -171,16 +171,18 @@ struct InPlaceWindowTests {
     }
 
     /// A `Read` with `offset`/`limit` is the same window as the shell's.
+    ///
+    /// It takes in `Depot`'s own declaration line: a `Read` starting below it, inside the one type, runs.
     @Test
     func aRangedReadIsTheSameWindow() async throws {
         let root = try await InPlaceAnswerTests.indexedRepository()
         let file = root.appendingPathComponent("Sources/App/Depot.swift")
-        try Self.widen(linesInFile: file, at: 50 ... 55)
+        try Self.widen(linesInFile: file, at: 1 ... 6)
         try await SiftEngine(directory: root).ensureFresh()
-        let match = try #require(InPlaceShape.match(forRead: "Sources/App/Depot.swift", in: root.path, window: LineWindow(offset: 50, limit: 6)))
+        let match = try #require(InPlaceShape.match(forRead: "Sources/App/Depot.swift", in: root.path, window: LineWindow(offset: 1, limit: 6)))
         let budget = try await Self.wholeSize(match) - 1
 
-        #expect(try await Self.answered(Self.outcome(match, sizeBudget: budget)).calls.map(\.target) == ["Sources/App/Depot.swift:50-55"])
+        #expect(try await Self.answered(Self.outcome(match, sizeBudget: budget)).calls.map(\.target) == ["Sources/App/Depot.swift:1-6"])
     }
 
     /// A digest of some of a file's lines locates the file, so the ranged read that follows it is let through — but it is not the file's whole digest, so a whole read of it still needs the file's own digest.

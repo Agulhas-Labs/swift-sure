@@ -37,12 +37,12 @@ struct DiagnosticNoteChangedFileTests {
         return log
     }
 
-    func context(_ response: (String) -> String) throws -> String {
+    func context(_ response: (String) throws -> String) throws -> String {
         let repo = try MCPTestRepo.make(declaring: "Depot")
         try MCPTestRepo.add([DiagnosticNoteTests.producerPath: DiagnosticNoteTests.producer], to: repo)
         let marks = try HookMarks(directory: TemporaryDirectory.make("hook-marks"))
         let recorded = RecordedOutput()
-        PostToolUseCommand.answer(to: DiagnosticNoteTests.bash(response(repo.path), cwd: repo.path), output: recorded.output, marks: marks)
+        try PostToolUseCommand.answer(to: DiagnosticNoteTests.bash(response(repo.path), cwd: repo.path), output: recorded.output, marks: marks)
         return try DiagnosticNoteTests.context(of: recorded.printed)
     }
 
@@ -67,10 +67,10 @@ struct DiagnosticNoteChangedFileTests {
     @Test func aLogNamedRelativeToTheRepositoryIsReadThere() throws {
         let text = try context { repo in
             let logs = URL(fileURLWithPath: repo).appendingPathComponent(".swift-sure/runs")
-            try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
             let log = logs.appendingPathComponent("run.log")
-            try? Data("log".utf8).write(to: log)
-            try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-60)], ofItemAtPath: log.path)
+            try Data("log".utf8).write(to: log)
+            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-60)], ofItemAtPath: log.path)
             return [Self.diagnostic, "raw: Orchard @ 0123abc (clean) · .swift-sure/runs/run.log (12 lines)"].joined(separator: "\n")
         }
 

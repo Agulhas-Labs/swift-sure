@@ -160,7 +160,8 @@ Swift module compiled without an index. `session.json` records `corpus_indexed`,
 checkout carries one by default. `run --index-corpus` builds it once per path before the arms: the binary under
 test runs `index` in the corpus at the fixed run path (committed for it, since the index needs a repository,
 which is then dropped), so the template, and every clone, carries `.swift-sure/index.db` at the same absolute
-path. Arm A's tree carries it too, inert without the tool, and `.git/info/exclude` hides it from the checks.
+path. An arm without SwiftSure has it removed before the session starts, and `.git/info/exclude` hides it from
+the checks. The fixed-overhead probe removes it too, so `cold_index_seconds` still times a cold index.
 Answers that need an index, such as the `filtered:` line `swift-sure run -- swift test --filter …` prints (#1067),
 show only with it. A clone also gives the semantic store a new cache key, so it reads as one no query has opened,
 and the `filtered:` line then names suites by written name rather than resolved reference; so with
@@ -203,6 +204,9 @@ sh Benchmarks/run.sh --plugin-b Distribution/plugin --paths 6 --repeats 2   # pl
 sh Benchmarks/run.sh --dirty-injection --task <answer-style task> --paths 6 --repeats 2   # the injected bug left uncommitted
 sh Benchmarks/run.sh --index-corpus --paths 6 --repeats 2   # every corpus clone already indexed by SwiftSure
 ```
+
+The harness's own tests run with `python3 -m unittest discover -s Benchmarks/tests`; the pre-commit hook runs them
+whenever a staged file is under `Benchmarks/`.
 
 `--dirty-injection` commits the corpus clean and leaves the injected bug as an uncommitted change, as a user's working tree
 is mid-task, so an answer that depends on uncommitted changes (the `filtered:` line, #1067) can show. Without it the bug is

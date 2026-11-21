@@ -23,9 +23,15 @@ struct ReportCommand: ParsableCommand {
             in. The share is a floor, not a total. A saving is priced only where its counterfactual was observed: a \
             read the advice hook intercepted and answered in place, the file or window asked for less the answer \
             served. Every call made by choice, and every grep the hook answered, is counted and never priced. \
-            \(TokenEstimate.notMeasured)
+            \(TokenEstimate.notMeasured) \
+            \(notRedacted)
             """
         )
+    }
+
+    /// The page is the one report with no redaction, and the help says so, since `audit` and `flakes` beside it are pseudonymised by default.
+    static var notRedacted: String {
+        "The page is not redacted: it holds the real roots, files and lookup targets, so keep it on this machine and share `audit`, which is pseudonymised, instead."
     }
 
     @Option(name: .customLong("since"), help: "Window: today, yesterday, <N>d, or YYYY-MM-DD. Defaults to 7d.")

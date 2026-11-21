@@ -19,9 +19,10 @@ struct DependencyFileDigest {
         let path = range?.path ?? target
         guard path.hasSuffix(".swift"), path.contains("checkouts/"),
               let (relative, package) = checkoutFile(named: path) else { return nil }
+        let module = Self.module(of: relative, package: package)
         let store = try IndexStore(databasePath: IndexStore.inMemoryPath)
         guard let parsed = FileParser.parse(absoluteURL: renderer.repoRoot.appendingPathComponent(relative), repoRelativePath: relative) else { return nil }
-        try store.replaceFiles([parsed]) { _ in (module: package, guessed: false) }
+        try store.replaceFiles([parsed]) { _ in (module: module, guessed: false) }
         var scoped = try DigestRenderer(store: store, moduleNames: store.moduleNames(), repoRoot: renderer.repoRoot)
         scoped.config = renderer.config
         let answer = if let range {
@@ -51,6 +52,15 @@ struct DependencyFileDigest {
             }
         }
         return nil
+    }
+
+    /// The module a checkout file compiles into: the target directory of SwiftPM's layout, `Sources/<Target>/` or `Tests/<Target>/`, which is the name an `import` spells, not the checkout's directory; a file outside that layout keeps the package's name, since only the manifest's `path:` could say more.
+    private static func module(of relative: String, package: String) -> String {
+        let components = relative.split(separator: "/").map(String.init)
+        guard let index = components.firstIndex(of: package) else { return package }
+        let inPackage = components[(index + 1)...]
+        guard inPackage.count > 2, let layout = inPackage.first, ["Sources", "Tests"].contains(layout) else { return package }
+        return inPackage[index + 2]
     }
 
     /// The version `Package.resolved` pins `package` at, or `nil` where the file, the pin or its version cannot be read.

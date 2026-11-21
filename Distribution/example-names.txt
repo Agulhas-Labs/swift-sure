@@ -138,11 +138,13 @@ ClosedRange
 CodeGeneration
 CodingGuidelines
 CodingKey
+CollectionRangeSubscript
 CommandPlugin
 CommentedClose
 CompileC
 CompileSwift
 CompileSwiftSources
+CompletedProcess
 ConfigTests
 ContentMode
 ContentView
@@ -195,6 +197,7 @@ DocC
 DoctorClaude
 DocumentedLong
 DoorTests
+DynamicViewContent
 EngineInterface
 ErGO
 ErgoKit
@@ -338,16 +341,20 @@ MyType
 NOTGate
 NSApplicationMain
 NSCameraUsageDescription
+NSCocoaErrorDomain
 NSCopying
 NSFileHandleOperationException
+NSFilePath
 NSHealthShareUsageDescription
 NSLocalizedString
 NSLocationWhenInUseUsageDescription
 NSLock
 NSManaged
 NSObject
+NSPOSIXErrorDomain
 NSRegularExpression
 NSStringLocalizedFormatKey
+NSUnderlyingError
 NamedSuite
 NavigationStack
 NoUsage
@@ -489,6 +496,7 @@ StoreExample
 StoreKit
 StoreKitConfigurationFileReference
 StoredEntry
+StringIO
 StringInterpolation
 StringLiteralType
 SubGizmo
@@ -568,9 +576,11 @@ URLRequest
 URLSession
 URLs
 USRs
+UUIDs
 UnicodeScalarLiteralType
 UsageDescription
 UsageSnapshot
+UserInfo
 VStack
 ValidationProjects
 ValveRouteTests
@@ -666,8 +676,10 @@ archiveVersion
 argNum
 assertEqual
 assertEventually
+assertIn
 assertIsNone
 assertLayout
+assertLess
 assertRaises
 assertThing
 assertTrue
@@ -770,6 +782,7 @@ codeCoverage
 codesizeProfileOutputDir
 colorScheme
 commandName
+containsFolded
 contentsOf
 contentsOfDirectory
 coreBit
@@ -779,6 +792,7 @@ countIsOne
 crateData
 createFile
 currentDirectoryPath
+customLiteral
 customMirror
 dSYM
 debugDescription
@@ -865,6 +879,7 @@ gateLeg
 generalPurpose
 giveBack
 givingBackRestocks
+gizmoNames
 globalActor
 goneTest
 hasAka
@@ -939,6 +954,8 @@ libCall
 libIndexStore
 linePath
 linuxOnly
+literalHaystack
+literalOnTheLeft
 liveTest
 loadAlpha
 loadBeta
@@ -964,6 +981,7 @@ missingSymbol
 modelCode
 modelUsage
 mtimeMs
+multilineLiteral
 myErgo
 myLibCall
 nBuilding
@@ -975,6 +993,7 @@ noLookup
 noSuchMember
 notATest
 notCode
+notEqualSame
 notHooked
 nothingByThisName
 objcMembers
@@ -1003,6 +1022,9 @@ onlyShared
 onlyUsePackageVersionsFromResolvedFile
 operateValve
 operatingOpensTheValve
+optionalInt
+optionalNilAgainstLiteral
+optionalValueAgainstLiteral
 originHash
 originalFile
 originalLength
@@ -1021,6 +1043,7 @@ packageCachePath
 packageDependencySCMToRegistryTransformation
 packageFingerprintPolicy
 packageSigningEntityPolicy
+pairField
 parallelizeBuildables
 parallelizeTargets
 parentOf
@@ -1037,7 +1060,9 @@ phoneOnly
 pickedRows
 placeholderCount
 placeholderCountLabel
+plainAgainstLiteral
 plainCheck
+plainOperand
 polishReturnsCount
 polishedLabel
 postToolUseFailure
@@ -1058,6 +1083,7 @@ quotePath
 quotesACount
 quotesAnEnding
 quotesThePhraseInItsFailure
+rawLiteral
 reachesWidgetThroughTheHelper
 readTestResult
 readabilityHandler
@@ -1065,6 +1091,7 @@ readdedNames
 readsItsOwnName
 readsLabel
 realCall
+recField
 recoverySuggestion
 recursionInfoArray
 registryType
@@ -1100,6 +1127,7 @@ runnableDebuggingMode
 s6Widget6RunnerV3runyyKF
 scaleToFill
 scmProvider
+secondTest
 selectedDebuggerIdentifier
 selectedLauncherIdentifier
 sessionId
@@ -1127,6 +1155,7 @@ smallDocument
 soleElement
 someFlagThisTableHasNeverHeardOf
 someNewFlag
+someNil
 sortedKeys
 sourceLocation
 sourceRange
@@ -1238,6 +1267,7 @@ tooTight
 totalTestCount
 treatAllWarnings
 trimmingCharacters
+tripleQuoted
 tvOS
 twiceOnOneLine
 twoIssues

@@ -26,7 +26,9 @@ struct BackoffIsolationTests {
         ]
     }
 
-    /// What production code may not write: a parameter or property that defaults to the standard back-off, or an answerer that defaults to the production one, either of which a test reaches by leaving the argument out. The one production `backoff: .standard()`, passed explicitly where the hook runs, is not a default and is allowed.
+    /// What production code may not write: a parameter or property that defaults to the standard back-off, or an answerer that defaults to the production one, either of which a test reaches by leaving the argument out.
+    ///
+    /// The one production `backoff: .standard()`, passed explicitly where the hook runs, is not a default and is allowed.
     private static var sourcePatterns: [String] {
         [
             #"InPlaceBackoff\s*=\s*\.\s*standard\s*\("#,

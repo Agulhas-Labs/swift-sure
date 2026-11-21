@@ -59,9 +59,27 @@ struct PagedDigestWindowTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 205 ... 237, in: root))
 
+        if spelling.runsInsideOneDeclaration(outcome) {
+            return
+        }
         guard let answered = Self.answered(outcome) else { return }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:205-237"])
+        #expect(answered.reason.contains("func tail() -> Int  :204-235"))
+        #expect(answered.reason.contains("func after() -> Int  :237"))
+        #expect(answered.reason.contains("the whole digest's first page stops short of some of them"))
+    }
+
+    /// A window from `Big`'s own declaration line to `after()`, past the first page, is answered with the members it overlaps; a `Read` of it prints most of the file, so it is weighed as that whole read and answered as the shell's is.
+    @Test(arguments: WindowReadSpelling.allCases)
+    func aWindowFromTheDeclarationPastTheFirstPageIsAnsweredWithItsMembers(spelling: WindowReadSpelling) async throws {
+        let root = try await Self.pagedRepository()
+
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 237, in: root))
+
+        guard let answered = Self.answered(outcome) else { return }
+
+        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-237"])
         #expect(answered.reason.contains("func tail() -> Int  :204-235"))
         #expect(answered.reason.contains("func after() -> Int  :237"))
         #expect(answered.reason.contains("the whole digest's first page stops short of some of them"))
@@ -99,11 +117,11 @@ struct PagedDigestWindowTests {
     func aWindowTheFirstPageReachesIsAnsweredWithItsSmallerMembers(spelling: WindowReadSpelling) async throws {
         let root = try await Self.pagedRepository()
 
-        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 3 ... 50, in: root))
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 50, in: root))
 
         guard let answered = Self.answered(outcome) else { return }
 
-        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:3-50"])
+        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-50"])
         #expect(answered.reason.contains("func f48(value: Int) -> Int  :50"))
         #expect(answered.reason.contains(FileDigestParts.larger))
         #expect(!answered.reason.contains(FileDigestParts.unreached))
@@ -114,11 +132,11 @@ struct PagedDigestWindowTests {
     func aWindowEndingOnTheLastListedMemberIsAnsweredWithItsSmallerMembers(spelling: WindowReadSpelling) async throws {
         let root = try await Self.pagedRepository()
 
-        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 3 ... 61, in: root))
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 61, in: root))
 
         guard let answered = Self.answered(outcome) else { return }
 
-        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:3-61"])
+        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-61"])
         #expect(answered.reason.contains(FileDigestParts.larger))
         #expect(!answered.reason.contains(FileDigestParts.unreached))
     }
@@ -128,11 +146,11 @@ struct PagedDigestWindowTests {
     func aWindowEndingOnTheFirstUnlistedMemberIsAnsweredWithItsMembers(spelling: WindowReadSpelling) async throws {
         let root = try await Self.pagedRepository()
 
-        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 3 ... 62, in: root))
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 62, in: root))
 
         guard let answered = Self.answered(outcome) else { return }
 
-        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:3-62"])
+        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-62"])
         #expect(answered.reason.contains("func f60(value: Int) -> Int  :62"))
         #expect(answered.reason.contains("the whole digest's first page stops short of some of them"))
     }
@@ -142,11 +160,11 @@ struct PagedDigestWindowTests {
     func aWindowEndingOnTheDocCommentOfTheFirstUnlistedMemberIsAnsweredWithItsMembers(spelling: WindowReadSpelling) async throws {
         let root = try await Self.pagedRepository(documented: true)
 
-        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 3 ... 62, in: root))
+        let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 62, in: root))
 
         guard let answered = Self.answered(outcome) else { return }
 
-        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:3-62"])
+        #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-62"])
         #expect(answered.reason.contains("func f60(value: Int) -> Int  :63"))
     }
 }

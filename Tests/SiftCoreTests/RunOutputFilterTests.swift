@@ -579,6 +579,25 @@ extension RunOutputFilterTests {
         let failure = try #require(report.testFailures.first)
 
         #expect(failure.closestLine == "closest line: delta line two")
+        #expect(failure.note == "reason → \"alpha line one (first of 15 lines — see the raw log)")
+    }
+
+    /// The same interruption closes a note that is no containment failure's, whose elided lines are still counted.
+    @Test
+    func aLinkerBlockClosesTheElisionCountOfANoteItInterrupts() throws {
+        var filter = RunOutputFilter(expecting: .runTally)
+        filter.consume(line: "✘ Test aLongExplanation() recorded an issue at LongTests.swift:9:9: Expectation failed: reason == \"x\"")
+        filter.consume(line: "↳   reason → \"alpha line one")
+        filter.consume(line: "  the second line of the explanation")
+        filter.consume(line: "  the third line of the explanation")
+        for filler in 1 ... 11 {
+            filter.consume(line: "  filler line \(filler)")
+        }
+        filter.consume(line: "  delta line two\"")
+        filter.consume(line: "Undefined symbols for architecture arm64:")
+        filter.consume(line: "  \"__widget_missing_helper\", referenced from:")
+        let failure = try #require(filter.finish().testFailures.first)
+
         #expect(failure.note?.hasSuffix("\n… (+3 more lines — see the raw log)") == true)
     }
 
