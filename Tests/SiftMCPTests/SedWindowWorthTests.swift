@@ -8,7 +8,9 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// An explicit `sed -n` window is answered only where its answer spares more than the identical re-run is expected to cost, weighed as a `Read` window is but with the share `sed -n` windows measured: ``WholeReadWorth/sedWindowReRunShare``.
+/// An explicit `sed -n` window is no longer priced by an answer's saving against its re-run (``WholeReadWorth/sedWindowReRunShare``): the hook folds its comment runs or lets it through as `notSmaller`, whatever digest an answerer would give and whatever the context.
+///
+/// The share itself is still pinned below.
 @Suite(.temporaryDirectories)
 struct SedWindowWorthTests {
     // MARK: - The inequality
@@ -77,47 +79,47 @@ struct SedWindowWorthTests {
         )
     }
 
-    /// A window of 2,000 tokens answered with 1,500, in a context of 200,000 (a turn of 3,200): it spares 500, under `0.15 · 5200 = 780`.
+    /// A window in a context of 200,000 (a turn of 3,200), with a stub digest sparing little: let through as `notSmaller`, not priced as `notWorthTheTurn`.
     @Test
-    func aSedWindowSparingLessThanItsReRunIsLetThrough() throws {
+    func aSedWindowInALargeContextIsLetThroughOnItsOwnLinesNotItsReRunPrice() throws {
         let file = try Self.hundredLineFile()
 
         let judged = try Self.judged(Self.bash("sed -n 1,40p Depot.swift", context: 200_000), in: file.deletingLastPathComponent(), answers: 6000, of: 8000)
 
-        #expect(judged.verdict.token == "allowed" && judged.verdict.rule == "notWorthTheTurn", "\(judged.verdict.line)")
+        #expect(judged.verdict.line == "allowed\t\tnotSmaller", "\(judged.verdict.line)")
         #expect(judged.json == nil)
     }
 
-    /// The same window and answer at the default context (a turn of 720) spare 500, over `0.15 · 2720 = 408`, and are answered.
+    /// The same window and stub answer at the default context is decided the same: no comment run to fold, so `notSmaller`.
     @Test
-    func theSameSedWindowAtTheDefaultContextIsAnswered() throws {
+    func theSameSedWindowAtTheDefaultContextIsDecidedTheSame() throws {
         let file = try Self.hundredLineFile()
 
         let judged = try Self.judged(Self.bash("sed -n 1,40p Depot.swift"), in: file.deletingLastPathComponent(), answers: 6000, of: 8000)
 
-        #expect(judged.verdict.token == "in-place", "\(judged.verdict.line)")
-        #expect(judged.json?.contains("swift-sure answered this with") == true)
+        #expect(judged.verdict.line == "allowed\t\tnotSmaller", "\(judged.verdict.line)")
+        #expect(judged.json == nil)
     }
 
-    /// Two windows on one file in one line are weighed on the windows' total.
-    @Test(arguments: [(200_000, "allowed"), (nil, "in-place")] as [(Int?, String)])
-    func severalSedWindowsOnOneFileAreWeighedOnTheirTotal(tokens: Int?, token: String) throws {
+    /// Two windows on one file in one line are decided on the lines they print, at any context.
+    @Test(arguments: [(200_000, "allowed"), (nil, "allowed")] as [(Int?, String)])
+    func severalSedWindowsOnOneFileAreDecidedOnTheirLinesAtAnyContext(tokens: Int?, token: String) throws {
         let file = try Self.hundredLineFile()
 
         let judged = try Self.judged(Self.bash("sed -n 1,20p Depot.swift; sed -n 41,60p Depot.swift", context: tokens), in: file.deletingLastPathComponent(), answers: 6000, of: 8000)
 
         #expect(judged.verdict.token == token, "\(judged.verdict.line)")
-        #expect(token == "in-place" || judged.verdict.rule == "notWorthTheTurn", "\(judged.verdict.line)")
+        #expect(judged.verdict.rule == "notSmaller", "\(judged.verdict.line)")
     }
 
-    /// An answer sparing between 0.15 and 0.48 of the re-run is answered for `sed -n`: 1,300 tokens spared at the default context.
+    /// A stub answer sparing between 0.15 and 0.48 of the re-run no longer decides a `sed -n` window: `notSmaller`.
     @Test
-    func aSavingBetweenTheTwoSharesIsAnsweredForSed() throws {
+    func aSavingBetweenTheTwoSharesNoLongerDecidesASedWindow() throws {
         let file = try Self.hundredLineFile()
 
         let judged = try Self.judged(Self.bash("sed -n 1,40p Depot.swift"), in: file.deletingLastPathComponent(), answers: 2800, of: 8000)
 
-        #expect(judged.verdict.token == "in-place", "\(judged.verdict.line)")
+        #expect(judged.verdict.line == "allowed\t\tnotSmaller", "\(judged.verdict.line)")
     }
 
     // MARK: - Through the real answerer
@@ -150,13 +152,13 @@ struct SedWindowWorthTests {
         }
     }
 
-    /// A window too small to pay for a turn in a large context is settled before its answer is built: 3 lines of `Depot` against a turn of 3,200 tokens.
+    /// A tiny window in a large context is let through as `notSmaller`, as in any context: 3 lines of `Depot` have nothing to fold.
     @Test
-    func aTinySedWindowInALargeContextIsSettledBeforeItsAnswer() async throws {
+    func aTinySedWindowInALargeContextIsLetThroughAsNotSmaller() async throws {
         let root = try await WorthAnsweringFixture.repository()
 
         let verdict = try await Self.decide({ Self.bash("sed -n 3,5p Sources/App/Depot.swift", context: 200_000) }, in: root)
 
-        #expect(verdict == "allowed\t\tnotWorthTheTurn", "\(verdict)")
+        #expect(verdict == "allowed\t\tnotSmaller", "\(verdict)")
     }
 }

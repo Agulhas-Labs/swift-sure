@@ -76,8 +76,8 @@ struct AlreadyDigestedReadTests {
         #expect(verdict.token == "in-place")
     }
 
-    /// A window of a file nothing in this context has located is the lookup itself, answered in place with the file's digest as a whole read is, in either spelling.
-    @Test func aColdWindowIsAnsweredInPlaceWithTheFilesDigest() throws {
+    /// A ranged `Read` of a file nothing in this context has located is the lookup itself, answered in place with the file's digest as a whole read is; the same shell window is decided on its own lines (`notSmaller` here, nothing to fold), never with the digest.
+    @Test func aColdRangedReadIsAnsweredInPlaceAndAColdShellWindowIsLetThroughOnItsLines() throws {
         let fixture = try Fixture()
         try fixture.lengthen()
         let window = try fixture.classified(command: "sed -n '1,30p' Sources/App/Shell.swift")
@@ -85,7 +85,7 @@ struct AlreadyDigestedReadTests {
 
         #expect(window.inPlace?.calls.map(\.readPath) == ["Sources/App/Shell.swift"])
         #expect(ranged.inPlace?.calls.map(\.readPath) == [fixture.file])
-        #expect(fixture.verdict(window, session: "s2").token == "in-place")
+        #expect(fixture.verdict(window, session: "s2").line == "allowed\t\tnotSmaller")
         #expect(fixture.verdict(ranged, session: "s3").token == "in-place")
     }
 
@@ -107,21 +107,28 @@ struct AlreadyDigestedReadTests {
         try fixture.lengthen()
         try fixture.lengthen("Other")
         fixture.take(tool: IndexToolName.prefix + "digest", input: ["target": "Sources/App/Shell.swift"])
-        let mixed = try fixture.classified(command: "sed -n '1,30p' Sources/App/Shell.swift; sed -n '5,40p' Sources/App/Other.swift")
+        // Whole reads are the vehicle for the dropped leg: a line made only of shell windows is folded or let through whole, never handed a digest.
+        let mixed = try fixture.classified(command: "cat Sources/App/Shell.swift; cat Sources/App/Other.swift")
         let located = try fixture.classified(command: "sed -n '1,30p' Sources/App/Shell.swift && sed -n '40,60p' Sources/App/Shell.swift")
 
         #expect(fixture.handed(mixed)?.map(\.readPath) == ["Sources/App/Other.swift"])
         #expect(fixture.verdict(located).line == "allowed\t\tnoLookup")
     }
 
-    /// The identical re-run of a line of several windows of one file is allowed, every window on it having been answered by the one digest — which located the file, so the re-run is a line of a located file's windows and no lookup.
-    @Test func aRerunOfSeveralWindowsOfOneFileIsAllowed() throws {
+    /// The identical re-run of a line of several whole reads is allowed, every read on it having been answered by its digest — which located the files, so the re-run is no lookup.
+    ///
+    /// Shell windows are no longer answered in place, so they leave no re-run to allow.
+    @Test func aRerunOfSeveralReadsIsAllowed() throws {
         let fixture = try Fixture()
         try fixture.lengthen()
-        let command = "sed -n '1,30p' Sources/App/Shell.swift; sed -n '40,60p' Sources/App/Shell.swift; sed -n '80,90p' Sources/App/Shell.swift"
+        try fixture.lengthen("Other")
+        let command = "cat Sources/App/Shell.swift; cat Sources/App/Other.swift"
 
         #expect(try fixture.verdict(fixture.classified(command: command, rerunIn: "s2"), session: "s2").token == "in-place")
-        #expect(try fixture.verdict(fixture.classified(command: command, rerunIn: "s2"), session: "s2").line == "allowed\t\tnoLookup")
+        let key = fixture.context("s2").key
+        let rerun = PreToolUseCommand.lookup(command: command, payload: [:], in: fixture.repo.path, noting: fixture.suppressions, couldAnswer: { _, _ in true }, allowed: { fixture.ledger.rerunsAllowed(session: key, among: $0) })
+        let verdict = try #require(rerun.map { fixture.verdict($0, session: "s2") })
+        #expect(verdict.line == "allowed\t\tledger")
     }
 
     /// A search of a digested file is a question the digest did not answer, and a ranged read is no lookup at all: both are as they were.
@@ -249,7 +256,8 @@ struct AlreadyDigestedReadTests {
             )
         }
 
-        #expect(bounded.verdict.token == "in-place")
+        // A shell window the fold did not claim is let through, never answered with a bounded digest, so the ledger notes none.
+        #expect(bounded.verdict.line == "allowed\t\tnotExact")
 
         #expect(fixture.verdict(fixture.wholeRead()).token == "in-place")
     }
@@ -282,7 +290,7 @@ struct AlreadyDigestedReadTests {
         #expect(Set(LocatedPassLogTests.rules(in: fixture.stores.appendingPathComponent("suppressions.jsonl"))) == ["locatedWindow"])
     }
 
-    /// A window behind literal `cd`s — relative, one after another, or absolute — is judged as the same window without them: cold, it is answered in place with its file's digest; located, it is no lookup, in an answered shape or in one no answer covers.
+    /// A window behind literal `cd`s — relative, one after another, or absolute — is judged as the same window without them: cold, it is let through as `notSmaller` on its own lines; located, it is no lookup, in an answered shape or in one no answer covers.
     @Test func aWindowBehindLiteralCdsIsJudgedAsTheSameWindowWithoutThem() throws {
         let fixture = try Fixture()
         try fixture.lengthen()
@@ -294,7 +302,7 @@ struct AlreadyDigestedReadTests {
         for (index, command) in commands.enumerated() {
             let cold = try fixture.classified(command: command)
             #expect(cold.readPaths(from: fixture.repo.path) == [fixture.file], "\(command)")
-            #expect(fixture.verdict(cold, session: "cold\(index)").token == "in-place", "\(command)")
+            #expect(fixture.verdict(cold, session: "cold\(index)").line == "allowed\t\tnotSmaller", "\(command)")
         }
         fixture.take(tool: IndexToolName.prefix + "digest", input: ["target": "Sources/App/Shell.swift"])
         let unanswerable = commands.flatMap { command in
@@ -305,7 +313,7 @@ struct AlreadyDigestedReadTests {
             #expect(try fixture.verdict(fixture.classified(command: command)).line == "allowed\t\tnoLookup", "\(command)")
         }
 
-        #expect(Set(LocatedPassLogTests.rules(in: fixture.stores.appendingPathComponent("suppressions.jsonl"))) == ["locatedWindow"])
+        #expect(Set(LocatedPassLogTests.rules(in: fixture.stores.appendingPathComponent("suppressions.jsonl"))) == ["answerWithheld", "locatedWindow"])
     }
 
     /// A move the hook cannot follow — a computed word, `cd -`, a subshell, a `cd` behind `||`, `pushd`, a directory that is not there — leaves a located file's window in a shape no answer covers where it always was: not placed, so let through as a lookup nothing answered.
@@ -474,13 +482,13 @@ struct AlreadyDigestedReadTests {
         #expect(whole.calls == ["toolu_b1", "toolu_b1"])
     }
 
-    /// A window is located only by an answer that located that file: a digest the renderer resolved to a same-named file elsewhere leaves it cold, answered in place — the root's `Shell.swift` for `Sources/App/Shell.swift`, `Sources/App/Shell.swift` for the same path deeper in the tree, and the file declaring `Shell` for another file of that name.
+    /// A window is located only by an answer that located that file: a digest the renderer resolved to a same-named file elsewhere leaves it cold, judged on its own lines (not `noLookup`) — the root's `Shell.swift` for `Sources/App/Shell.swift`, `Sources/App/Shell.swift` for the same path deeper in the tree, and the file declaring `Shell` for another file of that name.
     @Test(arguments: [
         ("Shell.swift", "Shell.swift", "Sources/App/Shell.swift"),
         ("Sources/App/Shell.swift", "Sources/App/Shell.swift", "Other/Sources/App/Shell.swift"),
         ("Shell", "Sources/App/Shell.swift", "Shell.swift"),
     ])
-    func aWindowOfASameNamedFileIsStillAnsweredInPlace(target: String, digested: String, sameNamed: String) async throws {
+    func aWindowOfASameNamedFileIsStillCold(target: String, digested: String, sameNamed: String) async throws {
         let fixture = try Fixture()
         try fixture.lengthen()
         let other = try String(contentsOfFile: fixture.file, encoding: .utf8).replacing("struct Shell", with: "struct Widget")
@@ -489,7 +497,7 @@ struct AlreadyDigestedReadTests {
         fixture.take(tool: IndexToolName.prefix + "digest", input: ["target": target])
 
         #expect(try fixture.verdict(fixture.classified(command: "sed -n '1,30p' \(digested)")).line == "allowed\t\tnoLookup")
-        #expect(try fixture.verdict(fixture.classified(command: "sed -n '1,30p' \(sameNamed)")).token == "in-place")
+        #expect(try fixture.verdict(fixture.classified(command: "sed -n '1,30p' \(sameNamed)")).line == "allowed\t\tnotSmaller")
     }
 }
 

@@ -73,7 +73,7 @@ public extension SwiftLookup {
     /// This lookup as scored where the hook's suppression log records letting its call run under `why`: a cold one becomes ``batched(file:)`` for a line run whole, and ``withheldOnWorth(rule:)`` under the rule a judgement of worth names; any other lookup, or any other withholding, is left as it is.
     func scored(letThroughAs why: InPlaceAnswerer.Withholding) -> SwiftLookup {
         guard case let .cold(file, missed) = self else { return self }
-        if why == .otherStatementsRun {
+        if why == .otherStatementsRun || why == .windowBeside {
             return .batched(file: file, missed: missed)
         }
         return TextSearch.Rule(loggedAs: why).map { .withheldOnWorth(rule: $0) } ?? self

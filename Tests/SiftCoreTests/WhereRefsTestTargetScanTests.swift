@@ -66,7 +66,7 @@ struct WhereRefsTestTargetScanTests {
 
         #expect(output.contains("Sources/Lib/Start.swift"), "\(output)")
         #expect(output.contains("Sources/Lib/Restart.swift"), "\(output)")
-        #expect(output.contains("none of the 2 Swift files in test targets writes the name"), "\(output)")
+        #expect(output.contains("none of the 2 unbuilt Swift files in test targets writes the name"), "\(output)")
         #expect(!output.contains("build the test target"), "\(output)")
         #expect(!output.contains("swift build --build-tests"), "\(output)")
     }
@@ -77,7 +77,7 @@ struct WhereRefsTestTargetScanTests {
         let output = try await Self.refs(of: "loadBeta", in: Self.neverBuiltFixture())
 
         #expect(MentionRows.compacted(output).contains("not in the build, mention the name: Tests/LibTests/GizmoTools.swift:4"), "\(output)")
-        #expect(!output.contains("none of the 2 Swift files in test targets"), "\(output)")
+        #expect(!output.contains("none of the 2 unbuilt Swift files in test targets"), "\(output)")
     }
 
     /// The Objective-C file in the test target is declared as not read.
@@ -85,7 +85,7 @@ struct WhereRefsTestTargetScanTests {
     func anObjectiveCTestFileIsCountedAsNotRead() async throws {
         let output = try await Self.refs(of: "loadAlpha", in: Self.neverBuiltFixture())
 
-        #expect(output.contains("none of the 2 Swift files in test targets writes the name; 1 Objective-C test file not read"), "\(output)")
+        #expect(output.contains("none of the 2 unbuilt Swift files in test targets writes the name; 1 Objective-C test file not read"), "\(output)")
     }
 
     /// An empty verdict carries the result where it carried the advice to build the tests.
@@ -93,7 +93,7 @@ struct WhereRefsTestTargetScanTests {
     func anEmptyVerdictCarriesTheResultInPlaceOfTheBuildAdvice() async throws {
         let output = try await Self.refs(of: "loadGamma", in: Self.neverBuiltFixture())
 
-        #expect(output.contains("no callers of Lib.loadGamma() recorded in the store; none of the 2 Swift files in test targets writes the name; 1 Objective-C test file not read"), "\(output)")
+        #expect(output.contains("no callers of Lib.loadGamma() recorded in the store; none of the 2 unbuilt Swift files in test targets writes the name; 1 Objective-C test file not read"), "\(output)")
         #expect(!output.contains("not in it"), "\(output)")
     }
 

@@ -33,9 +33,9 @@ struct WindowShapesR1bTests {
         "awk 'NR>=10&&NR<=60 {print $1}' Sources/App/Shell.swift",
     ]
 
-    /// Cold, each spelling is answered in place with its file's digest, carrying the window read to the lines the spelling prints.
+    /// Cold, each spelling is placed as the window of the lines it prints, and the hook decides it by folding its comments: this file's window holds none, so it is let through as `notSmaller`, not answered with the file's digest.
     @Test(arguments: shapes)
-    func aColdShapeIsAnsweredInPlaceWithItsFilesDigest(command: String, lines: [Int]) throws {
+    func aColdShapeIsPlacedAsItsWindowAndLetThroughWhereNothingFolds(command: String, lines: [Int]) throws {
         let fixture = try Fixture()
         try fixture.lengthen()
         let lookup = try fixture.classified(command: command)
@@ -49,7 +49,9 @@ struct WindowShapesR1bTests {
         let rows = try String(contentsOfFile: fixture.file, encoding: .utf8).components(separatedBy: "\n").dropLast()
         #expect(windows.count == 1)
         #expect(windows.first?.lines(in: Array(rows)) == lines)
-        #expect(fixture.verdict(lookup, session: "cold-\(command.hashValue)").token == "in-place")
+        // A several-range or `-e` script is not a window the fold models (`notExact`); `nl -ba F | sed` reads as `cat -n F | sed`, folded or `notSmaller`, never answered with the digest.
+        let several = command.contains(";") || command.contains(" -e ")
+        #expect(fixture.verdict(lookup, session: "cold-\(command.hashValue)").line == (several ? "allowed\t\tnotExact" : "allowed\t\tnotSmaller"), "\(command)")
     }
 
     /// Once the context holds the file's digest, each spelling is no lookup at all — let through and logged `locatedWindow`, as the plain window is.
@@ -109,6 +111,16 @@ struct WindowShapesR1bTests {
         #expect(scored(command, after: []) == scored(plain, after: []), "\(command)")
         #expect(scored(plain, after: digest) == [.indexed, .guided(file: "Sources/App/Shell.swift")])
         #expect(scored(command, after: digest) == scored(plain, after: digest), "\(command)")
+    }
+
+    /// A bare `nl F` numbers by its own count, which skips blank lines, so a later window picks output lines rather than file lines: let through as `notExact`, never answered with the digest.
+    @Test func aBareNlIntoAWindowIsLetThroughAsNotExact() throws {
+        let fixture = try Fixture()
+        try fixture.lengthen()
+        let command = "nl Sources/App/Shell.swift | sed -n 10,60p"
+        let lookup = try fixture.classified(command: command)
+
+        #expect(fixture.verdict(lookup, session: "bare-nl").line == "allowed\t\tnotExact")
     }
 
     /// A spelling just outside a family is not answered in place as a window, and the scan does not read it as one where it did not before.

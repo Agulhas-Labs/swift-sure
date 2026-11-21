@@ -59,6 +59,22 @@ struct WindowWholeReadWorthTests {
         ["tool_name": "Bash", "tool_input": ["command": command], "session_id": "s1", "tool_use_id": "toolu_window"]
     }
 
+    /// The payload for `spec`: a shell command, or `read:<path>:<offset>:<limit>` for a `Read` of `path` (relative to `root`, or absolute) over those lines.
+    ///
+    /// A shell window is no longer weighed as a whole read (it is folded or let through on its own lines), so the windows below are `Read` windows, which are.
+    private static func payload(_ spec: String, in root: URL, context tokens: Int? = nil) -> [String: Any] {
+        var made = bash(spec)
+        if spec.hasPrefix("read:") {
+            let parts = spec.split(separator: ":").map(String.init)
+            let path = parts[1].hasPrefix("/") ? parts[1] : root.appendingPathComponent(parts[1]).path
+            made = ["tool_name": "Read", "tool_input": ["file_path": path, "offset": Int(parts[2]) ?? 1, "limit": Int(parts[3]) ?? 1], "session_id": "s1", "tool_use_id": "toolu_window"]
+        }
+        if let tokens {
+            made[ContextSize.replayKey] = tokens
+        }
+        return made
+    }
+
     private static func read(_ root: URL, offset: Int, limit: Int) -> [String: Any] {
         let path = root.appendingPathComponent("Sources/App/Depot.swift").path
         return ["tool_name": "Read", "tool_input": ["file_path": path, "offset": offset, "limit": limit], "session_id": "s1", "tool_use_id": "toolu_window"]
@@ -129,7 +145,8 @@ struct WindowWholeReadWorthTests {
     private static func judged(_ command: String, in directory: URL, answers served: Int, of source: Int, sourceLocation: SourceLocation = #_sourceLocation) throws -> PreToolUseCommand.Verdict {
         let scratch = try TemporaryDirectory.make("window-worth-hook")
         let suppressions = SuppressionLog(fileURL: scratch.appendingPathComponent("suppressions.jsonl"))
-        let payload = bash(command)
+        let payload = payload(command, in: directory)
+        let command = (payload["tool_input"] as? [String: Any])?["command"] as? String
         let lookup = try #require(PreToolUseCommand.lookup(command: command, payload: payload, in: directory.path, noting: suppressions, couldAnswer: { _, _ in true }), sourceLocation: sourceLocation)
         let target = directory.appendingPathComponent("Depot.swift").path
         let reason = "swift-sure answered this with `digest \(target)` instead of running it\(InPlaceAnswer.openingSuffix)\n\nbody"
@@ -149,22 +166,23 @@ struct WindowWholeReadWorthTests {
         ).verdict
     }
 
-    /// Three quarters of the file's lines is the share at which a window is weighed: 75 of the 100 lines are, 74 are not, whatever spelling or windows print them.
+    /// Three quarters of the file's lines is the share at which a window is weighed: 75 of the 100 lines are, 74 are not, whatever the offset and limit that print them (a `Read` window: a shell window is judged by its fold, `SedWindowWorthTests`).
     @Test(arguments: [
-        ("sed -n 1,75p Depot.swift", "notWorthTheTurn"),
-        ("sed -n 26,100p Depot.swift", "notWorthTheTurn"),
-        ("sed -n '1,40p;61,95p' Depot.swift", "notWorthTheTurn"),
-        ("sed -n 20,500p Depot.swift", "notWorthTheTurn"),
-        ("head -n 75 Depot.swift", "notWorthTheTurn"),
-        ("sed -n 1,74p Depot.swift", nil),
-        ("sed -n 27,100p Depot.swift", nil),
-        ("sed -n '1,40p;61,94p' Depot.swift", nil),
-        ("head -n 74 Depot.swift", nil),
+        ("read:Depot.swift:1:75", "notWorthTheTurn"),
+        ("read:Depot.swift:26:75", "notWorthTheTurn"),
+        ("read:Depot.swift:10:75", "notWorthTheTurn"),
+        ("read:Depot.swift:20:481", "notWorthTheTurn"),
+        ("read:Depot.swift:25:76", "notWorthTheTurn"),
+        ("read:Depot.swift:1:74", nil),
+        ("read:Depot.swift:27:74", nil),
+        ("read:Depot.swift:10:74", nil),
+        ("read:Depot.swift:2:74", nil),
     ] as [(String, String?)])
     func aWindowIsWeighedFromThreeQuartersOfTheFile(command: String, rule: String?) throws {
         let file = try Self.hundredLineFile()
 
-        let verdict = try Self.judged(command, in: file.deletingLastPathComponent(), answers: 1000, of: 4000)
+        // A 100-byte answer: against a `Read` window's share, a 1000-byte one is not worth the turn even for the 74-line windows, which this pins as answered.
+        let verdict = try Self.judged(command, in: file.deletingLastPathComponent(), answers: 100, of: 4000)
 
         if let rule {
             #expect(verdict.token == "allowed" && verdict.rule == rule, "\(verdict.line)")
@@ -198,23 +216,33 @@ struct WindowWholeReadWorthTests {
     }
 
     /// Whether the whole digest is worth the turn decides every window covering the file: the members answering them are larger than the digest and the window prints less than the file, and the whole read's own inputs weigh instead.
-    @Test(arguments: ["cat Sources/App/Depot.swift", "sed -n 3,200p Sources/App/Depot.swift", "sed -n '3,50p;52,200p' Sources/App/Depot.swift"])
+    @Test(arguments: ["cat Sources/App/Depot.swift", "read:Sources/App/Depot.swift:3:198", "read:Sources/App/Depot.swift:3:198"])
     func aCoveringWindowOnANestedFileWorthTheTurnIsAnswered(command: String) async throws {
         let root = try await Self.nestedRepository(inner: 12, padding: 710)
 
-        let verdict = try await Self.decide({ Self.bash(command) }, in: root)
+        let verdict = try await Self.decide({ Self.payload(command, in: root) }, in: root)
 
         #expect(verdict.hasPrefix("in-place"), "\(verdict)")
     }
 
     /// A nested file whose whole read is let through on worth lets its covering windows through too.
-    @Test(arguments: ["cat Sources/App/Depot.swift", "sed -n 3,200p Sources/App/Depot.swift", "sed -n '3,50p;52,200p' Sources/App/Depot.swift"])
+    @Test(arguments: ["cat Sources/App/Depot.swift", "read:Sources/App/Depot.swift:3:198", "read:Sources/App/Depot.swift:3:198"])
     func aCoveringWindowOnANestedFileBelowTheMarginIsLetThrough(command: String) async throws {
         let root = try await Self.nestedRepository(inner: 12, padding: 670)
 
-        let verdict = try await Self.decide({ Self.bash(command) }, in: root)
+        let verdict = try await Self.decide({ Self.payload(command, in: root) }, in: root)
 
         #expect(verdict == "allowed\t\tnotWorthTheTurn", "\(verdict)")
+    }
+
+    /// A shell window of the same nested file is not weighed as a whole read: a window with nothing to fold is let through as `notSmaller`, and a several-range script as `notExact`.
+    @Test(arguments: [("sed -n 3,200p Sources/App/Depot.swift", "notSmaller"), ("sed -n '3,50p;52,200p' Sources/App/Depot.swift", "notExact")])
+    func aShellWindowOnANestedFileIsNotWeighedAsTheWholeRead(command: String, rule: String) async throws {
+        let root = try await Self.nestedRepository(inner: 12, padding: 710)
+
+        let verdict = try await Self.decide({ Self.bash(command) }, in: root)
+
+        #expect(verdict == "allowed\t\t\(rule)", "\(verdict)")
     }
 
     // MARK: - Above the size budget, where the whole read is served its cut page
@@ -286,8 +314,8 @@ struct WindowWholeReadWorthTests {
         let root = try await Self.cutRepository()
 
         let whole = try await Self.decide({ Self.bash("cat \(Self.cutPath)", context: context) }, in: root)
-        let head = try await Self.decide({ Self.bash("head -n 390 \(Self.cutPath)", context: context) }, in: root)
-        let window = try await Self.decide({ Self.bash("sed -n 1,390p \(Self.cutPath)", context: context) }, in: root)
+        let head = try await Self.decide({ Self.payload("read:\(Self.cutPath):1:390", in: root, context: context) }, in: root)
+        let window = try await Self.decide({ Self.payload("read:\(Self.cutPath):1:390", in: root, context: context) }, in: root)
 
         #expect(Self.ruled(whole) == "in-place", "\(whole)")
         #expect(Self.ruled(head) == Self.ruled(whole), "\(head)")
@@ -300,7 +328,7 @@ struct WindowWholeReadWorthTests {
         let root = try await Self.cutRepository()
 
         let whole = try await Self.decide({ Self.bash("cat \(Self.cutPath)", context: context) }, in: root)
-        let window = try await Self.decide({ Self.bash("sed -n 4,390p \(Self.cutPath)", context: context) }, in: root)
+        let window = try await Self.decide({ Self.payload("read:\(Self.cutPath):4:387", in: root, context: context) }, in: root)
 
         #expect(Self.ruled(whole) == "in-place", "\(whole)")
         #expect(Self.ruled(window) == Self.ruled(whole), "\(window)")
@@ -308,8 +336,8 @@ struct WindowWholeReadWorthTests {
 
     /// Stepped across the context at which the whole read's margin crosses zero, from what `cat` is served, every covering window gets `cat`'s verdict at every step — on a file served its cut page and one whose whole digest fits the budget, its windows answered with members — and the steps reach both verdicts.
     @Test(arguments: [
-        (true, ["head -n 390 Sources/App/Cut.swift", "sed -n 4,390p Sources/App/Cut.swift"]),
-        (false, ["sed -n 3,200p Sources/App/Depot.swift", "sed -n '3,50p;52,200p' Sources/App/Depot.swift"]),
+        (true, ["read:Sources/App/Cut.swift:1:390", "read:Sources/App/Cut.swift:4:387"]),
+        (false, ["read:Sources/App/Depot.swift:3:198", "read:Sources/App/Depot.swift:3:198"]),
     ])
     func everyCoveringWindowAgreesWithTheWholeReadAcrossTheMargin(aboveBudget: Bool, windows: [String]) async throws {
         let root = try await aboveBudget ? Self.cutRepository() : Self.nestedRepository(inner: 12, padding: 710)
@@ -326,7 +354,7 @@ struct WindowWholeReadWorthTests {
             let expected = try await Self.ruled(Self.decide({ Self.bash(whole, context: context) }, in: root))
             seen.insert(expected)
             for window in windows {
-                let verdict = try await Self.ruled(Self.decide({ Self.bash(window, context: context) }, in: root))
+                let verdict = try await Self.ruled(Self.decide({ Self.payload(window, in: root, context: context) }, in: root))
                 #expect(verdict == expected, "\(window) at \(context) tokens: \(verdict), \(whole): \(expected)")
             }
         }

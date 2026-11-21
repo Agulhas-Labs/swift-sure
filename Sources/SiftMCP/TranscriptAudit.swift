@@ -22,7 +22,7 @@ public struct TranscriptAudit {
     ///
     /// `timeZone` is the zone the findings' days resolve in — the caller's, matching how the `--since`/`--until` window resolves. Injectable for the same reason `UsageWindow.start` takes one: a test of "the day is local" must be able to stand on either side of a midnight without waiting for one.
     ///
-    /// `suppressionLog` is the hook's own record of what it withheld, read for the calls it let run on worth — `notSmaller` and `linesNotShown` windows and `notWorthTheTurn` whole reads, a window over most of a file and a narrower `Read` window among them — which are not worth answering rather than misses, and for the `otherStatementsRun` lines it let run whole, which are batched misses. Passed in, and read not at all where it is `nil`, for the reason `roots` is.
+    /// `suppressionLog` is the hook's own record of what it withheld, read for the calls it let run on worth — `notSmaller` and `linesNotShown` windows and `notWorthTheTurn` whole reads, a window over most of a file and a narrower `Read` window among them — which are not worth answering rather than misses, and for the `otherStatementsRun` and `windowBeside` lines it let run whole, which are batched misses. Passed in, and read not at all where it is `nil`, for the reason `roots` is.
     ///
     /// `root` narrows the audit to one repository: a session or subagent transcript counts only where its own recorded `cwd` is that directory or lies beneath it, the same test `report --root` apply to a logged call's root.
     ///

@@ -1928,52 +1928,11 @@ extension TranscriptScanTests {
             .write(to: root.appendingPathComponent("Sources/App/Delta.swift"), atomically: true, encoding: .utf8)
         try await SiftEngine(directory: root, registry: nil).ensureFresh()
 
-        // One file's own whole digest, measured with room to spare, so the budget below can sit above it
-        // while sitting under twice it — each file fits alone, and only together do they not.
-        let single = try #require(InPlaceShape.match(forShell: "cat Sources/App/Gamma.swift", in: root.path), sourceLocation: sourceLocation)
-        let backoff = try InPlaceBackoff(directory: TemporaryDirectory.make("backoff").appendingPathComponent("backoff"))
-        // On threads of their own: the answerer blocks its caller on work it hands the concurrency pool.
-        let first = await InPlaceAnswerTests.onItsOwnThread { InPlaceAnswerer.answer(single, timeBudget: InPlaceAnswerTests.roomy, backoff: backoff) }
-        guard case let .answered(oneFile) = first else {
-            Issue.record("expected Gamma.swift's own digest to be answered")
-            return
-        }
-        let budget = oneFile.reason.utf8.count + 1000
-        // Windows wide enough that each file's whole digest is smaller than its own lines, so only the budget sets the digests aside.
+        // The hook no longer answers a shell window with a digest, so the answer a transcript from before holds is written out: its opening line names both files as their whole digests, with a note naming each one's bounded ranges, as the hook then wrote it — where item 1's bug stood, no note at all, so the scan below would have credited both as digested rather than merely located.
         let command = "sed -n '3,60p' Sources/App/Gamma.swift; sed -n '3,60p' Sources/App/Delta.swift"
-        let suppressions = try SuppressionLog(fileURL: TemporaryDirectory.make("suppressions").appendingPathComponent("s.jsonl"))
-        let lookup = try #require(PreToolUseCommand.lookup(command: command, payload: [:], in: root.path, noting: suppressions, couldAnswer: { _, _ in true }), sourceLocation: sourceLocation)
-        let ledger = try AdviceLedger(directory: TemporaryDirectory.make("advice"))
-        let usage = try UsageLog(fileURL: TemporaryDirectory.make("usage").appendingPathComponent("usage.jsonl"))
-        let outcome = await InPlaceAnswerTests.onItsOwnThread {
-            PreToolUseCommand.outcome(
-                to: lookup,
-                session: "s1",
-                context: AdviceContext.resolve(sessionID: "s1", transcriptPath: nil, agentID: "a1"),
-                payload: ["agent_id": "a1"],
-                cwd: root.path,
-                ledger: ledger,
-                usage: usage,
-                suppressions: suppressions,
-                // Tight enough that both files' whole digests together are over budget, though each fits alone.
-                answerer: { match, gone, _ in
-                    InPlaceAnswerer.answer(match, serverGone: gone, timeBudget: InPlaceAnswerTests.roomy, sizeBudget: budget, backoff: backoff)
-                }
-            )
-        }
-        let json = try #require(outcome.json, sourceLocation: sourceLocation)
-        let payload = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any], sourceLocation: sourceLocation)
-        let hookOutput = try #require(payload["hookSpecificOutput"] as? [String: Any], sourceLocation: sourceLocation)
-        let reason = try #require(hookOutput["permissionDecisionReason"] as? String, sourceLocation: sourceLocation)
-
-        // The opening line names both files as their whole digests, with a note naming each one's bounded
-        // ranges — where item 1's bug stood, no note at all, so the scan below would have credited both as
-        // digested rather than merely located.
-        #expect(reason.hasPrefix(
-            "swift-sure answered this with `digest Sources/App/Gamma.swift`, `digest Sources/App/Delta.swift` "
-                + "(only members of Sources/App/Gamma.swift lines 3-60; Sources/App/Delta.swift lines 3-60 are shown; "
-                + "the whole digest is over the size budget) instead of running it"
-        ))
+        let reason = "swift-sure answered this with `digest Sources/App/Gamma.swift`, `digest Sources/App/Delta.swift` "
+            + "(only members of Sources/App/Gamma.swift lines 3-60; Sources/App/Delta.swift lines 3-60 are shown; "
+            + "the whole digest is over the size budget) instead of running it — re-run the identical command if you wanted its raw output.\n\nbody"
 
         var state = TranscriptScanState()
         let lines = [
@@ -1987,8 +1946,8 @@ extension TranscriptScanTests {
         let key = CallerRoot.root(forCallerIn: root.path) ?? ""
         for name in ["Gamma", "Delta"] {
             let file = root.appendingPathComponent("Sources/App/\(name).swift").path
-            #expect(state.locates(file, in: key), "\(name)")
-            #expect(!state.digestedWhole(file, in: key), "\(name)")
+            #expect(state.locates(file, in: key), "\(name)", sourceLocation: sourceLocation)
+            #expect(!state.digestedWhole(file, in: key), "\(name)", sourceLocation: sourceLocation)
         }
     }
 }

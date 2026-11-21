@@ -179,7 +179,7 @@ struct TypeUsageWhereTests {
             let plain = try await engine.lookup(symbol: "Forgotten", freshness: freshness)
             let swept = try await engine.lookup(symbol: "Forgotten", freshness: freshness, options: WhereOptions(includeReferences: true))
 
-            #expect(plain.contains("no references to Lib.Forgotten recorded in the store — where --refs lists comments, strings, Markdown and catalog keys under not code"))
+            #expect(plain.contains("no references to Lib.Forgotten recorded in the store — where --refs lists comments, strings, Markdown, catalog keys and other tracked text under not code"))
             #expect(!plain.contains("used by Lib.Forgotten"))
             // One finding, said once: the sweep view must not repeat the emptiness the usage line already stated.
             #expect(swept.components(separatedBy: "no references to Lib.Forgotten recorded in the store").count == 2)
@@ -211,7 +211,7 @@ struct TypeUsageWhereTests {
             let swept = try await engine.lookup(symbol: "Lonely", freshness: freshness, options: WhereOptions(includeReferences: true))
 
             // `Lonely` is named on its extension's header, its return type and its construction, and nowhere else.
-            #expect(plain.contains("no uses of Lib.Lonely recorded in the store — every reference recorded falls inside its own declaration or its extensions in this module, which is the type spelling its own name; where --refs lists comments, strings, Markdown and catalog keys under not code"))
+            #expect(plain.contains("no uses of Lib.Lonely recorded in the store — every reference recorded falls inside its own declaration or its extensions in this module, which is the type spelling its own name; where --refs lists comments, strings, Markdown, catalog keys and other tracked text under not code"))
             #expect(!plain.contains("no references to Lib.Lonely"))
             // The sweep lists those very lines, so the verdict must own them rather than read as denying a list elsewhere.
             #expect(swept.contains("which is the type spelling its own name — the references listed above are those lines"))

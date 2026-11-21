@@ -373,7 +373,7 @@ private extension HelpTopics {
         **`where refs`, for a rename or delete sweep.** Callers alone cannot do that job: a *type* has no \
         callers at all, and test payloads never appear among them — `refs` lists every reference site, \
         one line per file, not just the calls (a protocol's conformances: counted, listed as conformers). The store records code occurrences only, so the doc \
-        comments, strings, Markdown lines and file names naming the symbol come after the code sites, \
+        comments, strings, Markdown lines, other tracked text lines and file names naming the symbol come after the code sites, \
         under `not code`. For only which files, `where --files` (`files: true` on the MCP tool) lists \
         the files the sweep names, one row each, with counts. For only where it is declared, \
         `where --decl` (`decl: true` on the MCP tool) prints the declarations and nothing else, \

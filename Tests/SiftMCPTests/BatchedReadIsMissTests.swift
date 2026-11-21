@@ -112,7 +112,7 @@ struct BatchedReadIsMissTests {
         let root = try await InPlaceAnswerTests.indexedRepository(padding: InPlaceAnswerTests.pastTheFloor)
         let transcript = try TemporaryDirectory.make("projects").appendingPathComponent("replayed-session.jsonl")
         let lines = try [
-            TranscriptAuditReplayTests.call("sed -n 1,200p Sources/App/Depot.swift; ls Sources", id: "c1", cwd: root.path, at: "2026-09-20T10:00:00Z"),
+            TranscriptAuditReplayTests.call("cat Sources/App/Depot.swift; ls Sources", id: "c1", cwd: root.path, at: "2026-09-20T10:00:00Z"),
             TranscriptFixture.toolResult(id: "c1", isError: false, text: "func stock2\nApp"),
         ]
         try Data(lines.joined(separator: [0x0A])).write(to: transcript)

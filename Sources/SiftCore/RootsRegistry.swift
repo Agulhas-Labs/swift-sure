@@ -54,22 +54,38 @@ public struct RootsRegistry: Sendable {
     public func record(_ root: String) {
         let canonical = URL(fileURLWithPath: root).standardizedFileURL.path
         guard !isEphemeral(canonical) else { return }
-        var roots = storedRoots()
-        guard !roots.contains(canonical) else { return }
-        roots.append(canonical)
-        save(roots.sorted())
+        // Every query records its root, so the common case, a root already recorded, stays a read alone. Entries
+        // are only ever removed by a prune of a vanished path, which this root is not, so a hit here cannot go stale.
+        guard !storedRoots().contains(canonical) else { return }
+        withExclusiveAccess {
+            var roots = storedRoots()
+            guard !roots.contains(canonical) else { return }
+            roots.append(canonical)
+            save(roots.sorted())
+        }
     }
 
     /// Every recorded root still worth answering from, pruning (and persisting the prune of) those that aren't.
     ///
     /// Vanished paths are dropped here, and so are scratch ones, on read rather than only on write, so a registry already poisoned by a session that built fixtures under `/tmp` heals the first time it is consulted instead of waiting for the temp directory to be swept. That matters more than tidiness: every entry is probed by a rootless query, and a run of self-tests can leave most of a machine's roots pointing at throwaway repos — enough that `digest Widget` from a folder above them answers, confidently and with a freshness header, about a fixture.
+    ///
+    /// The prune re-reads the file under the lock and drops only what that fresh read holds that is no longer worth keeping, so a root another process recorded after the first read survives it.
     public func knownRoots() -> [String] {
         let stored = storedRoots()
-        let surviving = stored.filter { FileManager.default.fileExists(atPath: $0) && !isEphemeral($0) }
-        if surviving.count != stored.count {
-            save(surviving)
+        let surviving = stored.filter(isWorthAnsweringFrom)
+        guard surviving.count != stored.count else { return surviving }
+        return withExclusiveAccess {
+            let fresh = storedRoots()
+            let pruned = fresh.filter(isWorthAnsweringFrom)
+            if pruned.count != fresh.count {
+                save(pruned)
+            }
+            return pruned
         }
-        return surviving
+    }
+
+    private func isWorthAnsweringFrom(_ root: String) -> Bool {
+        FileManager.default.fileExists(atPath: root) && !isEphemeral(root)
     }
 
     /// The same filtered view without the persisted prune — a read that can never become a write.
@@ -110,6 +126,16 @@ public struct RootsRegistry: Sendable {
             return []
         }
         return roots
+    }
+
+    /// Where the lock serialising every write to the registry lives: beside it, named for it.
+    static func lockURL(for fileURL: URL) -> URL {
+        URL(fileURLWithPath: fileURL.path + ".lock")
+    }
+
+    /// Runs `body` holding the registry's lock, because a write here is a read, a merge and a save: two servers starting in the same second could each read the file before the other saved, and the later save dropped the earlier one's root, so the next session's primer never listed it.
+    private func withExclusiveAccess<T>(_ body: () -> T) -> T {
+        ExclusiveFileLock.withLock(at: Self.lockURL(for: fileURL), body)
     }
 
     private func save(_ roots: [String]) {

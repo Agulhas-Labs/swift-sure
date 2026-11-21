@@ -71,7 +71,7 @@ struct WhereNonCodeSectionTests {
 
         #expect(section.lines(offset: 0, paging: SyntacticSweepPaging(offset: 0), joinsPager: false) == [
             "",
-            "not code, by written name — none in the 12 Swift and 3 Markdown files read, nor in the keys of 0 string catalogs; storyboards, xibs, plists and project files not read",
+            "not code, by written name — none in the 12 Swift and 3 Markdown files read, nor in the keys of 0 string catalogs; other text files not read",
         ])
     }
 

@@ -21,7 +21,7 @@ public struct TranscriptScan {
     ///
     /// `until` is the same rule at the other edge: exclusive, so a lookup timestamped exactly on it falls outside the window, and a line with no timestamp is kept rather than dropped — the same reasoning as `since`, cutting the same way.
     ///
-    /// `loggedLetThrough` is the rule the hook's suppression log records letting each of its `tool_use_id`s run under — `notSmaller`, `linesNotShown`, `notWorthTheTurn` or `otherStatementsRun`: a cold lookup made by one of them is scored not worth under the first three rather than cold, and a batched miss under the fourth, wherever the caller has read the log.
+    /// `loggedLetThrough` is the rule the hook's suppression log records letting each of its `tool_use_id`s run under — `notSmaller`, `linesNotShown`, `notWorthTheTurn`, `otherStatementsRun` or `windowBeside`: a cold lookup made by one of them is scored not worth under the first three rather than cold, and a batched miss under the last two, wherever the caller has read the log.
     ///
     /// `stoodAside` is the cause the log records for each `tool_use_id` the hook let run while backing off, or after its answer ran out of time: a cold lookup made by one stays cold, scored as `stoodAside` once its result arrives, so the miss count never moves.
     ///

@@ -15,7 +15,7 @@ public struct StandingCaveats {
     public static var sentences: String {
         "`where`'s callers and references are code this build compiled "
             + "(not a sibling repo, an uncompiled target or a synthesized conformance, so a short list is not \"unused\"; "
-            + "`--refs` adds comments, strings, Markdown and catalog keys under `not code`); written-name matches (`search` `calls:`/`uses:`, "
+            + "`--refs` adds comments, strings, Markdown, catalog keys and other tracked text under `not code`); written-name matches (`search` `calls:`/`uses:`, "
             + "a no-store `where`) may include same-named symbols and may miss protocol, closure, unfolded-typealias uses and unapplied instance-method references, "
             + "so an empty list is not proof it is unused; property and case uses by name at runtime (key paths, `Mirror`, "
             + "`rawValue` lookups) are not seen; tests are split on the XCTest or Testing "

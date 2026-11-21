@@ -149,12 +149,6 @@ public struct InPlaceShape {
         return String(trimmed.dropLast(last.count)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Whether `statement` only assigns, exports or unsets a shell variable, or sets a shell option: none of it prints anything or resolves a path the answer would need to account for.
-    private static func setsNothingVisible(_ statement: String) -> Bool {
-        guard let word = ShellQuery(statement).invocation.first else { return true }
-        return ["export", "unset", "set"].contains(word)
-    }
-
     /// The match for a lookup in front of a `||` whose fallback could print — `sed -n '1,30p' F.swift || find . -name F.swift` — or `nil` where the fallback could run without the answer knowing it.
     ///
     /// The fallback runs only where the list in front of the `||` fails, so the answer stands exactly where that list's success is proven, and the match hands that proof to the answer (``Match/fallbackFollows``). The list may hold `cd` moves this can follow and the one lookup, nothing else: a ride-along's exit status is not known, and a `cd` is followed only into a directory that is there on disk, since one to a dangling or looping link, or to nothing, fails and a relative read behind it would find another file or none. Every joint from the `||` on is another `||`, since a `;` or an `&&` after the fallback runs whatever the lookup did, and nothing after the last statement may background the list. A name grep standing alone is refused: its success is a line printed, and that answer runs no search to show one. The fallback itself is never read, since it never runs.
@@ -1013,5 +1007,29 @@ extension InPlaceShape {
             return nil
         }
         return operands.map(\.word)
+    }
+}
+
+extension InPlaceShape {
+    /// Whether `statement` only assigns, exports or unsets a shell variable, or sets a shell option: none of it prints anything or resolves a path the answer would need to account for.
+    ///
+    /// The forms that print the shell's state are not: a bare `set` (every variable), a `set -o` or `set +o` naming no option (every option), and a bare `export` or one given `-p` (every exported variable).
+    static func setsNothingVisible(_ statement: String) -> Bool {
+        let words = ShellQuery(statement).invocation
+        guard let word = words.first else { return true }
+        let operands = words.dropFirst()
+        switch word {
+        case "unset":
+            return true
+        case "export":
+            return !operands.isEmpty && !operands.contains("-p")
+        case "set":
+            // An option word ending in `o` takes the next word as the option's name, and lists every option where none follows.
+            let options = operands.prefix { $0 != "--" && $0 != "-" }
+            guard let last = options.last else { return !operands.isEmpty }
+            return !(last.count > 1 && (last.hasPrefix("-") || last.hasPrefix("+")) && last.hasSuffix("o"))
+        default:
+            return false
+        }
     }
 }

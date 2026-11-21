@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.4
+
+- Changed: the hook answers a shell window of a Swift file (`sed -n`, `head`, `awk` by line, `cat -n | sed`) with the lines it asked for, each run of comment lines folded to one marker, where that saves at least a quarter, and lets it run otherwise; it no longer answers a window with the file's digest, which hid the lines asked for. A window on a line beside a grep or another command runs.
+- Fixed: the hook no longer drops a `grep` that is not a trimmer from a piped build: a count behind a digit cluster (`grep -5c error`) and a directories action of `recurse` (`-d recurse`, `--directories=recurse`) keep the line as written, while `grep -5 error` and `-d read` are still trimmed.
+- Fixed: `where --refs` no longer says "none of the N Swift files in test targets writes the name" above a list of test files that do: the clause counts only the test files the build left out, and now says so ("N unbuilt Swift files").
+- Fixed: two MCP servers or sessions starting together no longer drop a repository from `~/.swift-sure/roots.json`, the list of indexed roots the session primer and cross-root pointers read: every write to it now holds a lock (`roots.json.lock`, beside it), and a prune of vanished roots re-reads the file under that lock, so a root recorded meanwhile survives.
+- Changed: `digest File.swift:a-b` serves a long function the range only partly covers as the lines inside the range, under a header naming the function and its whole range, instead of the whole function; a function overhanging the range by three lines or fewer is still served whole.
+- Fixed: `where --refs` and `--files` now list the other tracked text that writes the name, such as a build manifest or a script, as `other-text line`s under `not code`, and the none line says which text was read, so a rename sweep no longer leaves a build file to edit unseen; binary and gitignored files and lowercase names are not swept.
+- Changed: the hook rewrites a build or test piped only into `head`, `tail` or a matching `grep` without the pipe: `swift-sure run -- swift test 2>&1 | head -4` runs as `swift-sure run -- swift test`, and `swift test 2>&1 | tail -40` is wrapped as a bare `swift test` is, since the run already prints only the failures and a log path. The rewrite is made only where it adds no permission prompt (in `auto` mode, or with an allow rule for `swift-sure run`), and is never offered as advice; elsewhere, and for a pipe into anything else, `tail -f`, a counting, listing or recursive `grep`, a trimmer handed a file, a line run in the background or a line of several statements, the line is let through as before.
+
 ## 0.4.3
 
 - Fixed: the install notes, the guide and the `flakes` help no longer say the `report` page is pseudonymised and safe to paste anywhere: `audit` and `flakes` are, while `report` holds the real roots, files and lookup targets and has no `--unredact`, which `report --help` now says too.

@@ -67,6 +67,19 @@ struct UninstallMovedHomeTests {
     }
 
     @Test
+    func theRootsRegistryLockIsWhatTheToolWrites() throws {
+        let installed = try Fixture.install()
+        let home = try Self.movedHome(["roots.json"])
+        RootsRegistry(fileURL: RootsRegistry.fileURL(in: home)).record(installed.recorded.path)
+        #expect(PathKind.of(RootsRegistry.lockURL(for: RootsRegistry.fileURL(in: home))) == .file)
+
+        let (lines, status) = try Fixture.exiting(installed, ["--purge"], adding: ["SWIFT_SURE_HOME": home.path], remover: Fixture.ServerRemover())
+
+        #expect(status == 0, "\(lines)")
+        #expect(PathKind.of(home) == .absent)
+    }
+
+    @Test
     func anOverrideNamingTheDefaultHomeIsPurgedAsTheDefault() throws {
         let installed = try Fixture.install()
         try "theirs".write(to: installed.siftHome.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)

@@ -47,6 +47,11 @@ struct PreToolUseCommand: ParsableCommand {
     /// Whether this hook acts on the build and test side alone, so the shell classification skips every lookup reading.
     @TaskLocal static var isRunOnly = false
 
+    /// What this hook reads and prints in the protocol of the harness it is registered for.
+    private var harness: HookHarness {
+        HookHarness(agent: agent, command: command, verdict: verdict)
+    }
+
     func run() {
         // An off switch rather than a mode: one environment variable turns the hook inert without touching
         // settings.json, which matters on a machine where the registration is shared with hooks this
@@ -60,7 +65,7 @@ struct PreToolUseCommand: ParsableCommand {
             return
         }
 
-        guard var payload = read(command == nil ? hookPayload() : [:]) else { return }
+        guard var payload = harness.read(command == nil ? hookPayload() : [:]) else { return }
         payload["permission_mode"] = permissionMode ?? payload["permission_mode"]
         let directory = cwd ?? (payload["cwd"] as? String).flatMap { $0.isEmpty ? nil : $0 }
 
@@ -73,6 +78,9 @@ struct PreToolUseCommand: ParsableCommand {
             transcriptPath: payload["transcript_path"] as? String,
             agentID: payload["agent_id"] as? String
         )
+
+        // A build or test piped only into trimmers runs without them where that adds no prompt, in either mode; anywhere else the line is read below exactly as it was before the trim existed.
+        guard !harness.answersATrim(payload: payload, in: directory) else { return }
 
         // Run mode: a call other than a shell line is a lookup, a write or an index call, none of them the run side's, so it is let through before anything is noted.
         if runOnly {
@@ -103,7 +111,7 @@ struct PreToolUseCommand: ParsableCommand {
                 let token = output == nil ? "allowed" : "amended"
                 StandardStreams.emit(Verdict(token: token, rule: "adviceTaken").line)
             } else if let output {
-                answer(output, payload: payload)
+                harness.answer(output, payload: payload)
             }
             return
         }
@@ -178,6 +186,10 @@ struct PreToolUseCommand: ParsableCommand {
         if let rewritten = InPlaceBuildRewrite.decided(lookup, shell: shellText(command: command, payload: payload), payload: payload, in: directory, suppressions: suppressions, agent: agent, readingPermission: { runPermission(directory) }) {
             return rewritten
         }
+        var lookup = lookup
+        if let decided = ShellWindowHook(payload: payload, session: session, context: context, directory: directory, ledger: ledger, usage: usage, suppressions: suppressions).decided(routing: &lookup, shell: shellText(command: command, payload: payload)) {
+            return decided
+        }
         // A whole read of files this context has been served the digest of, by any route, would be answered with
         // the digest it holds; the only reason it asks for source is that the digest was not enough. Asked
         // before the ledger decides, so an allow here spends nothing of the budget. A window of such files is
@@ -185,7 +197,6 @@ struct PreToolUseCommand: ParsableCommand {
         // leaving other statements to print, since the window prints lines no answer to the rest reproduces, so
         // the line runs with the note naming the call for the rest; let through where nothing else is left. A
         // whole read the hook would let through alone is dropped the same way.
-        var lookup = lookup
         if lookup.inPlace != nil || lookup.readPath != nil || !lookup.windowPaths.isEmpty {
             // A file this context wrote or edited is text it already holds, so a read of it, whole or through a
             // window, is a revisit and no lookup: let through with nothing noted, as the scan files it revisited.
@@ -258,6 +269,11 @@ struct PreToolUseCommand: ParsableCommand {
                 suppressions.note(symbol: nil, directory: directory, rule: "alreadyDigested", call: payload["tool_use_id"] as? String)
                 return (nil, Verdict(token: "allowed", rule: "alreadyDigested"))
             }
+        }
+        // A shell window the fold did not claim is a shape it does not model: let through, never answered with a
+        // digest or members that drop its code lines. Asked before the ledger, so it spends nothing of the budget.
+        if let unclaimed = ShellWindowHook.unclaimedWindow(lookup, payload: payload, in: directory, noting: suppressions) {
+            return unclaimed
         }
         // The offer is pinned to the tree this lookup itself would search, never to cwd alone, so an offer taken up
         // against a different repository is not read as circular here (``IndexSuggestion/rooted(_:at:)``). The
@@ -399,6 +415,8 @@ struct PreToolUseCommand: ParsableCommand {
     /// The last gate is the only one here about the *tree* rather than the question (``SiftMCP/RepositoryIndex``). A repository with no index of its own is not one of them, and deliberately: whatever answers builds the index it needs, and the hook's own time budget and back-off are what bound that, not a rule about the tree. `Docs/Design.md` has the measurements and what the rule cost while it stood.
     ///
     /// `allowed` answers which of a shell line's lookup keys the ledger already allows a re-run of (``SiftMCP/AdviceLedger/rerunsAllowed(session:among:)``), asked only of a line with more than one lookup on it: the lookup this is about is the first of them not already allowed, so a new lookup riding behind an allowed one is not waved through on its allowance. Nor is it answered: the allowed one still prints, and a denial would swallow its output, so the answer is withheld and the line runs (`otherStatementsRun`). The default allows none, which is the line's first lookup, as it always was.
+    ///
+    /// `folding` false reads a shell window as the hook did before the fold (``ShellWindowHook``): the reading a line the ledger locates is decided by.
     static func lookup(
         command: String?,
         payload: [String: Any],
@@ -407,7 +425,8 @@ struct PreToolUseCommand: ParsableCommand {
         digested: DigestedFiles = .standard(),
         couldAnswer: (String, String?) -> Bool = { AdvisableName.couldAnswer($0, from: $1) },
         resolvingDigests resolve: (String, String) -> String? = { SiblingIndexProbe.declaringFile(named: $0, atRoot: $1) },
-        allowed: ([String]) -> Set<String> = { _ in [] }
+        allowed: ([String]) -> Set<String> = { _ in [] },
+        folding: Bool = true
     ) -> Lookup? {
         guard var lookup = classified(command: command, payload: payload, in: directory, allowed: allowed) else {
             // Three rules silence the hook without any suggestion ever being built, so they reach no other gate —
@@ -427,6 +446,13 @@ struct PreToolUseCommand: ParsableCommand {
         // an index in it and write into its `.git`: the hook stays silent and writes nothing. Asked only here, of a
         // call that would otherwise answer or advise, so a Swift repository's lookups pay nothing new.
         guard !SwiftTree.holdsNoSwift(reachedFrom: directory, movedTo: lookup.inPlace?.directory, anchor: lookup.anchor, readPath: lookup.readPath, alsoReaching: lookup.alsoReaching) else { return nil }
+        // A shell window of a file nothing in this context has located is answered with its own lines, comment runs
+        // folded, or let through: never with a digest, so it passes every gate below, which weigh one.
+        // The reading the line had before the fold rides along, its withholdings held back, for a line the ledger
+        // turns out to locate.
+        if folding, let folded = ShellWindowHook.lookup(lookup, shell: shellText(command: command, payload: payload), in: directory, located: { ShellWindowHook.locatedByUsage($0, through: $1, payload: payload, digested: digested, resolve: resolve) }) {
+            return ShellWindowHook.OrdinaryReading.carried(by: folded) { Self.lookup(command: command, payload: payload, in: directory, noting: $0, digested: digested, couldAnswer: couldAnswer, resolvingDigests: resolve, allowed: allowed, folding: false) }
+        }
         // A whole read of a file this context has already had digested would be refused with the digest it was
         // served: nothing new, for a round trip priced at the whole context. It is let through, and still counted,
         // as a read whole after its digest (`DigestedFiles`), even where the file has changed since, which nothing
@@ -545,19 +571,6 @@ struct PreToolUseCommand: ParsableCommand {
         return HookOutput.preToolUseAmendment(input: amended)
     }
 
-    /// Records the file a write or an edit puts in this context, answering whether the call was one.
-    ///
-    /// The hook has no opinion about the call itself and lets it through; what it keeps is that this context holds the file's text, so a later read of the file is a revisit rather than a lookup. A relative path is spelled out against the call's directory, as a read's is.
-    static func notesWrite(context: AdviceContext, payload: [String: Any], cwd directory: String?, ledger: AdviceLedger = .standard()) -> Bool {
-        guard LookupTool.writes(payload["tool_name"] as? String ?? "") else { return false }
-        if let path = LookupTool.readPath(in: payload["tool_input"] as? [String: Any] ?? [:]),
-           let file = SwiftTree.resolve(path, relativeTo: directory)
-        {
-            ledger.noteWritten(session: context.key, path: file)
-        }
-        return true
-    }
-
     /// Leaves the identity of the context making this call for the server to stamp on the log line.
     ///
     /// For a call to this server's MCP tools, and for each query subcommand a Bash command runs — the shell half of `takesTheAdvice`, a *different process* that writes its own log line and claims its slip by its own argv, filed under a face no MCP tool has (``SiftMCP/CallAttribution/cliFace``), so neither half can take the other's. Any other `swift-sure` in Bash — `swift-sure run`, `swift-sure report` — logs no lookup and gets no slip.
@@ -604,6 +617,19 @@ struct PreToolUseCommand: ParsableCommand {
 }
 
 extension PreToolUseCommand {
+    /// Records the file a write or an edit puts in this context, answering whether the call was one.
+    ///
+    /// The hook has no opinion about the call itself and lets it through; what it keeps is that this context holds the file's text, so a later read of the file is a revisit rather than a lookup. A relative path is spelled out against the call's directory, as a read's is.
+    static func notesWrite(context: AdviceContext, payload: [String: Any], cwd directory: String?, ledger: AdviceLedger = .standard()) -> Bool {
+        guard LookupTool.writes(payload["tool_name"] as? String ?? "") else { return false }
+        if let path = LookupTool.readPath(in: payload["tool_input"] as? [String: Any] ?? [:]),
+           let file = SwiftTree.resolve(path, relativeTo: directory)
+        {
+            ledger.noteWritten(session: context.key, path: file)
+        }
+        return true
+    }
+
     /// Decides a call that is neither an index call nor a write and prints the answer; `runOnly` reads a shell line for a build or test alone.
     private func decide(payload: [String: Any], directory: String?, context: AdviceContext, ledger: AdviceLedger, runOnly: Bool) {
         let outcome = ShellGrep.Program.$current.withValue(agent.shellGrep(payload: payload)) {
@@ -617,7 +643,7 @@ extension PreToolUseCommand {
                     answerer: { InPlaceAnswerer.answer($0, serverGone: $1, timeBudget: $2, backoff: .standard()) },
                     ledger: ledger,
                     usage: UsageLog.forHookAnswer(transcriptPath: payload["transcript_path"] as? String),
-                    runPermission: runPermission,
+                    runPermission: harness.runPermission,
                     agent: agent
                 )
             }
@@ -625,7 +651,7 @@ extension PreToolUseCommand {
         if verdict {
             StandardStreams.emit(outcome.verdict.line)
         } else if let json = PrintedAnswer.recorded(outcome, payload: payload) {
-            answer(json, payload: payload)
+            harness.answer(json, payload: payload)
         }
     }
 
@@ -719,46 +745,6 @@ extension PreToolUseCommand {
         guard let resolved = SwiftTree.resolve(target, relativeTo: directory),
               FileManager.default.fileExists(atPath: resolved) else { return false }
         return RepositoryIndex.isRootless(for: resolved)
-    }
-
-    /// The payload the hook judges, in Claude Code's form, or `nil` where it prints nothing: a Cursor payload under the Claude Code registration, and one the Cursor registration cannot read.
-    private func read(_ payload: [String: Any]) -> [String: Any]? {
-        switch agent {
-        case .claude:
-            return Self.standsAsideForCursor(payload, verdict: verdict) ? nil : payload
-        case .cursor:
-            guard let read = command == nil ? CursorPreToolUseHook.claudePayload(from: payload) : payload else {
-                if verdict {
-                    StandardStreams.emit(Verdict(token: "allowed", rule: "unread").line)
-                }
-                return nil
-            }
-            return read
-        }
-    }
-
-    /// Whose rules decide that a build's rewrite costs no prompt: Claude Code's settings under Claude Code, and Cursor's own shell rules under Cursor, read for the directory the command runs in.
-    private var runPermission: (String?) -> WrappedRunPermission {
-        guard agent == .cursor else { return WrappedRunPermission.standard(in:) }
-        return { CursorShellPermission.load(directory: $0) }
-    }
-
-    /// Prints the hook's `output` in the protocol of the harness it is registered for: as written for Claude Code, and read into Cursor's schema for Cursor, where what that schema cannot carry prints nothing.
-    private func answer(_ output: String, payload: [String: Any]) {
-        CursorPreToolUseHook.deliver(
-            output, payload: payload, agent: agent,
-            emit: { StandardStreams.emit($0) },
-            file: { CursorPreToolUseHook.fileNotice(output: $0, response: $1, payload: payload) }
-        )
-    }
-
-    /// Whether `payload` is Cursor's, which shows a refusal to the user rather than the model (`CursorHookPayload`), so the hook prints nothing; a probe is told why.
-    private static func standsAsideForCursor(_ payload: [String: Any], verdict: Bool) -> Bool {
-        guard CursorHookPayload.recognises(payload) else { return false }
-        if verdict {
-            StandardStreams.emit(Verdict(token: "allowed", rule: "cursor").line)
-        }
-        return true
     }
 
     /// The wrapping's own refusal text — the one place this template still runs, now that a lookup answers in place or is let through instead.
@@ -1121,5 +1107,11 @@ extension PreToolUseCommand {
         var statementKeys: [String: String] = [:]
         /// The keys of the statements whose reads were dropped from this lookup as held through the usage log, which a later classification of the line beside other reads takes as allowed re-runs, so it never offers a digest the usage log says the context holds.
         var usageLogHeldKeys: Set<String> = []
+        /// The shell line read leg by leg, where it reads through a window a file this context has not located, so it is answered with its own lines, comment runs folded, or let through, and never with a digest (``SiftMCP/ShellWindowFold``); `nil` for every other lookup.
+        var shellWindows: ShellWindowLine?
+        /// The windows on `shellWindows` the usage log did not locate, each by its resolved file, which the ledger is asked about before the line goes to the fold.
+        var unlocatedShellWindows: [(path: String, window: LineWindow)] = []
+        /// The line's reading had the fold not existed, taken where the ledger locates every window in `unlocatedShellWindows`; `nil` for every other lookup.
+        var ordinaryReading: ShellWindowHook.OrdinaryReading?
     }
 }

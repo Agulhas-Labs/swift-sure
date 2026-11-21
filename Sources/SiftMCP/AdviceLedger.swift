@@ -324,23 +324,9 @@ public struct AdviceLedger: Sendable {
     ///
     /// **Every entry point here is a load, a mutation and a save, and the save being atomic does not make the three of them atomic.** One assistant message carrying `mcp__swift-sure__digest Foo` and `Read Bar.swift` as parallel calls — the shape this tool's own guidance asks for — starts two hook processes against the same session at once: `noteIndexCall` records the digest, and `decide`, holding the snapshot it loaded before that, writes the state back without it. The call is lost, and the next refusal offers this context a call it has already made.
     ///
-    /// `flock` rather than an exclusive-create lock file, because the kernel releases it when the descriptor closes — including when the process dies holding it — so there is no stale lock to time out and no wedged hook. It blocks rather than spinning: the critical section is one small read and one small write, and the only thing that can hold it is another hook process doing the same.
-    ///
-    /// **Unavailable is not fatal.** A directory that cannot be created or a lock that cannot be taken runs the body anyway, unserialised — an advice hook may never fail closed.
+    /// The lock is ``ExclusiveFileLock``'s `flock`, which the kernel releases when the descriptor closes, so a hook that dies holding it wedges nothing; the only thing that can hold it is another hook process doing the same one small read and one small write. Unavailable is not fatal: the body runs unserialised, because an advice hook may never fail closed.
     private func withExclusiveAccess<T>(_ body: () -> T) -> T {
-        guard (try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)) != nil
-        else {
-            return body()
-        }
-        let descriptor = open(directory.appendingPathComponent(Self.lockFileName).path, O_CREAT | O_RDWR, 0o600)
-        guard descriptor >= 0 else { return body() }
-        defer { close(descriptor) }
-        while flock(descriptor, LOCK_EX) != 0 {
-            // A signal interrupting the wait is not a failure to lock; anything else is, and runs unlocked.
-            guard errno == EINTR else { return body() }
-        }
-        defer { flock(descriptor, LOCK_UN) }
-        return body()
+        ExclusiveFileLock.withLock(at: directory.appendingPathComponent(Self.lockFileName), body)
     }
 
     /// The session's state, or `nil` when there is nowhere to keep it.

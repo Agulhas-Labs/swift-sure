@@ -18,6 +18,8 @@ struct NonCodeMentions: Equatable {
     let markdownFilesRead: Int
     /// How many string catalogs were decoded and searched; a binary property list or a file that cannot be decoded is not counted.
     var catalogsRead = 0
+    /// Whether the other tracked text files were searched: git listed them, and the name is not a lowercase word, whose plain-text hits are noise.
+    var otherTextRead = false
 
     /// Whether nothing at all was found.
     var isEmpty: Bool {
@@ -42,7 +44,7 @@ struct NonCodeMentions: Equatable {
     /// Scans the repo-relative `swiftFiles` and `markdownFiles` under `root` for `name`, a Swift file the answer's conformers block already read for it taken from `reads`.
     ///
     /// A listed file the tree no longer holds is neither counted as read nor matched by its name.
-    static func scan(name: String, swiftFiles: [String], markdownFiles: [String], catalogFiles: [String] = [], under root: URL, reads: TextSearchFiles.Reads? = nil) -> NonCodeMentions {
+    static func scan(name: String, swiftFiles: [String], markdownFiles: [String], catalogFiles: [String] = [], otherText: [String: [Int]]? = nil, under root: URL, reads: TextSearchFiles.Reads? = nil) -> NonCodeMentions {
         let needle = Array(name.utf8)
         let backtickedOnly = name.first?.isLowercase ?? false
         var files: [File] = []
@@ -75,13 +77,20 @@ struct NonCodeMentions: Equatable {
                 files.append(File(path: path, isMarkdown: false, lines: lines, codeLines: 0, isCatalog: true))
             }
         }
+        // Other tracked text: git's hits in files that are none of the three kinds above, read as lines of bare numbers.
+        if let otherText, !backtickedOnly {
+            for (path, numbers) in otherText where !numbers.isEmpty {
+                files.append(File(path: path, isMarkdown: true, lines: numbers.sorted().map { Line(number: $0, kind: .text) }, codeLines: 0))
+            }
+        }
         let names = backtickedOnly ? [] : read.compactMap { fileName(of: $0, matching: name) }
         return NonCodeMentions(
             files: files.sorted { $0.path < $1.path },
             fileNames: names.sorted { $0.path < $1.path },
             swiftFilesRead: swiftRead,
             markdownFilesRead: markdownRead,
-            catalogsRead: catalogsRead
+            catalogsRead: catalogsRead,
+            otherTextRead: otherText != nil && !backtickedOnly
         )
     }
 
@@ -237,6 +246,7 @@ extension NonCodeMentions {
         case comment
         case string
         case markdown
+        case text
         case catalogKey
 
         static func < (lhs: Kind, rhs: Kind) -> Bool {

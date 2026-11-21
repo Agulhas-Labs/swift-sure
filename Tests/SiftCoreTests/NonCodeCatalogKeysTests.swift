@@ -204,7 +204,7 @@ struct NonCodeCatalogKeysTests {
         let one = try Self.scan("Gizmo", catalogs: ["R/A.strings": "\"a\" = \"b\";\n"])
         let none = try Self.scan("Gizmo", catalogs: [String: String]())
 
-        #expect(WhereNonCodeSection(mentions: one, isAmbiguous: false).noneLine == "not code, by written name — none in the 0 Swift and 0 Markdown files read, nor in the keys of 1 string catalog; storyboards, xibs, plists and project files not read")
+        #expect(WhereNonCodeSection(mentions: one, isAmbiguous: false).noneLine == "not code, by written name — none in the 0 Swift and 0 Markdown files read, nor in the keys of 1 string catalog; other text files not read")
         #expect(WhereNonCodeSection(mentions: none, isAmbiguous: false).noneLine.contains("nor in the keys of 0 string catalogs;"))
     }
 

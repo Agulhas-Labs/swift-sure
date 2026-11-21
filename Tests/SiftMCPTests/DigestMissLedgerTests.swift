@@ -64,9 +64,9 @@ struct DigestMissLedgerTests {
         ["tool_name": tool, "tool_input": input, "session_id": session, "cwd": root.path]
     }
 
-    /// The hook's payload for the window of 150 lines of the file.
+    /// The hook's payload for a read of the file that is answered with its digest: a whole `cat`, since a shell window is let through on its own lines and never refused with a digest.
     private static func window(root: URL, session: String) -> [String: Any] {
-        payload("Bash", ["command": "head -150 \(file)"], root: root, session: session)
+        payload("Bash", ["command": "cat \(file)"], root: root, session: session)
     }
 
     /// The digest of `target` over `root`, as the renderer answers it.

@@ -166,12 +166,12 @@ struct NotWorthTheTurnTests {
         #expect(!judged.suppressions.contains("notWorthTheTurn"), "\(judged.suppressions)")
     }
 
-    /// A window of the same small file is not judged by the rule: its answer stands as the window rules decide.
+    /// A window of the same small file is not judged by the rule: a shell window is never answered with a digest, so it is let through as `notExact`, not as `notWorthTheTurn`.
     @Test
     func aWindowIsNotJudgedByTheRule() throws {
         let judged = try Self.judged(Self.payload(command: "sed -n 1,40p \(Self.file)"), answers: 1000, of: 4000)
 
-        #expect(judged.outcome.verdict.token == "in-place")
+        #expect(judged.outcome.verdict.line == "allowed\t\tnotExact")
         #expect(!judged.suppressions.contains("notWorthTheTurn"), "\(judged.suppressions)")
     }
 

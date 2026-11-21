@@ -98,7 +98,7 @@ import Testing
 private extension ReplayHookCommandTests {
     /// The verdict `replay-hook` gives for a cold window of this repository's own `GitContext.swift`, `--show` on or off, each against a state directory of its own so neither run's denial is read back as the other's identical re-run.
     static func replay(showing show: Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws -> (status: Int32, output: String) {
-        try await replay(showing: show, label: show ? "shown" : "plain", command: "sed -n '30,150p' Sources/SiftCore/GitContext.swift", sourceLocation: sourceLocation)
+        try await replay(showing: show, label: show ? "shown" : "plain", command: "cat Sources/SiftCore/GitContext.swift", sourceLocation: sourceLocation)
     }
 
     /// The verdict `replay-hook` gives for one `command`, run from this repository's own working directory, against a state directory named for `label` so no two calls in the suite share one.

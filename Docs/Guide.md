@@ -547,8 +547,8 @@ fixed-string search (`-F`, `fgrep`) for anything but a name, a merge's conflict 
 - **A large document** — `digest <file>.md` (exact path, `Docs/Design.md`, not `Design.md`) gives a
   heading outline with line ranges and sizes; then a ranged Read of the section.
 - **"Where is X defined, who conforms, what calls or overrides it"** — `where`, not Grep; a type's uses are counted on one line that names `where --refs`. `where --refs`
-  lists every reference site for a rename or delete sweep, then the comments, strings, Markdown lines and
-  file names that write the name, under `not code`.
+  lists every reference site for a rename or delete sweep, then the comments, strings, Markdown lines,
+  other tracked text lines and file names that write the name, under `not code`.
 - **Code by shape rather than name** — `search`; Grep cannot answer these reliably because the pattern
   spans nesting and line breaks: "every `@Test` function that wraps a call in an unstructured `Task`".
 - **About to write a helper** — `search` first, by the callee it cannot avoid (`kind:func calls:rename`;
@@ -1306,12 +1306,12 @@ not code, by written name — 3 DocC-link lines, 2 doc-comment lines, 1 string-l
 
 Callers alone won't do — a type has none, and test payloads never appear among them. The index store
 records **code occurrences only**, so the places a rename must change that are not code come after them,
-read from the working tree's Swift and Markdown files: DocC links (a stale one breaks the documentation
-build), doc comments, comments, string literals, Markdown lines and file names, matched as a whole word.
+read from the working tree's Swift and Markdown files and other tracked text: DocC links (a stale one breaks the documentation
+build), doc comments, comments, string literals, Markdown lines, other tracked text lines and file names, matched as a whole word.
 A file name other than the exact stem is a lead to check. The Markdown read includes hidden directories
 such as `.agents`, `.github` and `.claude` (not `.git`, `.build`, `.swiftpm` or `.swift-sure`); Swift in a hidden
-directory is still never indexed. Storyboards, xibs, plists, string catalogs and
-project files are not read, and the answer says so when it finds nothing.
+directory is still never indexed. Other tracked text (storyboards, xibs, plists, project files, build
+manifests, scripts) is swept in one `git grep`, never a binary or gitignored file, and the answer says so when it finds nothing.
 
 When the question is only which files, `where <symbol> --files` (`files: true` on the MCP tool) lists the
 files the sweep names, one row each, sorted by path: the code lines, `declares` where the symbol is

@@ -88,6 +88,8 @@ public extension InPlaceAnswerer {
         case parseError
         /// Another statement on the line prints what the answer does not reproduce, so answering one part would leave the rest to a re-run of the whole line.
         case otherStatementsRun
+        /// A shell window shares its line with a leg that is neither a window nor an `echo` — a search, a whole read, any other command — or with a join other than `;`, `&&` or a line break, so the window's lines cannot be served without running the line, and the line runs whole: counted, as ``otherStatementsRun`` is, as a batched miss.
+        case windowBeside
         /// A document's heading outline is more than a third of the document's size, so it is no answer worth a turn.
         case outlineTooLarge
         /// A window's answer would not show the text of the lines it asks for — lines in a declaration's leading doc comment, lines whose answer would name one member's declaration and nothing else (no view outline), or any lines where it saves less than ``InPlaceAnswer/windowSavingFloor`` — so the identical re-run would follow it, and the window runs.

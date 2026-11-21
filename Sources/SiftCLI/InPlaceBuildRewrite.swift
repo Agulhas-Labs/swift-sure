@@ -61,6 +61,40 @@ struct InPlaceBuildRewrite {
         return amended(lookup, rewrite: rewrite, payload: payload)
     }
 
+    /// A build or test piped only into trimmers (``SiftMCP/PipedRunTrim``) rewritten without them, or `nil` where `shell` is no such line or the rewrite could cost the user a prompt.
+    ///
+    /// Asked before anything else reads the line, and only ever an amendment: where the rewrite would stand aside, add a prompt (Claude Code's ``SiftMCP/WrappedRunPermission/addsNoPrompt(legs:mode:)``; under Cursor a prompt the line as written would not meet), or reach a tree with no Swift in it, the answer is `nil` with nothing noted, and the line gets exactly the reading it had before the trim existed: let through, its advice and its ledger entry unchanged.
+    static func trimmed(
+        shell: String?,
+        payload: [String: Any],
+        in directory: String?,
+        agent: HookAgent = .claude,
+        readingPermission: () -> WrappedRunPermission
+    ) -> (json: String?, verdict: PreToolUseCommand.Verdict)? {
+        guard let shell, let trim = PipedRunTrim.of(shell), !ShellSyntax.isIncomplete(shell) else { return nil }
+        // A raw build is wrapped only in a tree the wrapping would reach anyway: one holding Swift, as ``RunAdvice`` asks of a bare build.
+        if !ShellInspection.invokesSift(shell), SwiftTree.holdsNoSwift(reachedFrom: directory, movedTo: nil, anchor: nil, readPath: nil, alsoReaching: RunAdvice.reachedPaths(of: shell)) {
+            return nil
+        }
+        let permission = readingPermission()
+        guard !permission.hasUnreadableSettings, !permission.vetoes(line: shell) else { return nil }
+        let addsNoPrompt = switch agent {
+        case .claude:
+            permission.addsNoPrompt(legs: trim.legs, mode: payload["permission_mode"] as? String)
+        case .cursor:
+            // Cursor's equivalent of ``SiftMCP/CursorShellPermission/addsNoNewPrompt(_:legs:)``, judged against every stage the line runs as written, its trimmers included.
+            !permission.vetoes(line: trim.line)
+                && (permission.addsNoPrompt(legs: trim.legs, mode: nil) || !permission.addsNoPrompt(legs: ShellSyntax.segments(of: shell).map { $0.trimmingCharacters(in: .whitespaces) }, mode: nil))
+        }
+        guard addsNoPrompt else { return nil }
+        var input = payload["tool_input"] as? [String: Any] ?? [:]
+        input["command"] = trim.line
+        return (
+            HookOutput.preToolUseAmendment(input: input, context: trim.notice),
+            PreToolUseCommand.Verdict(token: "amended", call: trim.line, rule: "trimmed")
+        )
+    }
+
     /// The hook's output for a build rewritten in place to `rewrite`'s line: the whole tool input sent back with the command replaced, and the notice naming what ran.
     private static func amended(_ lookup: PreToolUseCommand.Lookup, rewrite: (line: String, legs: [String]), payload: [String: Any]) -> (json: String?, verdict: PreToolUseCommand.Verdict) {
         var input = payload["tool_input"] as? [String: Any] ?? [:]

@@ -28,8 +28,14 @@ struct HeldReadLineTests {
 
             let judged = try HeldWindowLineTests.judged("cat Sources/App/Shell.swift; \(cold)", in: fixture, located: throughTheUsageLog)
 
-            #expect(judged.line == "allowed\t\totherStatementsRun", "\(cold)")
-            #expect(judged.json?.contains("permissionDecision") == false, "\(cold)")
+            // A cold shell window beside the read is `windowBeside` with no note; the other cold legs keep the note naming their call.
+            if cold.hasPrefix("sed") {
+                #expect(judged.line == "allowed\t\twindowBeside", "\(cold)")
+                #expect(judged.json == nil, "\(cold)")
+            } else {
+                #expect(judged.line == "allowed\t\totherStatementsRun", "\(cold)")
+                #expect(judged.json?.contains("permissionDecision") == false, "\(cold)")
+            }
         }
     }
 
@@ -42,8 +48,14 @@ struct HeldReadLineTests {
 
             let judged = try HeldWindowLineTests.judged("cat Sources/App/Shell.swift; \(cold)", in: fixture)
 
-            #expect(judged.line == "allowed\t\totherStatementsRun", "\(cold)")
-            #expect(judged.json?.contains("permissionDecision") == false, "\(cold)")
+            // A cold shell window beside the read is `windowBeside` with no note; the other cold legs keep the note naming their call.
+            if cold.hasPrefix("sed") {
+                #expect(judged.line == "allowed\t\twindowBeside", "\(cold)")
+                #expect(judged.json == nil, "\(cold)")
+            } else {
+                #expect(judged.line == "allowed\t\totherStatementsRun", "\(cold)")
+                #expect(judged.json?.contains("permissionDecision") == false, "\(cold)")
+            }
         }
     }
 

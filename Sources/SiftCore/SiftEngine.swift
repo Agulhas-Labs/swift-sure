@@ -48,7 +48,7 @@ public final class SiftEngine: @unchecked Sendable {
         config = try SiftConfig.load(repoRoot: root)
         configMtime = Self.mtime(of: ConfigFile.url(repoRoot: root))
         store = try IndexStore(databasePath: storesNothing ? IndexLocation.memory.databasePath : IndexLocation.resolve(databasePath: Self.indexPath(in: root)).databasePath)
-        enumerator = FileEnumerator(repoRoot: root, config: config, gitListing: { try gitContext.visibleSwiftFiles() }, markdownListing: { try gitContext.visibleMarkdownFiles() }, catalogListing: { try gitContext.visibleCatalogFiles() })
+        enumerator = FileEnumerator(repoRoot: root, config: config, gitListing: { try gitContext.visibleSwiftFiles() }, markdownListing: { try gitContext.visibleMarkdownFiles() }, catalogListing: { try gitContext.visibleCatalogFiles() }, otherTextSearch: { gitContext.otherTextLines(of: $0) })
         resolver = ModuleResolver(repoRoot: root, config: config)
         indexer = Indexer(repoRoot: root, store: store, enumerator: enumerator, resolver: resolver)
         resolutionStamps = Self.stamps(of: resolver.inputPaths + resolver.watchedDirectories, under: root)
@@ -167,7 +167,7 @@ public final class SiftEngine: @unchecked Sendable {
         guard let reloaded = try? SiftConfig.load(repoRoot: repoRoot) else { return }
         config = reloaded
         let gitContext = git
-        enumerator = FileEnumerator(repoRoot: repoRoot, config: config, gitListing: { try gitContext.visibleSwiftFiles() }, markdownListing: { try gitContext.visibleMarkdownFiles() }, catalogListing: { try gitContext.visibleCatalogFiles() })
+        enumerator = FileEnumerator(repoRoot: repoRoot, config: config, gitListing: { try gitContext.visibleSwiftFiles() }, markdownListing: { try gitContext.visibleMarkdownFiles() }, catalogListing: { try gitContext.visibleCatalogFiles() }, otherTextSearch: { gitContext.otherTextLines(of: $0) })
         resolver = ModuleResolver(repoRoot: repoRoot, config: config)
         indexer = Indexer(repoRoot: repoRoot, store: store, enumerator: enumerator, resolver: resolver)
         resolutionStamps = Self.stamps(of: resolver.inputPaths + resolver.watchedDirectories, under: repoRoot)

@@ -21,7 +21,7 @@ struct WhereCommand: AsyncParsableCommand {
     @Flag(name: .customLong("syntactic"), help: "Skip the index store: no callers/overrides, no store open.")
     var syntacticOnly = false
 
-    @Flag(name: .customLong("refs"), help: "List every reference site, for rename/delete sweeps — a type's usage verdict comes without it. After the code sites, the comments, strings, Markdown lines and file names that write the name, under not code.")
+    @Flag(name: .customLong("refs"), help: "List every reference site, for rename/delete sweeps — a type's usage verdict comes without it. After the code sites, the comments, strings, Markdown lines, other tracked text lines and file names that write the name, under not code.")
     var includeReferences = false
 
     @Flag(name: .customLong("files"), help: "With --refs (implied): only the files the sweep names, one per line, with counts.")

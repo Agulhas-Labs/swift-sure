@@ -20,7 +20,7 @@ struct WhereTestTargetScan {
         scanned.mentions.isEmpty && scanned.unscanned == 0
     }
 
-    /// `; none of the 3 Swift files in test targets writes the name; 1 Objective-C test file not read`, the clause that replaces the advice to build the tests, or `nil` where a file writes the name.
+    /// `; none of the 3 unbuilt Swift files in test targets writes the name; 1 Objective-C test file not read`, the clause that replaces the advice to build the tests, or `nil` where a file writes the name.
     var clause: String? {
         result.map { "; " + $0 }
     }
@@ -31,14 +31,14 @@ struct WhereTestTargetScan {
         let objectiveC = objectiveCFiles == 0 ? "" : "; \(objectiveCFiles) Objective-C test file\(objectiveCFiles == 1 ? "" : "s") not read"
         let searched = paths.count == 1
             ? "the 1 Swift file in test targets does not write the name"
-            : "none of the \(paths.count) Swift files in test targets writes the name"
+            : "none of the \(paths.count) unbuilt Swift files in test targets writes the name"
         return searched + objectiveC
     }
 
     /// Whether ``stating(in:)`` put the result in a usage tally, which then carries it, so it is not repeated on a line of its own.
     private(set) var tallied = false
 
-    /// `lines` with each usage tally's hedged tests entry stating this scan's result in place of its reason, `0 tests (none of the 2 Swift files in test targets writes the name)`; unchanged where a file writes the name.
+    /// `lines` with each usage tally's hedged tests entry stating this scan's result in place of its reason, `0 tests (none of the 2 unbuilt Swift files in test targets writes the name)`; unchanged where a file writes the name.
     ///
     /// The tally is written before the scan runs, so the reason it gave, the advice to build the tests, is replaced here, and the result is then said once.
     mutating func stating(in lines: [String]) -> [String] {

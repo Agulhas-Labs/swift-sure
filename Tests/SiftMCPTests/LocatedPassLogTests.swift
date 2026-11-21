@@ -67,7 +67,9 @@ import Testing
         let judged = stores.judged(window)
 
         #expect(judged.rules == ["answerWithheld"])
-        #expect(judged.rows.first?["symbol"] as? String == InPlaceAnswerer.Withholding.overSize.rawValue)
+        // A wide `Read` window is withheld over size; a wide shell window is judged on its own lines and let through as `notSmaller`.
+        let expected: InPlaceAnswerer.Withholding = window == .wideShell ? .notSmaller : .overSize
+        #expect(judged.rows.first?["symbol"] as? String == expected.rawValue)
     }
 
     /// A window of a file this context wrote is a revisit the scan already files, and notes nothing.

@@ -79,6 +79,7 @@ extension SiftUninstall {
         "replay": .directoryOf(.replay), // AuditCommand's scratch, beside the advice directory
         "transcript-tallies.json": .file, // TranscriptTallyCache
         "roots.json": .file, // RootsRegistry
+        "roots.json.lock": .file, // RootsRegistry's lock
         "redaction-salt": .file, // Redactor
         "report.html": .file, // ReportCommand
         "lookups-declined": .file, // LookupsDeclineRecord

@@ -8,7 +8,7 @@ import Foundation
 ///
 /// A pipeline's status is its last stage's, and the fallback runs exactly where that status is not 0, so each stage the proof stands on is one whose failure modes are all known and ruled out by its argv alone. Every form on the list was run under zsh against a real file with the system's `cat`, `head`, `tail`, `sed` and `awk`, and each exits 0; anything the list does not name is refused, however harmless it looks, since a form nobody ran is a form nobody proved.
 ///
-/// The list, stage by stage, where "one operand" means the stage that reads the file names it and nothing else, and a later stage names no file at all: `cat` with nothing but `-n`; `head` with at most one count (`-N`, `-n N`, `-nN`, `--lines=N`, `--lines N`) whose N is 1 through 2147483647, since `head` refuses a count of 0 and one past that bound, or — the stage reading the file — one byte count (`-c N`, `-cN`) whose N is 1 through the largest `Int`; `tail` with at most one count in the same spellings, N any number, or `-n +N`/`--lines=+N` from a line; `sed` with `-n`, optionally `-E` or `-r`, and print scripts only (`-e S`, or the first bare word where there is no `-e`), each a line window whose first address is not 0, and no long option, which the system `sed` refuses; `awk` with no option at all and one program of `NR` comparisons whose body, if it has one, is `print`, an optional trailing `;`, followed only by `$0`, `$N` of at most eight digits, `NR`, `FNR` and double-quoted separators of at most four spaces, `\t` escapes and the punctuation `:` `|` `-` `.` `,`, joined by spaces or commas, or is `printf "%s\n", $0` alone, bare or in parentheses. A stage may carry `2>/dev/null` or `2>&1` and no other redirection.
+/// The list, stage by stage, where "one operand" means the stage that reads the file names it and nothing else, and a later stage names no file at all: `cat` with nothing but `-n`; `head` with at most one count (`-N`, `-n N`, `-nN`, `--lines=N`, `--lines N`) whose N is 1 through 2147483647, since `head` refuses a count of 0 and one past that bound, or — the stage reading the file — one byte count (`-c N`, `-cN`) whose N is 1 through the largest `Int`; `tail` with at most one count in the same spellings, N any number, or `-n +N`/`--lines=+N` from a line; `sed` with `-n`, optionally `-E` or `-r`, and print scripts only (`-e S`, or the first bare word where there is no `-e`), each a line window whose first address is not 0, and no long option, which the system `sed` refuses; `awk` with no option at all and one program of `NR` comparisons whose body, if it has one, is `print`, an optional trailing `;`, followed only by `$0`, `$N` of at most eight digits, `NR`, `FNR` and double-quoted separators of at most four spaces, `\t` escapes and the punctuation `:` `|` `-` `.` `,`, joined by spaces or commas, or is `printf "%s\n", $0` alone, bare or in parentheses; and, reading only what it is handed, a numbering stage: `nl` or `nl -ba` with no other option (or, the stage reading the file, `nl F` or `nl -ba F`), or `awk '{print NR+k"<sep>"$0}'` with `k` a non-negative integer literal and `<sep>` one quoted literal. A stage may carry `2>/dev/null` or `2>&1` and no other redirection.
 ///
 /// What each exclusion is: `head -0` and `head -n 2147483648` exit 1; a second count (`head -5 -n 0`, `tail -0 -n +5`) is validated and can fail; a second operand exits non-zero where it is missing, and `sed -n '1,5p' '2p' F` reads `2p` as a file; `sed --quiet` exits 1; `awk -F '[('` exits 2 on its first field, `{print $2147483647}` exits 2, and any body beyond the allowlist can write (`print > "/x"`), pipe (`print | "false"`), divide by zero or run a command. `less`, `more` and a bare `tail +N` are left off because nothing proves them here.
 struct FallbackProof {
@@ -49,7 +49,16 @@ struct FallbackProof {
             return sedExitsZero(Array(arguments), operands: operands)
         case "awk":
             guard let program = arguments.first, !program.hasPrefix("-"), arguments.count == operands + 1 else { return false }
+            if operands == 0, ShellWindowLine.numberingStage(Array(words)) != nil {
+                return true
+            }
             return program.wholeMatch(of: ShellQuery.awkWindow) != nil && isPrintOnlyBody(of: program)
+        case "nl":
+            // A numbering stage reading what it is handed: `nl` or `nl -ba`, nothing else; or, the stage reading the file, `nl F` or `nl -ba F`.
+            if operands == 0 {
+                return ShellWindowLine.numberingStage(Array(words)) != nil
+            }
+            return operands == 1 && (arguments.count == 1 || (arguments.count == 2 && arguments.first == "-ba")) && !(arguments.last?.hasPrefix("-") ?? true)
         default:
             return false
         }

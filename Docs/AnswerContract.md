@@ -91,11 +91,11 @@ under its `used by` verdict line, which then ends without a pointer; above 8 it 
 --refs <Type> lists them` (the qualified name where the bare query has several owners). The rows above and below
 are those of `where --refs` and of the hook's in-place answer. `where --refs` then ends with one `not code` section, once
 per answer, after every declaration's sections. Its header is `not code, by written name — <n> DocC-link
-line(s), <n> doc-comment line(s), <n> comment line(s), <n> string-literal line(s), <n> Markdown line(s), <n>
-catalog-key line(s)[ (1 a lead | <k> leads)], <n> file name(s)[ (1 a lead | <k> leads)][; <k> of these lines are also code lines
+line(s), <n> doc-comment line(s), <n> comment line(s), <n> string-literal line(s), <n> Markdown line(s), <n> other-text
+line(s), <n> catalog-key line(s)[ (1 a lead | <k> leads)], <n> file name(s)[ (1 a lead | <k> leads)][; <k> of these lines are also code lines
 listed above]:`, kinds with none left out, and it says `over the working tree, never stale` and `may include
 same-named symbols` where several owners or a qualified query make it ambiguous. A file's row is `  <path>
-(<n>): DocC <line>, … · doc <line>, … · comment <line>, … · string <line>, …` (a Markdown file's row lists bare
+(<n>): DocC <line>, … · doc <line>, … · comment <line>, … · string <line>, …` (a Markdown or other text file's row lists bare
 line numbers; a string catalog's, `.xcstrings`, `.strings` or `.stringsdict`, lists its matching key lines
 bare, then ` · lead <line>, …`, or `lead <line>, …` alone), every line listed with no cap; `(<n>)` and the
 header count lines, leads included. The `file names:` row, on offset 0 only, lists the matching paths, a
@@ -105,7 +105,7 @@ whole key or after an uppercase component), is no hit beside whitespace or where
 camel-case words (the file names' rule), and is a lead at every other boundary (Design.md: *String
 catalogs*). Nothing found is one
 line, `not code, by written name — none in the <N> Swift and <M> Markdown files read, nor in the keys of <C>
-string catalog(s); storyboards, xibs, plists and project files not read`. Under `--at` the section is the
+string catalog(s), nor in any other tracked text file; binary files and untracked ignored files not read` (or, where git could not list the text files or the name is a lowercase word, `…string catalog(s); other text files not read`). Under `--at` the section is the
 one line `not code: not read at a revision`. A list already past its end while another continues prints `(all
 <N> files shown on earlier pages)`. Header counts cover the whole tree on every page.
 

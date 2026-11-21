@@ -93,15 +93,15 @@ struct ReadWindowWorthTests {
         #expect(judged.json?.contains("swift-sure answered this with") == true)
     }
 
-    /// The same lines asked for with `sed -n`, and the same answer, are answered as they always were.
+    /// The same lines asked for with `sed -n` are not answered with the digest: a shell window is folded or let through on its own lines (`notSmaller`, nothing to fold).
     @Test
-    func aSedWindowOfTheSameLinesIsStillAnswered() throws {
+    func aSedWindowOfTheSameLinesIsNotAnsweredWithTheDigest() throws {
         let file = try Self.hundredLineFile()
 
         let judged = try Self.judged(Self.bash("sed -n 1,40p Depot.swift"), in: file.deletingLastPathComponent(), answers: 2800, of: 8000)
 
-        #expect(judged.verdict.token == "in-place", "\(judged.verdict.line)")
-        #expect(judged.json?.contains("swift-sure answered this with") == true)
+        #expect(judged.verdict.line == "allowed\t\tnotSmaller", "\(judged.verdict.line)")
+        #expect(judged.json == nil)
     }
 
     /// A `Read` window printing most of the file is weighed as the whole read is: an answer the window rule would keep is let through where the whole read's digest spares less than its turn.
@@ -166,13 +166,13 @@ struct ReadWindowWorthTests {
         #expect(expected == "in-place" ? verdict.hasPrefix("in-place") : verdict == expected, "\(verdict)")
     }
 
-    /// The same lines through `sed -n`, in the same large context, are answered.
+    /// The same lines through `sed -n`, in the same large context, are let through as `notSmaller` where nothing folds, not weighed by context.
     @Test
-    func aRealSedWindowInALargeContextIsAnswered() async throws {
+    func aRealSedWindowInALargeContextIsLetThroughAsNotSmaller() async throws {
         let root = try await WorthAnsweringFixture.repository()
 
         let verdict = try await Self.decide({ Self.inContext(200_000, Self.bash("sed -n 3,102p Sources/App/Depot.swift")) }, in: root)
 
-        #expect(verdict.hasPrefix("in-place"), "\(verdict)")
+        #expect(verdict == "allowed\t\tnotSmaller", "\(verdict)")
     }
 }

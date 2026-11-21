@@ -154,7 +154,7 @@ extension WhereRenderer {
             if let scanned = scans.scanned[name] {
                 return scanned
             }
-            let scanned = NonCodeMentions.scan(name: name, swiftFiles: enumerator.swiftFiles(), markdownFiles: enumerator.markdownFiles(), catalogFiles: enumerator.catalogFiles(), under: repoRoot, reads: reads)
+            let scanned = NonCodeMentions.scan(name: name, swiftFiles: enumerator.swiftFiles(), markdownFiles: enumerator.markdownFiles(), catalogFiles: enumerator.catalogFiles(), otherText: name.first?.isLowercase == true ? nil : enumerator.otherTextHits(of: name), under: repoRoot, reads: reads)
             scans.scanned[name] = scanned
             return scanned
         }

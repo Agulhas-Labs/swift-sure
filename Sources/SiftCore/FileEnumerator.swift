@@ -16,6 +16,8 @@ struct FileEnumerator {
     var markdownListing: (() throws -> [String])?
     /// Produces the git-visible string catalogs (`.xcstrings`, `.strings`, `.stringsdict`), as ``markdownListing`` does the `.md` ones.
     var catalogListing: (() throws -> [String])?
+    /// Produces the lines of the other git-visible text files that write a name, by path, or `nil` where git cannot answer; with none, the other text is not read.
+    var otherTextSearch: ((String) -> [String: [Int]]?)?
 
     /// All indexable files, sorted for determinism.
     func swiftFiles() -> [String] {
@@ -45,6 +47,11 @@ struct FileEnumerator {
         }.sorted()
     }
 
+    /// The lines of the git-visible text files other than Swift, Markdown and string catalogs that write `name`, under the rules ``markdownFiles()`` follows; `nil` where git cannot answer, as with no git at all.
+    func otherTextHits(of name: String) -> [String: [Int]]? {
+        otherTextSearch?(name)?.filter { isListableText($0.key) }
+    }
+
     private static let catalogSuffixes = [".xcstrings", ".strings", ".stringsdict"]
 
     /// The hidden directories whose Markdown is still never read: version-control data, build output and the tools' own state.
@@ -60,6 +67,11 @@ struct FileEnumerator {
     private func isListableMarkdown(_ relativePath: String) -> Bool {
         relativePath.hasSuffix(".md")
             && !relativePath.split(separator: "/").dropLast().contains(where: Self.skipsForMarkdown)
+            && (userConfigExclusion(relativePath) ?? symbolicLinkExclusion(relativePath, modes: .workingTree)) == nil
+    }
+
+    private func isListableText(_ relativePath: String) -> Bool {
+        !relativePath.split(separator: "/").dropLast().contains(where: Self.skipsForMarkdown)
             && (userConfigExclusion(relativePath) ?? symbolicLinkExclusion(relativePath, modes: .workingTree)) == nil
     }
 

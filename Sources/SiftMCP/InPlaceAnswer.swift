@@ -180,6 +180,9 @@ public struct InPlaceAnswer {
     /// What follows the stem must be the end of one of the suffixes this file writes; a stem quoted mid-line, with other text after it, is not an answer.
     private static func parseOpeningLine(_ raw: some StringProtocol) -> (calls: [String], note: String?)? {
         let line = String(raw)
+        if let folded = foldedOpeningCalls(line) {
+            return (folded, nil)
+        }
         guard let open = line.firstIndex(of: "`"), let stem = line.range(of: openingStem, options: .backwards), open < stem.lowerBound, isKnownTail(line[stem.upperBound...]) else { return nil }
         var body = String(line[line.index(after: open) ..< stem.lowerBound])
         var note: String?
@@ -191,6 +194,26 @@ public struct InPlaceAnswer {
         body.removeLast()
         let calls = body.components(separatedBy: "`, `")
         return calls.contains(where: \.isEmpty) ? nil : (calls, note)
+    }
+
+    /// What a comment fold's opening line says between its calls and its figures; no other opening line carries it, since the stem of every other one continues with a dash.
+    static var foldedPhrase: String {
+        " instead of running it: "
+    }
+
+    /// Whether `tail`, the text after ``foldedPhrase``, is what a comment fold's opening line ends in: the comment lines and runs folded, the re-run, and the closing line's sizes.
+    private static func isFoldedTail(_ tail: Substring) -> Bool {
+        tail.wholeMatch(of: /[0-9]+ comment lines in [0-9]+ runs folded; the identical command re-run prints them\. \S.*/) != nil
+    }
+
+    /// The calls a comment fold's opening line names, or `nil` for any other line.
+    private static func foldedOpeningCalls(_ line: String) -> [String]? {
+        guard let open = line.firstIndex(of: "`"), let phrase = line.range(of: foldedPhrase, options: .backwards), open < phrase.lowerBound, isFoldedTail(line[phrase.upperBound...]) else { return nil }
+        var body = String(line[line.index(after: open) ..< phrase.lowerBound])
+        guard body.hasSuffix("`") else { return nil }
+        body.removeLast()
+        let calls = body.components(separatedBy: "`, `")
+        return calls.contains(where: \.isEmpty) ? nil : calls
     }
 
     /// The whole refusal: the opening line, the index answer as the calls serve it — header first — and a closing line stating its size against the source it stands in for.
@@ -272,7 +295,7 @@ public struct InPlaceAnswer {
     /// The closing line: the source the answer stands in for and what it served, as sizes — `8.5 kB of source → 1.7 kB served (80% smaller).`
     ///
     /// **Sizes, never a saving in tokens.** When the answer is given nobody knows whether the source will be read anyway, so a token figure here would read as a measurement it is not; the usage log records the same two byte counts and prices them with their baseline. Nor does it say what the re-run costs: the opening line names it as the way to the raw output, and it costs that output. The percentage is rounded down, so the compression is at least what it says.
-    private static func closingLine(source: Int?, served: Int, standsIn: String) -> String {
+    static func closingLine(source: Int?, served: Int, standsIn: String) -> String {
         guard let source else {
             return "No saving is claimed: \(standsIn), so there is nothing measured to set it against."
         }

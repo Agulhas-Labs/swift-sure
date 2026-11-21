@@ -8,10 +8,11 @@ import Foundation
 ///
 /// `nl` is no read verb of its own: `nl -ba View.swift` alone, or piped into anything but a window, stays what it always was, no lookup at all. Only the exact numbering `-ba` counts, because every other `nl` option renumbers, drops a line's number or reads section delimiters, and only one Swift file, because two are a sweep.
 struct NumberedRead {
-    /// Whether `stage` is `nl -ba` of one Swift file and nothing else, which prints every line of the file numbered, as `cat -n` does.
+    /// Whether `stage` is `nl -ba` or a bare `nl` of one Swift file and nothing else: it prints every line of the file, and `-ba` numbers each as `cat -n` does, where a bare `nl` skips the blank ones, so its numbers are not the file's.
     static func numbersEveryLine(_ stage: ShellQuery) -> Bool {
         let words = stage.invocation
-        return words.count == 3 && words[0] == "nl" && words[1] == "-ba" && stage.swiftFiles == [words[2]] && stage.readPaths.count == 1
+        guard words.first == "nl", let file = words.last, words.count == 2 || (words.count == 3 && words[1] == "-ba") else { return false }
+        return stage.swiftFiles == [file] && stage.readPaths.count == 1
     }
 
     /// Where the stage that reads Swift stands among `stages`: the first that reads it itself, or else a leading ``numbersEveryLine(_:)`` stage that only windows follow.

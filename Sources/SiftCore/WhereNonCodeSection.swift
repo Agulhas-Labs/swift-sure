@@ -15,12 +15,12 @@ struct WhereNonCodeSection {
 
     /// Where an answer that lists code alone points for the places outside it.
     static var pointer: String {
-        "where --refs lists comments, strings, Markdown and catalog keys under not code"
+        "where --refs lists comments, strings, Markdown, catalog keys and other tracked text under not code"
     }
 
     /// What the answers that carry the section themselves say in place of ``pointer``.
     static var listedBelow: String {
-        "comments, strings, Markdown and catalog keys are listed under not code below"
+        "comments, strings, Markdown, catalog keys and other tracked text are listed under not code below"
     }
 
     /// What the tree holds of the name outside code.
@@ -57,7 +57,7 @@ struct WhereNonCodeSection {
 
     /// `not code, by written name — <counts>[; <k> of these lines are also code lines listed above]:`, kinds with none left out.
     var header: String {
-        let nouns: [(NonCodeMentions.Kind, String)] = [(.docLink, "DocC-link line"), (.doc, "doc-comment line"), (.comment, "comment line"), (.string, "string-literal line"), (.markdown, "Markdown line"), (.catalogKey, "catalog-key line")]
+        let nouns: [(NonCodeMentions.Kind, String)] = [(.docLink, "DocC-link line"), (.doc, "doc-comment line"), (.comment, "comment line"), (.string, "string-literal line"), (.markdown, "Markdown line"), (.text, "other-text line"), (.catalogKey, "catalog-key line")]
         var counts = nouns.compactMap { kind, noun in
             let count = mentions.count(of: kind)
             return count == 0 ? nil : Self.counted(count, noun) + (kind == .catalogKey ? Self.leadClause(mentions.catalogLeads) : "")
@@ -73,10 +73,10 @@ struct WhereNonCodeSection {
 
     /// The one line a tree holding the name nowhere outside code gets, naming what was read and what was not.
     var noneLine: String {
-        "not code, by written name — none in the \(mentions.swiftFilesRead) Swift and \(mentions.markdownFilesRead) Markdown files read, nor in the keys of \(Self.counted(mentions.catalogsRead, "string catalog")); storyboards, xibs, plists and project files not read"
+        "not code, by written name — none in the \(mentions.swiftFilesRead) Swift and \(mentions.markdownFilesRead) Markdown files read, nor in the keys of \(Self.counted(mentions.catalogsRead, "string catalog"))\(mentions.otherTextRead ? ", nor in any other tracked text file; binary files and untracked ignored files not read" : "; other text files not read")"
     }
 
-    /// `  <path> (<n>): DocC <line>, … · doc … · comment … · string …`; a Markdown file's lines are bare numbers after its DocC links.
+    /// `  <path> (<n>): DocC <line>, … · doc … · comment … · string …`; a Markdown or other text file's lines are bare numbers after its DocC links.
     func row(_ file: NonCodeMentions.File) -> String {
         if file.isCatalog {
             let matches = Self.listed(file.lines.filter { !$0.isLead }.map(\.number))
@@ -84,7 +84,7 @@ struct WhereNonCodeSection {
             return "  \(file.path) (\(file.lines.count)): " + [matches, leads].compactMap(\.self).joined(separator: " · ")
         }
         let groups: [String?] = file.isMarkdown
-            ? [Self.listed(file.lines(of: .docLink)).map { "DocC " + $0 }, Self.listed(file.lines(of: .markdown))]
+            ? [Self.listed(file.lines(of: .docLink)).map { "DocC " + $0 }, Self.listed(file.lines(of: .markdown)), Self.listed(file.lines(of: .text))]
             : [("DocC", .docLink), ("doc", .doc), ("comment", .comment), ("string", .string)].map { (label: String, kind: NonCodeMentions.Kind) in
                 Self.listed(file.lines(of: kind)).map { "\(label) \($0)" }
             }

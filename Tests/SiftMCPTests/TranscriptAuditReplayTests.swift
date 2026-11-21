@@ -244,8 +244,10 @@ struct TranscriptAuditReplayTests {
         #expect(answerBytes > 10, "the measured size should be the real answer the answerer built, not a fixture: \(answerBytes)")
     }
 
-    /// A window of a file an earlier cold `cat` of it was recovered for is the located read of the world the replay models, guided and out of the share, and a whole `Read` of a file a recovered window's members answer only located is recovered in its turn, that answer being no digest of the file — never still cold.
-    @Test func aReadOfAFileOnlyARecoveredAnswerLocatedIsScoredAsALocatedRead() async throws {
+    /// A window of a file an earlier cold `cat` of it was recovered for is the located read of the world the replay models, guided and out of the share.
+    ///
+    /// A shell window of a file no answer located is no longer recovered with its members (it is let through on its own lines, `notSmaller`, and counted not worth), so a whole `Read` of that file is recovered by its own digest in its turn, never still cold.
+    @Test func aWholeReadAfterAnUnanswerableShellWindowIsRecoveredAndTheWindowScoredNotWorth() async throws {
         let root = try await WorthAnsweringFixture.repository()
         // Bodies long enough that the file's digest is smaller than a window of nearly all of it, and its members smaller still, so they answer the window.
         // The window stops short of the last lines: one over every line is the whole read, answered with the file's digest.
@@ -267,11 +269,11 @@ struct TranscriptAuditReplayTests {
         ])
 
         #expect(section.contains("  cold            4  the lookups the audit calls cold"), "\(section)")
-        #expect(section.contains("  recovered       3  the hook would now answer these in place"), "\(section)")
+        #expect(section.contains("  recovered       2  the hook would now answer these in place") && section.contains("         1  ReadAdvice → digest"), "\(section)")
         #expect(section.contains { $0.hasPrefix("  still cold      0  ") }, "\(section)")
-        #expect(section.contains { $0.hasPrefix("  located         1  ") }, "\(section)")
-        #expect(section.contains { $0.hasPrefix("  read whole      0  ") }, "\(section)")
-        #expect(section.contains("  replayed share 100% = (indexed 0 + recovered 3) / 3 — the audit's own 0% — on the old denominator 100% = … / 3 (text searches in one file +0, unreplayable +0, not worth +0)"), "\(section)")
+        #expect(section.contains { $0.hasPrefix("  not worth       1  ") } && section.contains("         1  notSmaller"), "\(section)")
+        #expect(section.contains { $0.hasPrefix("  located         1  ") } && section.contains { $0.hasPrefix("  read whole      0  ") }, "\(section)")
+        #expect(section.contains("  replayed share 100% = (indexed 0 + recovered 2) / 2 — the audit's own 0% — on the old denominator 67% = … / 3 (text searches in one file +0, unreplayable +0, not worth +1)"), "\(section)")
     }
 
     /// A window of a file the context's own digest call named stays still cold where the scan counts it cold: the call failed, so the scan credits nothing, while the hook holds the digest from the moment the call was made — a real digest, not one the replay answered.
@@ -343,7 +345,7 @@ struct TranscriptAuditReplayTests {
     /// A cold window over the size budget is recovered with a bounded answer — the digest lines of only the members it overlaps, because the file's whole digest would not fit — and that answer's line-range target locates the file for a later window on it exactly as a whole digest would: the second window is scored `located`, not still cold.
     ///
     /// The first window runs behind a `cd` and in front of a `||` fallback that moves again, which the hook answers in place — the fallback runs only where the window fails — and the scan does not place, so it never opens the file; the second window, by its absolute path, is a genuine first touch of it, and the only thing that can excuse it is the hook's own record of the first answer.
-    @Test func aWindowAfterABoundedAnswerIsLocated() async throws {
+    @Test func aWindowBehindACdAndAMovingFallbackRunsAsWindowBesideAndLocatesNothing() async throws {
         let root = try await InPlaceAnswerTests.indexedRepository()
         // Each body line is padded, so what the bounded answer saves on the first window clears the floor a window whose lines it does not show is held to.
         let padding = " // " + String(repeating: "x", count: 250)
@@ -360,10 +362,11 @@ struct TranscriptAuditReplayTests {
             TranscriptFixture.toolResult(id: "c2", isError: false, text: "func part49"),
         ], hook: hook)
 
+        // A shell window is no longer answered with a bounded digest, so nothing is recovered or located: the first window, beside a fallback that moves again, runs as `windowBeside` (still cold), and the second is not worth answering.
         #expect(section.contains("  cold            2  the lookups the audit calls cold"), "\(section)")
-        #expect(section.contains("  recovered       1  the hook would now answer these in place"), "\(section)")
-        #expect(section.contains { $0.hasPrefix("  located         1  ") }, "\(section)")
-        #expect(section.contains { $0.hasPrefix("  still cold      0  ") }, "\(section)")
+        #expect(section.contains("  recovered       0  the hook would now answer these in place") && section.contains { $0.hasPrefix("  located         0  ") }, "\(section)")
+        #expect(section.contains { $0.hasPrefix("  still cold      1  ") } && section.contains("         1  windowBeside"), "\(section)")
+        #expect(section.contains { $0.hasPrefix("  not worth       1  ") } && section.contains("         1  notSmaller"), "\(section)")
     }
 
     /// The same bounded first window, but the second call is a whole `cat` of the file rather than a window: the bounded answer only excuses a later window, never a whole read, so the whole read is never counted `located`.
@@ -611,8 +614,9 @@ extension TranscriptAuditReplayTests {
         let root = try await InPlaceAnswerTests.indexedRepository()
         let file = root.appendingPathComponent("Sources/App/Depot.swift")
         let pristine = try String(contentsOf: file, encoding: .utf8)
-        let command = "sed -n '50,54p' Sources/App/Depot.swift"
-        let match = try #require(InPlaceShape.match(forShell: command, in: root.path))
+        // A `Read` window is the vehicle: a shell window is folded or let through on its own lines and is never answered with members.
+        let window = LineWindow(stages: [["sed", "-n", "50,54p", "Sources/App/Depot.swift"]])
+        let match = try #require(InPlaceShape.match(forRead: file.path, in: root.path, window: window))
         let pad = { (width: Int) throws -> Int in
             var rows = pristine.components(separatedBy: "\n")
             rows[49] += " //" + String(repeating: "x", count: width)
@@ -640,9 +644,13 @@ extension TranscriptAuditReplayTests {
         #expect(reasons == [.notSmaller, .linesNotShown], "the sweep crosses the break-even point")
         _ = try pad(start + 90)
         let hook = try HookReplay(directory: TemporaryDirectory.make("hook-replay"), timeBudget: InPlaceAnswerTests.roomy)
-        let verdict = await TranscriptAuditReplayTests.verdict(of: command, cwd: root.path, hook: hook)
+        let path = file.path
+        let verdict = await InPlaceAnswerTests.onItsOwnThread {
+            hook.verdict(payload: ["session_id": "replayed-session", "tool_name": "Read", "tool_input": ["file_path": path, "offset": 50, "limit": 5]], cwd: root.path, at: nil, decides: true)
+        }
 
-        #expect(verdict?.rule == InPlaceAnswerer.Withholding.linesNotShown.rawValue, "\(String(describing: verdict))")
+        // The `Read` window is weighed against its re-run before its members are asked about, so the replay counts it let run on worth.
+        #expect(verdict?.rule == "notWorthTheTurn", "\(String(describing: verdict))")
     }
 
     /// A read of a file holding a parse error — whole, a window the whole digest answers, or windows answered by the members they overlap — runs as `parseError`, and the replay counts it there, since the digest is what the broken parse produced rather than the file.

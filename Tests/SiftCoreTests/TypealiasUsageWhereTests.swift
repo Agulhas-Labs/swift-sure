@@ -150,7 +150,7 @@ struct TypealiasUsageWhereTests {
         let output = try await engine.lookup(symbol: "Nickname", freshness: freshness)
 
         #expect(output.contains(
-            "no references to Lib.Nickname recorded in the store — counts the alias's own name, and any typealias of it, not the type it names, which may still be used directly, under its own name, without it; where --refs lists comments, strings, Markdown and catalog keys under not code"
+            "no references to Lib.Nickname recorded in the store — counts the alias's own name, and any typealias of it, not the type it names, which may still be used directly, under its own name, without it; where --refs lists comments, strings, Markdown, catalog keys and other tracked text under not code"
         ))
         // The reading this must not permit: nothing here says or implies Nickname itself is used.
         #expect(!output.contains("used by Lib.Nickname"))
@@ -284,7 +284,7 @@ struct TypealiasUsageWhereTests {
         let swept = try await engine.lookup(symbol: "Nickname", freshness: freshness, options: WhereOptions(includeReferences: true))
 
         #expect(swept.contains(
-            "no uses of Lib.Nickname recorded in the store — every reference recorded is another typealias naming it, which is another name for it rather than use of it, and nothing uses those either, so they go with it — the references listed above are those lines — counts the alias's own name, and any typealias of it, not the type it names, which may still be used directly, under its own name, without it; comments, strings, Markdown and catalog keys are listed under not code below"
+            "no uses of Lib.Nickname recorded in the store — every reference recorded is another typealias naming it, which is another name for it rather than use of it, and nothing uses those either, so they go with it — the references listed above are those lines — counts the alias's own name, and any typealias of it, not the type it names, which may still be used directly, under its own name, without it; comments, strings, Markdown, catalog keys and other tracked text are listed under not code below"
         ), "\(swept)")
         // The one explanation it can never be: an alias's own declaration is a definition, and definitions are
         // not references, so nothing it says about itself is ever in the count this sentence is denying.

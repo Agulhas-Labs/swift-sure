@@ -18,9 +18,7 @@ struct HeldWindowLineTests {
         "sed -n '5,40p' Sources/App/Other.swift"
     }
 
-    /// Two windows of a file whose digest this context holds beside a window of another file: through either record of the digest, the held windows are dropped and the line runs with the note naming the call for the other file (`otherStatementsRun`), rather than being denied with the other file's digest alone.
-    ///
-    /// Not set aside whole as `noLookup`, which would lose the note and the audit's batched row for the read that was not held.
+    /// Two windows of a file whose digest this context holds beside a window of another file: a line made only of shell windows is folded or let through on the lines it prints, so with no comment to fold it runs as `notSmaller`, with no note, through either record of the digest.
     @Test(arguments: [false, true])
     func aLineWithAHeldFilesWindowsIsLetThrough(throughTheUsageLog: Bool) throws {
         let fixture = try Self.fixture()
@@ -31,11 +29,11 @@ struct HeldWindowLineTests {
 
         let judged = try Self.judged(command, in: fixture, located: throughTheUsageLog)
 
-        #expect(judged.line == "allowed\t\totherStatementsRun")
-        #expect(judged.json?.contains("permissionDecision") == false)
+        #expect(judged.line == "allowed\t\tnotSmaller")
+        #expect(judged.json == nil)
     }
 
-    /// The controls: a held file's window alone is still no lookup, and an unheld file's window alone, or a line of windows of files none of which is held, is still answered.
+    /// The controls: a held file's window alone is still no lookup, and an unheld file's window alone, or a line of windows of files none of which is held, is judged on the lines it prints (nothing to fold here, so `notSmaller`).
     @Test
     func windowsWithNothingHeldBesideThemAreJudgedAsBefore() throws {
         let fixture = try Self.fixture()
@@ -43,8 +41,8 @@ struct HeldWindowLineTests {
         let cold = try Self.fixture()
 
         #expect(try Self.judged("sed -n '1,30p' Sources/App/Shell.swift", in: fixture).line == "allowed\t\tnoLookup")
-        #expect(try Self.judged(Self.otherWindow, in: fixture).line.hasPrefix("in-place\t"))
-        #expect(try Self.judged("\(Self.shellWindows); \(Self.otherWindow)", in: cold).line.hasPrefix("in-place\t"))
+        #expect(try Self.judged(Self.otherWindow, in: fixture).line == "allowed\t\tnotSmaller")
+        #expect(try Self.judged("\(Self.shellWindows); \(Self.otherWindow)", in: cold).line == "allowed\t\tnotSmaller")
     }
 
     /// A held file's window beside a grep leaves the grep the lookup, judged on its own, but the window still prints, so the line runs, naming the call that answers the grep, rather than being denied with an answer to the grep alone.
@@ -63,10 +61,11 @@ struct HeldWindowLineTests {
     @Test
     func aLineWithAnAllowedLegIsLetThrough() throws {
         let fixture = try Self.fixture()
-        let first = try Self.judged(Self.otherWindow, in: fixture, session: "s2")
+        // A whole read is the vehicle: a shell window is no longer answered in place, so its re-run is never allowed.
+        let first = try Self.judged("cat Sources/App/Other.swift", in: fixture, session: "s2")
         #expect(first.line.hasPrefix("in-place\t"))
 
-        let judged = try Self.judged("\(Self.otherWindow); sed -n '1,30p' Sources/App/Shell.swift", in: fixture, session: "s2")
+        let judged = try Self.judged("cat Sources/App/Other.swift; cat Sources/App/Shell.swift", in: fixture, session: "s2")
 
         #expect(judged.line == "allowed\t\totherStatementsRun")
         #expect(judged.json?.contains("permissionDecision") == false)

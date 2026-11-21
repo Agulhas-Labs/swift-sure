@@ -10,7 +10,7 @@ import Foundation
 ///
 /// **What the lines resolve to**, walking the file's declarations from the top:
 /// - A declaration the lines cover whole is served as one block, its own header and the comments between its members included — so `:10-549` of a type is that type, not each of its members one by one.
-/// - A declaration they only partly cover is served whole if it is a leaf within the source floor, and looked inside if it is a container. A longer leaf that holds every line asked for serves only those lines, under one header naming it and its whole range. A single line inside a leaf longer than `RangeInsideMemberAnswer.singleLineMemberCeiling` comes as its window: the line with `RangeInsideMemberAnswer.lineWindowContext` lines either side, numbered as Read numbers them with the cited line marked, under the one header naming the leaf and its whole range, with no declaration or footer repeating what the header says.
+/// - A declaration they only partly cover is served whole if it is a leaf within the source floor, and looked inside if it is a container. A longer leaf that holds every line asked for serves only those lines, under one header naming it and its whole range. A leaf the lines only partly cover, running past the range's start or end by more than `RangeInsideMemberAnswer.lineWindowContext` lines, is clipped the same way to its lines inside the range, whatever its length; one that overhangs by no more is served whole. Several such leaves are never served as a stretch of whole leaves when any of them would be clipped: each is clipped. A single line inside a leaf longer than `RangeInsideMemberAnswer.singleLineMemberCeiling` comes as its window: the line with `RangeInsideMemberAnswer.lineWindowContext` lines either side, numbered as Read numbers them with the cited line marked, under the one header naming the leaf and its whole range, with no declaration or footer repeating what the header says.
 /// - A line in a declaration's doc comment belongs to that declaration, and its attributes already sit inside its range. The declaration is served with the doc-comment lines the range covers: its block starts at the first of them the range reaches, and at its own first line where the range starts below it.
 /// - Two or more declarations the lines resolve to, within the source floor, are served as one stretch of the file as written — doc comments, blank lines and the comments between declarations included — under one header, by `RangeStretchAnswer`. Past the floor, or with an offset, each is a block of its own.
 /// - Rows sharing one range — cases packed on one line — are one declaration's worth of source, served once, under the first of them.
@@ -79,7 +79,10 @@ extension DigestRenderer {
             if blocks.count == 1, let lines = try RangeInsideMemberAnswer(renderer: self).answer(blocks[0], range: range, walk: walk, source: source, options: options) {
                 return MeasuredAnswer(text: lines)
             }
-            if let stretch = try RangeStretchAnswer(renderer: self, rows: rows).answer(blocks, range: range, source: source, options: options) {
+            // A block the range would clip is the clip rule's to serve, so a stretch of whole leaves never decides it.
+            let inside = RangeInsideMemberAnswer(renderer: self)
+            let anyClipped = blocks.contains { inside.clips($0, range: range, walk: walk, source: source) }
+            if !anyClipped, let stretch = try RangeStretchAnswer(renderer: self, rows: rows).answer(blocks, range: range, source: source, options: options) {
                 return MeasuredAnswer(text: stretch)
             }
             guard blocks.count == 1 || options.offset == 0 else {
@@ -91,6 +94,11 @@ extension DigestRenderer {
             let bodies = try blocks.map { row in
                 // A block opens at the first of its doc-comment lines the range reaches, never below its own line.
                 let first = min(row.line, max(range.start, walk.start(of: row)))
+                let window = max(range.start, walk.start(of: row)) ... min(range.end, row.endLine)
+                let resume = blocks.count > 1 ? "\(file.path):\(window.lowerBound)-\(window.upperBound)" : range.path + range.suffix
+                if let clipped = try RangeInsideMemberAnswer(renderer: self).clipped(row, range: range, walk: walk, source: source, options: options, resumeTarget: resume) {
+                    return clipped
+                }
                 return try memberSource(
                     of: row,
                     target: qualifiedTarget(of: row),

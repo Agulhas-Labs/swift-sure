@@ -309,3 +309,72 @@ extension RootsRegistryTests {
         let registry: RootsRegistry
     }
 }
+
+/// Several processes write the one registry at once: every MCP server records its root as it starts, and every session start may prune.
+///
+/// Each `RootsRegistry` call opens its own descriptor on the lock file, and `flock` locks belong to the open file description, so threads of one process contend exactly as separate processes do — which is what lets a test stand in for servers starting together.
+extension RootsRegistryTests {
+    /// `count` fresh directories that exist, under one scratch directory.
+    private static func makeRoots(_ count: Int) throws -> [String] {
+        let parent = try TestSources.makeTempDirectory()
+        return try (0 ..< count).map { index in
+            let root = parent.appendingPathComponent("repo-\(index)")
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            return root.path
+        }
+    }
+
+    @Test
+    func concurrentRecordsKeepEveryRoot() throws {
+        for _ in 0 ..< 20 {
+            let fileURL = try TestSources.makeTempDirectory().appendingPathComponent("roots.json")
+            let roots = try Self.makeRoots(32)
+
+            DispatchQueue.concurrentPerform(iterations: roots.count) { index in
+                RootsRegistry(fileURL: fileURL).record(roots[index])
+            }
+
+            #expect(RootsRegistry(fileURL: fileURL).knownRoots() == roots.sorted())
+        }
+    }
+
+    @Test
+    func aPruneBesideRecordsKeepsEveryRootThatStillExists() throws {
+        for _ in 0 ..< 20 {
+            let fileURL = try TestSources.makeTempDirectory().appendingPathComponent("roots.json")
+            let vanished = try Self.makeRoots(8)
+            for root in vanished {
+                RootsRegistry(fileURL: fileURL).record(root)
+                try FileManager.default.removeItem(atPath: root)
+            }
+            let roots = try Self.makeRoots(16)
+
+            // Even iterations prune, odd ones record: the prunes find vanished entries to drop while records land.
+            DispatchQueue.concurrentPerform(iterations: roots.count * 2) { index in
+                let registry = RootsRegistry(fileURL: fileURL)
+                if index.isMultiple(of: 2) {
+                    _ = registry.knownRoots()
+                } else {
+                    registry.record(roots[index / 2])
+                }
+            }
+
+            #expect(RootsRegistry(fileURL: fileURL).knownRoots() == roots.sorted())
+        }
+    }
+
+    @Test
+    func recordingARootAlreadyRecordedTakesNoLock() throws {
+        let fileURL = try TestSources.makeTempDirectory().appendingPathComponent("roots.json")
+        let root = try TestSources.makeTempDirectory().path
+        let registry = RootsRegistry(fileURL: fileURL, ephemeralPrefixes: [])
+        registry.record(root)
+        let lock = RootsRegistry.lockURL(for: fileURL)
+        try FileManager.default.removeItem(at: lock)
+
+        registry.record(root)
+
+        #expect(!FileManager.default.fileExists(atPath: lock.path))
+        #expect(registry.knownRoots() == [root])
+    }
+}

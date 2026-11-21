@@ -28,6 +28,12 @@ public struct ReadOnlyIndex {
         return open(atRoot: root).map { IndexStore(readOnly: $0, databasePath: databasePath) }
     }
 
+    /// Whether the index at `root` holds the file at `path`, relative to `root`, with a parse error, as the index last stored it: `false` where it holds no such file or there is no index this build can read.
+    public static func holdsParseErrors(inFile path: String, atRoot root: String) -> Bool {
+        guard let row = try? store(atRoot: root)?.fileRow(path: path) else { return false }
+        return row.parseErrorCount > 0
+    }
+
     /// A connection to the current-schema index at `root` inside a read transaction it keeps open, or `nil` when there is nothing safe to read.
     ///
     /// Every later read through the connection sees the store as it stood when this returned, whatever another process does to it meanwhile: an unlinked file stays readable through the handle, a store replaced by rename stays the old one, and one dropped and rebuilt in place stays the snapshot this transaction began on, since the store keeps a write-ahead log and a reader's snapshot outlives any writer's commit. The version is checked again inside the transaction, so the snapshot held is one this build can read.

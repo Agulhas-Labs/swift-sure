@@ -1162,7 +1162,7 @@ AnswerContract §3 ("Nor is anything said twice") and is a separate change.
 It gains one bullet, after the `search` line (about 466 B before the missing-site caveats and more with them, a hand count to be re-measured from the built text; superseded below, the primer carries no such bullet):
 
 ```
-- One header line opens each answer; said here once: `where`'s callers and references are code this build compiled (not a sibling repo, an uncompiled target or a synthesized conformance, so a short list is not "unused"; `--refs` adds comments, strings and Markdown under `not code`); written-name matches (`search` `calls:`/`uses:`, a no-store `where`) may include same-named symbols and may miss protocol, closure and unfolded-typealias uses and unapplied instance-method references, so an empty list is not proof a symbol is unused; property and case uses "by name at runtime" (key paths, `Mirror`, `rawValue` lookups) are not seen; working-tree reads are never stale; tests are split by the XCTest/Testing import
+- One header line opens each answer; said here once: `where`'s callers and references are code this build compiled (not a sibling repo, an uncompiled target or a synthesized conformance, so a short list is not "unused"; `--refs` adds comments, strings, Markdown, catalog keys and other tracked text under `not code`); written-name matches (`search` `calls:`/`uses:`, a no-store `where`) may include same-named symbols and may miss protocol, closure and unfolded-typealias uses and unapplied instance-method references, so an empty list is not proof a symbol is unused; property and case uses "by name at runtime" (key paths, `Mirror`, `rawValue` lookups) are not seen; working-tree reads are never stale; tests are split by the XCTest/Testing import
 ```
 
 The arithmetic: the bullet is 466 B (a hand count, re-measured from the built text) in every context from its
@@ -1443,7 +1443,9 @@ shape a `where` answer or a stack trace hands back — and healed from `path:` l
 resolve down the file's declarations: one they cover whole is served as a single block, one they cover in
 part is served whole if a leaf within the 60-line source floor and looked inside if a container, a longer
 leaf holding every line asked for serves only those lines under one header naming the leaf, its whole range
-and the call that serves it all. **A single line inside a leaf longer than 25 lines is windowed whatever the
+and the call that serves it all, and a leaf they only partly cover, running past the range's start or end by
+more than 3 lines, serves its lines inside the range the same way, whatever its length (a leaf overhanging by
+no more is served whole; a range over several leaves never takes the whole-leaf stretch when one would be clipped). **A single line inside a leaf longer than 25 lines is windowed whatever the
 leaf's length**: under the same header, which names the leaf, its whole range and the call that serves it all,
 only the line with 3 either side clamped to the leaf, each carrying its line number as Claude Code's Read lays
 it out (the number right-aligned to 6 columns, a tab, the source line) and the cited line marked by `>` in
@@ -1715,7 +1717,7 @@ strings, as the agent rule told users, and the rename touched 168 lines in 58 fi
 holding 40 DocC symbol links (``` ``Gizmo/day(_:in:)`` ```), 2 line comments, a string literal, 9
 Markdown lines and 2 file names. The agent had to grep anyway, which made `--refs` pure overhead. The section
 opens with one line counting each kind, `not code, by written name — 12 DocC-link lines, 30 doc-comment lines,
-3 comment lines, 1 string-literal line, 9 Markdown lines, 3 catalog-key lines (1 a lead), 2 file names (1 a
+3 comment lines, 1 string-literal line, 9 Markdown lines, 4 other-text lines, 3 catalog-key lines (1 a lead), 2 file names (1 a
 lead); 4 of these lines are also code lines listed above:`, kinds with none left out and DocC links counted
 apart, since a stale one breaks the documentation build and no compiler catches it; then one row per file,
 `  path (n): DocC 12, 40 · doc 7 · comment 30 · string 88` (a Markdown file's rows carry no kind, and a
@@ -1806,21 +1808,21 @@ clause. Under `--files` a catalog is one of the files `with not-code mentions`, 
 its lines, leads included, as for any `not code` row. Paging, `--at` (`not code: not read at a revision`) and
 several owners are unchanged, and the hook's in-place answer, which carries no `not code` section
 (`standsInForSearch`), is unaffected. Where the section is named, it names the keys too: the pointer `where
---refs lists comments, strings, Markdown and catalog keys under not code`, its in-answer form `comments,
-strings, Markdown and catalog keys are listed under not code below`, the standing caveat's `--refs adds
-comments, strings, Markdown and catalog keys under not code` (`StandingCaveats.sentences`, never the primer,
+--refs lists comments, strings, Markdown, catalog keys and other tracked text under not code`, its in-answer form `comments,
+strings, Markdown, catalog keys and other tracked text are listed under not code below`, the standing caveat's `--refs adds
+comments, strings, Markdown, catalog keys and other tracked text under not code` (`StandingCaveats.sentences`, never the primer,
 which `PrimerCarriesNoCaveatTests` keeps free of it), and the README's `where --refs` sentence, which says
 `string-catalog keys` so that "strings" is not read as catalogs. Searching catalog values stays `swift-sure
 strings`'s job.
 
 *None.* None at all is one line, `not code, by written name — none in the N Swift and M Markdown files read,
-nor in the keys of C string catalogs; storyboards, xibs, plists and project files not read`, where C counts
-the catalogs decoded and searched (`1 string catalog`, `0 string catalogs`). It never claims a rename can skip
+nor in the keys of C string catalogs, nor in any other tracked text file; binary files and untracked ignored files not read`, where C counts
+the catalogs decoded and searched (`1 string catalog`, `0 string catalogs`). Where git could not list the text files, or the name is a lowercase word, the tail is `; other text files not read`. It never claims a rename can skip
 grep: it says what was read and what was not.
 
 *Source.* The working tree's files, never the store, so the section is the same with a store and without: the
 Swift files the index enumerates (git-visible, filtered by `.swift-sure.json` and the excluded directories) and the
-`*.md` files under the same rules, and the string catalogs as *String catalogs* says. With a store, `--refs` reads every Swift and `.md` file in the tree as a
+`*.md` files under the same rules, and the string catalogs as *String catalogs* says, and *other tracked text*: one `git grep -n -I -w -F --untracked --exclude-standard` per answer over every file that is none of those (a build manifest, a shell script, a YAML or plist file), skipping binary and gitignored files and the directories the Markdown read skips, listed as `other-text line`s and rows of bare line numbers. A lowercase name sweeps no other text, and without git the sweep is skipped, which the none line says. With a store, `--refs` reads every Swift and `.md` file in the tree as a
 byte search, with no 200-file bound, unlike the unbuilt-test-file lexing of #711. Each file is read once as
 bytes and searched for the name's bytes, and only a file that holds them is lexed, by the byte lexer the `not
 in the build` line uses (`SwiftMentionLexer`), now classifying each hit as code, string literal, `//` or `/*
@@ -1937,7 +1939,7 @@ import, never the path`:
   test target's helpers that import no test framework count too), bounded the same way: a sweep asked to count
   tests too otherwise ends in a grep for the name (#827). Found some, the same `not in the build, mention the
   name:` line lists them. Found none, the result replaces the build advice: an empty verdict ends `; none of
-  the N Swift files in test targets writes the name` in place of `; N test files are not in it (build …)` or
+  the N unbuilt Swift files in test targets writes the name` in place of `; N test files are not in it (build …)` or
   `; not counting …`, and an answer with no empty verdict carries it as a line of its own; `.m` and `.mm`
   files beside those Swift files are not read, and the same clause counts them, `; 3 Objective-C test files
   not read`. The header's `partial (…)` stays, since it is the header's freshness statement. With every test
@@ -6127,8 +6129,21 @@ guard, not a budget, sits behind ordinary use (a hundred denials in one stretch 
 with the ledger below). A symbol no index on this machine could answer for is never denied at all, and
 `SWIFT_SURE_NO_ADVICE` makes the hook inert without touching the registration.
 
-**A piped build that fails is named after it ran** (#813). A build piped into anything but `cat` (`swift build
-2>&1 | tail -3`, `xcodebuild test … | grep error`) is let through as written: the pipe is the caller's own
+**A pipe that only trims is dropped.** A line of one statement whose build or test stage, raw or already
+`swift-sure run`, is followed only by trimmers reading the run's output (`head`; `tail` without `-f`/`-F`;
+`grep`, `egrep` or `rg` without `-c`, `-l`, `-L` or `-q`, nor `grep -r`; none handed a file operand or an input
+redirection, none writing a file) is rewritten without them and without the `2>&1` that fed them: `swift-sure run
+-- swift test 2>&1 | head -4` becomes `swift-sure run -- swift test`, and `swift test 2>&1 | tail -40` is wrapped
+as a bare `swift test` is. The run's answer is already the failures and a log path, so the cut saves nothing and
+can halve a red run's failure list; the note beside the line says the pipe was dropped. The trim goes out only as
+an amendment that adds no prompt (the wrapping's permission check, `auto` or `bypassPermissions` mode or an allow
+rule covering the rewritten line; under Cursor, a prompt the line as written would not meet) and is never offered
+as advice: wherever it would ask, stand aside or reach a tree with no Swift, the line gets exactly the reading it
+had before, let through, its ledger entry unchanged. A line of several statements, or one run in the background
+(`… | tail -5 &`), keeps its old reading too.
+
+**A piped build that fails is named after it ran** (#813). A build piped into anything else (`xcodebuild test …
+| xcbeautify`, `swift build | tee build.log`) is let through as written: the pipe is the caller's own
 trimming, and a rewrite would drop its filter and change the pipeline's exit status (`swift build | tail -3 &&
 ./run` would stop running `./run` on a failed build, a change the caller did not ask for). That exit is the
 common case on Cursor, not an edge: in stranger trial 4 Cursor's agent piped all six builds and tests it ran,
@@ -7240,8 +7255,87 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   "the context holds this file's current digest". Recorded before the call is answered, since a hook never sees an answer, so a
   digest that failed still counts, the side a missed refusal is allowed to fall on. Searches are unchanged by
   it.
+- **A shell window is answered with its own lines, comment runs folded, or let through; never with an answer
+  that drops its code lines (#1114).** This replaces, for every shell window, the digest and members answers the
+  next bullet describes; those stay the rule for a `Read` window (`offset`/`limit`) and for whole reads, by the
+  owner's ruling of 21 Nov, which kept this change to shell windows. Stranger trial 6 (21 Nov) showed why:
+  `cat -n Gizmo.swift | sed -n 95,330p` (236 lines) was answered with the file's digest, which showed none of
+  the lines asked for, and the agent re-read them at once. Across that trial's 21 windows a digest of the range
+  was never smaller than the window (1.05–1.6× at 30 lines or more, up to 12.7×), so the one cut that keeps
+  every code line is folding comments.
+  - **Which windows.** A window of a file no index call in this context has located, every stage on
+    `FallbackProof`'s closed list: `sed -n a,bp F`, `head`/`tail` line counts, `awk` picking lines by `NR`,
+    `cat F` or `cat -n F` piped into nothing but those, each optionally followed by one **numbering stage**:
+    `cat -n`, `nl` or `nl -ba` with no other option, or `awk '{print NR+k<sep>$0}'` (`k` a non-negative integer
+    literal, `<sep>` one quoted literal). The list is extended by those numbering forms, each with a test that
+    it exits 0 printing only that. A numbering stage is display, not a filter, so such a line is a window, not
+    `filteredOutput`; any other later stage keeps today's reading. A window that reaches every line of the
+    file is a whole read, as today. **Let through as `notExact`**, never answered with a digest: a window whose
+    lines cannot be read off the command (`head -c`, a flag not modelled; `LineWindow` is nil), a `cat` of
+    several files into a window (`SeveralFileCat`), an `nl` input holding a section delimiter (a line of only
+    `\:` pairs), a bare `nl F` reading the file (`nl -ba F` reads as `cat -n F`), a window whose lines are not
+    one run (`sed -n '10,60p;80,90p'`), and any numbering the hook cannot render byte for byte.
+  - **What decides first.** A file holding a conflict marker runs as `conflicted` and one indexed with a parse
+    error as `parseError`, as for any read. `windowSavingFloor` (#480), the per-file floor (#425),
+    `windowShare` and the `sed` re-run price (#621, #627, #687) no longer apply to a shell window: its answer
+    hides no code line, so there is no re-run of hidden lines to price.
+  - **The answer.** The lines the command prints, read from disk, each kept line byte for byte as the command
+    prints it, numbering included only where the command numbers: `cat -n`'s `%6d<tab>`; bare `nl`'s, which
+    prints a blank line as six spaces and a tab, unnumbered; the `awk` program's own expression and
+    separator. A **comment line** is one whose only token is a line comment (`//` or `///`) as the Swift
+    lexer reads the whole file from line 1, so a `//` line inside a string literal or a `/* */` block is code;
+    leading spaces and tabs are allowed. Each run of two or more consecutive comment lines among the printed
+    lines (a run at the window's edge counts only its printed part) becomes one line,
+    `a-b: // … N comment lines`, with no indentation, ending in LF, where `a` and `b` are the numbers the
+    command prints on the run's first and last line (from 1 under `sed … | cat -n`; the file's line numbers
+    where it prints none). A blank line ends a run. Kept lines keep their CR, and a last line with no newline
+    is kept as printed.
+  - **The framing is one line, above the folded text** (Docs/AnswerContract.md §1: the line saying what was
+    answered stands above the answer; the transcript scan recognises an in-place answer by that opening line):
+    `swift-sure answered window F.swift:a-b instead of running it: N comment lines in R runs folded; the
+    identical command re-run prints them. 8.7 kB → 6.4 kB (26% smaller).` The sizes are the closing line's
+    (its formatter, the whole denial weighed, the line included, written at the one length whose figures are
+    its own; where none is, the window is let through as `notSmaller`). It is the owner's footer, moved to the
+    top. The text is read live from disk, so it carries no index header: it names the file it read, which is
+    the exception §1 allows for an answer read from nothing stored. The retry ledger allows the identical
+    re-run, as after every in-place answer.
+  - **When.** Only where the fold itself saves at least **25%** of the bytes the command prints
+    (`foldSavingShare`: printed bytes, numbering prefixes included, against the folded text), and the whole
+    denial, the framing line included, is at least **400 B** smaller than those bytes (`foldSavingFloor`), and
+    within the in-place size budget (`overSize` beyond it, let through). Otherwise the window is let through as
+    `notSmaller`, out of the share like any `notSmaller` window. A window of code with few comments saves
+    nothing, and the floors keep a re-run for the comments (a window plus a turn) from costing more than the
+    fold spared.
+  - **A line made only of windows**, joined by `;`, `&&` or line breaks, of one file or several, located or
+    not (and with at least one not located), with `echo <literal>` legs allowed between them, is folded leg by
+    leg, printed in order as the shell would print it (an `echo` leg's line included), under one framing line
+    naming each window (`window A.swift:a-b; window B.swift:c-d`), and weighed under the same thresholds on the
+    legs' sums. **A line with any other leg** (a grep, a whole read, any other command) is let through whole as
+    **`windowBeside`**: the hook cannot run part of a line, and the window's lines cannot be served without
+    running it. The audit counts it as a miss on the `batched` row under `cold`, as `otherStatementsRun` is, so
+    the answers such lines lost (their greps' and whole reads' digests) stay visible in the share. Statements
+    that print nothing and that the compound rules already reproduce (`cd`, an assignment, `export`, `unset`,
+    `set`, a trailing `|| true`) are transparent (a bare `set`, a `set -o`/`+o` naming no option, and a bare
+    `export` or `export -p` print the shell's state, so each is a leg beside the window, here and on the compound
+    path): the window's path is resolved after a `cd`, and the line is
+    weighed as if they were absent. `conflicted` and `parseError` on a window's file decide before
+    `windowBeside`. A line joined by `||` (other than a trailing `|| true`) is `windowBeside`, and a teed line
+    is `notExact`, since the fold runs nothing and the tee file would go unwritten.
+  - **Scoring.** The verdict line reads `in-place`, the call `window F.swift:a-b` (several joined by `; `),
+    rule `commentsFolded`. `InPlaceAnswer.calls` parses `window F.swift:a-b` from the opening line, so the
+    transcript scan and the replay count a fold as answered in place, like any in-place answer, and the
+    identical re-run after it as they count a re-run after any in-place answer. A fold locates nothing: the
+    ledger records no digest of the file, so a later window of it is weighed again. The suppression and usage
+    logs record the printed bytes as `source` and the denial's as `served`. Under Cursor the same text is
+    delivered, with Cursor's fixed line appended as for every in-place answer.
+  - **Expected movement.** Shell windows that were answered with a digest or members and fold below the
+    thresholds become `notSmaller`, out of the share; windows on mixed lines become `windowBeside` misses. On
+    trial 6's replay, `cat -n Gizmo.swift | sed -n 95,330p` and the four-window `awk`/`sed` line move to
+    `commentsFolded`, as does `awk 'NR>=230&&NR<=286{…}' Gizmo.swift` replayed alone; no other replayed
+    call changes verdict token (rule names may change: a let-through window under the thresholds reads
+    `notSmaller`, a mixed line `windowBeside`).
 - **A window of a Swift file no index call in this context has located is a lookup, answered in place with the
-  file's digest exactly as a whole `cat` is.** A shell window — `sed -n '1,200p' F.swift`, `head`, `tail`, an
+  file's digest exactly as a whole `cat` is** (for a `Read` window; a shell window is the bullet above). A shell window — `sed -n '1,200p' F.swift`, `head`, `tail`, an
   `awk` program picking its lines by number, a `cat` piped into nothing but windows — and a `Read` with
   `offset`/`limit` of a `.swift` file (lines `offset` through `offset + limit - 1`, `limit` 2000 where only
   `offset` is given) are the same in-place call as the whole read, with the "re-run the identical command if
@@ -7283,7 +7377,7 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   a doc comment's summary at most), one whose members answer would name a single member and nothing else,
   beneath its containers' headers (that member's declaration line, which the reader who chose the window already knew; a member whose answer carries a SwiftUI view outline is a summary of its lines and stays answered;
   decided on what the answer prints, so a window reaching past the member onto a blank or brace line counts;
-  `digest File.swift:a-b` there serves the whole member, bigger than the window), and any window saving under `windowSavingFloor` (4 KiB) whose answer does
+  `digest File.swift:a-b` there serves the lines of the range inside the member, under a header naming it, about the window's own size), and any window saving under `windowSavingFloor` (4 KiB) whose answer does
   not hold the text of every non-blank line it prints — a denial that cannot stand in for the read makes the
   identical re-run certain, and a week of real sessions priced letting such a window run, under 4 KiB, cheaper than answering it (#480).
   So does **a `Read` window whose members answer would list members of one top-level declaration only**
@@ -7304,8 +7398,8 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   cold window against a digest again would mean recomputing digests of files long changed or gone. So a window
   the log names no call for is still a miss in the live audit, and the log is never trimmed. The replay re-judges every cold window itself. A line the
   hook lets run whole as `otherStatementsRun` is read off the log the same way and counted as a miss on a
-  `batched` line of its own under `cold`. A window whose lines cannot be read off the command (`head -c`, a
-  flag not modelled; `LineWindow`) has nothing to be weighed against and keeps the whole digest. A shell
+  `batched` line of its own under `cold`. A shell window whose lines cannot be read off the command (`head -c`,
+  a flag not modelled; `LineWindow`) is let through as `notExact` (the bullet above). A shell
   window is answered only where every stage is on `FallbackProof`'s closed list of forms seen to exit 0 doing
   nothing but print; the list being closed, harmless forms nobody ran here (`head -c 5`, `sed -n -E`, an `awk`
   body with `printf`) are let through too. An `awk` action must also print each line it picks whole, numbered

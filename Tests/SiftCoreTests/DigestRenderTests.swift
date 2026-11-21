@@ -2040,13 +2040,12 @@ extension DigestRenderTests {
     }
 
     @Test
-    func aRangeAcrossALongMemberAndItsNeighbourServesBothWhole() throws {
+    func aRangeAcrossALongMemberAndItsNeighbourServesTheLinesInsideTheRangeOfEach() throws {
         let output = try Self.ledgerRenderer().render(target: "Sources/Gizmo/Ledger.swift:60-66", options: DigestOptions())
 
-        #expect(!output.contains(", in Gizmo.Ledger.long()"))
-        #expect(output.hasPrefix("Gizmo.Ledger.long() — func — Sources/Gizmo/Ledger.swift:2-62\n\n    private static func long() {\n"))
-        #expect(output.contains("\"long-0\""))
-        #expect(output.contains("Gizmo.Ledger.short() — func — Sources/Gizmo/Ledger.swift:64-123"))
-        #expect(output.hasSuffix("\"short-57\"\n    }"))
+        #expect(output.hasPrefix("Sources/Gizmo/Ledger.swift lines 60-62, in Gizmo.Ledger.long() — func — :2-62 (61 lines; digest Gizmo.Ledger.long() for all of it)"))
+        #expect(!output.contains("\"long-0\""))
+        #expect(output.contains("Sources/Gizmo/Ledger.swift lines 64-66, in Gizmo.Ledger.short() — func — :64-123 (60 lines; digest Gizmo.Ledger.short() for all of it)"))
+        #expect(!output.contains("\"short-57\""))
     }
 }

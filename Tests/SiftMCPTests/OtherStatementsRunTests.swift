@@ -13,24 +13,24 @@ import Testing
 struct OtherStatementsRunTests {
     /// Lines whose one answered lookup sits beside a statement nothing stands in for: a recursive grep over a directory and a document, a filtered grep over a glob, a grep of a text file, a `git grep`, an `ls`, a `git checkout`.
     static let unreproduced = [
-        #"echo "=== Depot 1-200"; sed -n '1,200p' Sources/App/Depot.swift; echo "=== stock in hook"; grep -rn 'struct Depot\|stock' Sources Docs/Design.md 2>/dev/null | cut -c1-190 | head -50"#,
-        #"grep -rn "47" Sources/App/*.swift | grep -i version | head -5; sed -n 1,200p Sources/App/Depot.swift; grep -n "alpha\|beta" Distribution/names.txt; git grep -n "alpha\|beta" origin/main -- Tests | head -3"#,
-        "sed -n 1,200p Sources/App/Depot.swift; ls",
+        #"echo "=== Depot 1-200"; cat Sources/App/Depot.swift; echo "=== stock in hook"; grep -rn 'struct Depot\|stock' Sources Docs/Design.md 2>/dev/null | cut -c1-190 | head -50"#,
+        #"grep -rn "47" Sources/App/*.swift | grep -i version | head -5; cat Sources/App/Depot.swift; grep -n "alpha\|beta" Distribution/names.txt; git grep -n "alpha\|beta" origin/main -- Tests | head -3"#,
+        "cat Sources/App/Depot.swift; ls",
         "cat Sources/App/Depot.swift; cat Sources/App/Alpha.swift; ls",
-        "sed -n 1,200p Sources/App/Depot.swift && git checkout -b feature",
+        "cat Sources/App/Depot.swift && git checkout -b feature",
     ]
 
     /// Lines whose every statement is an answered lookup, a literal `echo`, a `cd`, a fallback proven silent, a variable assignment or option, or a literal whose own standard error is sent away.
     static let reproduced = [
-        "echo a; sed -n 1,200p Sources/App/Depot.swift",
-        "cd Sources; sed -n 1,200p App/Depot.swift",
-        "sed -n 1,200p Sources/App/Depot.swift || true",
-        "echo ---; sed -n 1,200p Sources/App/Depot.swift; echo ---; grep -n 'func stock3()' Sources/App/Depot.swift",
-        "X=1; sed -n 1,200p Sources/App/Depot.swift",
-        "export X=1; sed -n 1,200p Sources/App/Depot.swift",
-        "unset X; sed -n 1,200p Sources/App/Depot.swift",
-        "set -e; sed -n 1,200p Sources/App/Depot.swift",
-        "echo a 2>/dev/null; sed -n 1,200p Sources/App/Depot.swift",
+        "echo a; cat Sources/App/Depot.swift",
+        "cd Sources; cat App/Depot.swift",
+        "cat Sources/App/Depot.swift || true",
+        "echo ---; cat Sources/App/Depot.swift; echo ---; grep -n 'func stock3()' Sources/App/Depot.swift",
+        "X=1; cat Sources/App/Depot.swift",
+        "export X=1; cat Sources/App/Depot.swift",
+        "unset X; cat Sources/App/Depot.swift",
+        "set -e; cat Sources/App/Depot.swift",
+        "echo a 2>/dev/null; cat Sources/App/Depot.swift",
     ]
 
     /// The rule an outcome was withheld under, spelled as the hook logs it, or `nil` for an answer.
@@ -97,6 +97,26 @@ struct OtherStatementsRunTests {
 
         #expect(decided.json != nil)
         #expect(decided.verdict.hasPrefix("in-place\t"), "\(decided.verdict)")
+    }
+
+    /// The same lines with the whole `cat` a shell window: the hook cannot run part of a line, so a window beside any other printing leg runs whole as `windowBeside`.
+    static let windowsBeside = [
+        #"echo "=== Depot 1-200"; sed -n '1,200p' Sources/App/Depot.swift; echo "=== stock in hook"; grep -rn 'struct Depot\|stock' Sources Docs/Design.md 2>/dev/null | cut -c1-190 | head -50"#,
+        #"grep -rn "47" Sources/App/*.swift | grep -i version | head -5; sed -n 1,200p Sources/App/Depot.swift; grep -n "alpha\|beta" Distribution/names.txt; git grep -n "alpha\|beta" origin/main -- Tests | head -3"#,
+        "sed -n 1,200p Sources/App/Depot.swift; ls",
+        "sed -n 1,200p Sources/App/Depot.swift && git checkout -b feature",
+        "echo ---; sed -n 1,200p Sources/App/Depot.swift; echo ---; grep -n 'func stock3()' Sources/App/Depot.swift",
+    ]
+
+    @Test(arguments: windowsBeside)
+    func aWindowBesideAnotherLegLetsTheLineRunAsWindowBeside(command: String) async throws {
+        let root = try await InPlaceAnswerTests.indexedRepository(padding: InPlaceAnswerTests.pastTheFloor)
+        let log = try TemporaryDirectory.make("suppressions").appendingPathComponent("suppressions.jsonl")
+
+        let decided = try await Self.decide(command, in: root, log: log)
+
+        #expect(decided.json?.contains("permissionDecision") != true)
+        #expect(decided.verdict == "allowed\t\twindowBeside", "\(decided.verdict)")
     }
 
     /// A lookup the ledger already let through still prints its own output beside a new one, so the line runs rather than being denied with an answer to the new one alone.

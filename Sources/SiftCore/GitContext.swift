@@ -675,6 +675,44 @@ public extension GitContext {
 }
 
 public extension GitContext {
+    /// The lines, by repo-relative path, of the text files git would show that write `name` as a whole word, other than the Swift, Markdown and string-catalog files the other sweeps read; or `nil` where git cannot answer.
+    ///
+    /// One `git grep` for the answer: fixed-string, whole-word, tracked plus untracked-but-not-ignored, with binary files skipped. No match is git's exit status 1, an answer of its own.
+    func otherTextLines(of name: String) -> [String: [Int]]? {
+        let excluded = ["*.swift", "*.md", "*.xcstrings", "*.strings", "*.stringsdict"].map { ":(exclude)" + $0 }
+        guard let output = try? Self.runData(
+            arguments: ["grep", "-z", "-n", "-I", "-w", "-F", "--untracked", "--exclude-standard", "-e", name, "--", "."] + excluded,
+            in: repoRoot, succeedingOn: [0, 1], within: ChildDeadline.gitBulk
+        ) else {
+            return nil
+        }
+        return Self.otherTextLines(parsing: output)
+    }
+
+    /// The line numbers by path in `git grep -z -n` output, where a record is `path`, `line` and `text` split by zero bytes and ended by a newline.
+    ///
+    /// A path may itself hold a newline, so the path and line number are read up to their zero bytes, and only the text runs to the newline.
+    static func otherTextLines(parsing output: Data) -> [String: [Int]] {
+        var lines: [String: [Int]] = [:]
+        var index = output.startIndex
+        while index < output.endIndex {
+            guard let pathEnd = output[index...].firstIndex(of: 0),
+                  let numberEnd = output[(pathEnd + 1)...].firstIndex(of: 0)
+            else { break }
+            let textStart = numberEnd + 1
+            let recordEnd = output[textStart...].firstIndex(of: UInt8(ascii: "\n")) ?? output.endIndex
+            if let path = String(bytes: output[index ..< pathEnd], encoding: .utf8),
+               let number = String(bytes: output[(pathEnd + 1) ..< numberEnd], encoding: .utf8).flatMap({ Int($0) })
+            {
+                lines[path, default: []].append(number)
+            }
+            index = min(recordEnd + 1, output.endIndex)
+        }
+        return lines
+    }
+}
+
+public extension GitContext {
     /// The files git lists under `directory`, relative to it — tracked plus untracked-but-not-ignored, by the `.gitignore` files alone (not `.git/info/exclude` or the user's excludes file, which `ugrep --ignore-files` does not read either) — or `nil` where git cannot answer: `directory` is no work tree, or git did not answer within `bound` seconds.
     static func listedFiles(under directory: URL, within bound: TimeInterval) -> [String]? {
         guard let output = try? run(

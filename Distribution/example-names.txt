@@ -782,6 +782,8 @@ codeCoverage
 codesizeProfileOutputDir
 colorScheme
 commandName
+commentLines
+commentsFolded
 containsFolded
 contentsOf
 contentsOfDirectory
@@ -862,6 +864,7 @@ fileExists
 fileRef
 fileSha256
 fileSystemSynchronizedGroups
+fileText
 fileURLWithPath
 foldByCaller
 forEach
@@ -926,6 +929,7 @@ isLoading
 isMeta
 isMounted
 isNumber
+isOther
 isParameterized
 isPresented
 isProject
@@ -996,6 +1000,7 @@ notCode
 notEqualSame
 notHooked
 nothingByThisName
+numbersBlank
 objcMembers
 objectTypes
 objectVersion
@@ -1047,6 +1052,7 @@ pairField
 parallelizeBuildables
 parallelizeTargets
 parentOf
+parsesWithError
 partFits
 partFitsTitle
 partialAlternation
@@ -1287,6 +1293,7 @@ untouchedDial
 untouchedLamp
 updatedInput
 usableFromInline
+usageLocated
 usageStamp
 userHome
 usesWidgetDirectly

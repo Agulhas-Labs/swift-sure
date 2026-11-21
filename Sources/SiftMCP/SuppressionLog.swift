@@ -12,13 +12,23 @@ import SiftCore
 ///
 /// The appending belongs to ``SiftCore/JSONLineLog``. Opening, seeking and writing here on its own is the pattern that appender documents losing lines under concurrent writers — and this log's writer is the `pre-tool-use` hook, one process per tool call, so concurrent appends are its ordinary traffic. A lost line is a withheld denial the rate never counts: the one number this log exists for, under-reported in silence.
 public struct SuppressionLog: Sendable {
-    private let log: JSONLineLog
+    private let log: JSONLineLog?
     /// Told the rule of every entry as it is noted, so a replay that writes the log nowhere still learns which gate withheld a call.
     private let noted: (@Sendable (_ rule: String) -> Void)?
+    /// Where each entry is held instead of written, for a reading that may never be the one the call is decided by.
+    private let deferred: Deferred?
 
     public init(fileURL: URL, noted: (@Sendable (_ rule: String) -> Void)? = nil) {
         log = JSONLineLog(fileURL: fileURL, subject: "suppression log")
         self.noted = noted
+        deferred = nil
+    }
+
+    /// A log that writes nothing, holding each entry in `deferred` until ``replay(_:)`` notes it in the log of the reading taken.
+    public init(deferringTo deferred: Deferred) {
+        log = nil
+        noted = nil
+        self.deferred = deferred
     }
 
     /// The shared per-user record, beside the advice ledger it explains.
@@ -37,6 +47,10 @@ public struct SuppressionLog: Sendable {
     ///
     /// `fields` are written beside those for a rule that has more to say, never over them: an `overTime` names the shapes that overran and the back-off they armed (``InPlaceOverrun/suppressionFields``).
     public func note(symbol: String?, directory: String?, rule: String, call: String? = nil, fields: [String: Any] = [:]) {
+        if let deferred {
+            deferred.hold(Deferred.Entry(symbol: symbol, directory: directory, rule: rule, call: call, fields: fields))
+            return
+        }
         var entry: [String: Any] = fields
         entry["ts"] = ISO8601DateFormatter().string(from: Date())
         entry["rule"] = rule
@@ -49,8 +63,15 @@ public struct SuppressionLog: Sendable {
         if let call {
             entry["call"] = call
         }
-        log.append(entry)
+        log?.append(entry)
         noted?(rule)
+    }
+
+    /// Notes every entry `deferred` holds here, in the order it was held.
+    public func replay(_ deferred: Deferred) {
+        for entry in deferred.entries {
+            note(symbol: entry.symbol, directory: entry.directory, rule: entry.rule, call: entry.call, fields: entry.fields)
+        }
     }
 
     /// The rule the log at `fileURL` records for each of `calls`, as written, for the calls it names.
@@ -76,13 +97,13 @@ public struct SuppressionLog: Sendable {
     public static func callsLetThrough(in fileURL: URL, prefix: Int? = nil) -> [String: InPlaceAnswerer.Withholding] {
         guard let whole = try? Data(contentsOf: fileURL) else { return [:] }
         let data = prefix.map { whole.prefix($0) } ?? whole
-        let markers = [InPlaceAnswerer.Withholding.notSmaller, .otherStatementsRun, .linesNotShown, .notWorthTheTurn].map { Data("\"\($0.rawValue)\"".utf8) }
+        let markers = [InPlaceAnswerer.Withholding.notSmaller, .otherStatementsRun, .windowBeside, .linesNotShown, .notWorthTheTurn].map { Data("\"\($0.rawValue)\"".utf8) }
         var calls: [String: InPlaceAnswerer.Withholding] = [:]
         for line in data.split(separator: 0x0A, omittingEmptySubsequences: true) where markers.contains(where: { line.range(of: $0) != nil }) {
             guard let entry = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
                   entry["rule"] as? String == "answerWithheld",
                   let why = (entry["symbol"] as? String).flatMap(InPlaceAnswerer.Withholding.init(rawValue:)),
-                  why == .otherStatementsRun || TextSearch.Rule(loggedAs: why) != nil,
+                  why == .otherStatementsRun || why == .windowBeside || TextSearch.Rule(loggedAs: why) != nil,
                   let call = entry["call"] as? String
             else { continue }
             calls[call] = why
@@ -146,5 +167,40 @@ public struct SuppressionLog: Sendable {
             else { return nil }
             return entry
         }
+    }
+}
+
+public extension SuppressionLog {
+    /// The entries noted for a reading that may never be the one a call is decided by, held until it is (``SuppressionLog/replay(_:)``) and dropped where it is not.
+    final class Deferred: @unchecked Sendable {
+        private let lock = NSLock()
+        private var held: [Entry] = []
+
+        public init() {}
+
+        /// The entries held, in order.
+        var entries: [Entry] {
+            lock.lock()
+            defer { lock.unlock() }
+            return held
+        }
+
+        /// Holds `entry` after those already held.
+        func hold(_ entry: Entry) {
+            lock.lock()
+            defer { lock.unlock() }
+            held.append(entry)
+        }
+    }
+}
+
+extension SuppressionLog.Deferred {
+    /// One entry as ``SuppressionLog/note(symbol:directory:rule:call:fields:)`` was handed it.
+    struct Entry {
+        let symbol: String?
+        let directory: String?
+        let rule: String
+        let call: String?
+        let fields: [String: Any]
     }
 }

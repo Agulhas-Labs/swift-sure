@@ -66,11 +66,13 @@ struct BatchedReadNoteTests {
         return (Array(repeating: "..", count: from.count - shared) + to[shared...]).joined(separator: "/")
     }
 
-    /// A Swift window beside a statement no answer reproduces runs whole, with a note naming the call that answered the window alone and no permission decision.
+    /// A whole Swift read beside a statement no answer reproduces runs whole, with a note naming the call that answered the read alone and no permission decision.
+    ///
+    /// A shell window there is `windowBeside` with no note: `aWindowBesideAnotherLegGetsNoNote`.
     @Test func aBatchedReadIsHandedTheCallThatAnswersIt() async throws {
         let root = try await InPlaceAnswerTests.indexedRepository(padding: InPlaceAnswerTests.pastTheFloor)
 
-        let decided = try await Self.decide("sed -n 1,200p Sources/App/Depot.swift; ls", in: root)
+        let decided = try await Self.decide("cat Sources/App/Depot.swift; ls", in: root)
 
         let specific = try #require(Self.specific(decided.json))
 
@@ -125,11 +127,22 @@ struct BatchedReadNoteTests {
         #expect(decided.verdict == "allowed\t\totherStatementsRun")
     }
 
+    /// A shell window beside another leg runs whole as `windowBeside`: no note, no denial, logged under its own rule.
+    @Test func aWindowBesideAnotherLegGetsNoNote() async throws {
+        let root = try await InPlaceAnswerTests.indexedRepository(padding: InPlaceAnswerTests.pastTheFloor)
+
+        let decided = try await Self.decide("sed -n 1,200p Sources/App/Depot.swift; ls", in: root)
+
+        #expect(decided.json == nil)
+        #expect(decided.verdict == "allowed\t\twindowBeside", "\(decided.verdict)")
+        #expect(decided.logged == ["windowBeside"], "\(decided.logged)")
+    }
+
     /// The same Swift read on a line the answer covers whole is still answered in place, with no note.
     @Test func aSwiftReadAloneIsStillAnsweredInPlace() async throws {
         let root = try await InPlaceAnswerTests.indexedRepository(padding: InPlaceAnswerTests.pastTheFloor)
 
-        let decided = try await Self.decide("sed -n 1,200p Sources/App/Depot.swift", in: root)
+        let decided = try await Self.decide("cat Sources/App/Depot.swift", in: root)
 
         let specific = try #require(Self.specific(decided.json))
 
@@ -138,9 +151,9 @@ struct BatchedReadNoteTests {
         #expect(decided.verdict.hasPrefix("in-place\t"), "\(decided.verdict)")
     }
 
-    /// Legs that alone are withheld — a window no answer is smaller than (on worth), and a grep of one file its digest cannot prove (for another reason) — each with the rule it meets alone.
+    /// Legs that alone are withheld — a grep of one file its digest cannot prove, and a whole read of a file not worth the turn — each with the rule it meets alone.
     static let withheldAlone = [
-        ("head -n 9 Sources/App/Depot.swift", "notSmaller"),
+        ("cat Sources/App/Depot.swift", "notWorthTheTurn"),
         (#"grep -n 'static\|case ' Sources/App/Depot.swift"#, "notExact"),
     ]
 
