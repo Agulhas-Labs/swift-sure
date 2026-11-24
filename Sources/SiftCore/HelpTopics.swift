@@ -285,14 +285,19 @@ public struct HelpTopics {
         keeps every occurrence the last build compiled, deleted files included, so `where` can name a caller \
         in a file that no longer exists. Those rows carry `(file deleted since last build)` — or `(file \
         changed since last build)` where the file survives but has been written since — sort after the live \
-        ones, and are counted out in the section heading and in the header's `stale since last build (…)`, which counts the files the answer cites and says so (`1 cited file changed: <path>`, `3 cited files changed`). The changed label is decided on the later of the file's mtime and its \
+        ones, and are counted out in the section heading and in the header's `stale since last build (…)`, which counts the files the answer cites and says so (`1 cited file changed: <path>`, `3 cited files changed`). \
+        A file deleted before the last build keeps its record through every build that does not clean, so \
+        its rows carry `(file deleted; its record stays until a clean build)`, a heading counts it as `1 deleted \
+        file kept until a clean build`, and where nothing else is stale or partial the header reads `stale until \
+        a clean build (…)`, since another build changes nothing. The changed label is decided on the later of the file's mtime and its \
         ctime, so an edit whose mtime was put back (`touch -r`, `cp -p`) still carries it, and so does a file \
         rewritten with the bytes that were built — it over-warns and never under-warns. **Read the label as "do \
         not act on this row"**: an unlabelled row in the same section is unaffected and still resolved. \
         Keeping them listed is deliberate — after deleting a file, this is what separates a reference the \
-        delete just orphaned from one that was already dead — and a build is the only thing that clears them.
-        `--files` lists files to open, so it folds the deleted ones into one `+ N files deleted since the last \
-        build also named it` line instead of a row each.
+        delete just orphaned from one that was already dead — and a build clears them, a clean build where \
+        the label says so. `--files` lists files to open, so it folds the deleted ones into one `+ N files \
+        deleted since the last build also named it` line instead of a row each, and a `+ N deleted files kept \
+        until a clean build also named it` line for those a build keeps.
 
         **`\(ProductName.current.binary) status` reports the same axis without opening the store**, from file state against the \
         store's last build, so its header reads `stale since last build (N files: C changed, D deleted)` — each \

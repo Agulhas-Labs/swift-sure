@@ -77,6 +77,11 @@ struct WindowMembersPreferredTests {
             return
         }
 
+        guard spelling == .shell else {
+            #expect(answered.calls.map(\.target) == ["Sources/App/Walk.swift"])
+            return
+        }
+
         #expect(answered.calls.map(\.target) == ["Sources/App/Walk.swift:2-70"])
         #expect(answered.reason.contains("func perform() -> Int  :23-64"))
         #expect(answered.reason.contains("func prepare() -> Int  :66-77"))

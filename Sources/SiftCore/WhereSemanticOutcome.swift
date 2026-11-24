@@ -50,18 +50,22 @@ extension WhereRenderer {
         }
     }
 
-    /// The heading clauses that disown part of what the section is nevertheless listing, changed before deleted as the header orders them — never omitted when they apply, since a count that silently includes dead rows is the defect this whole path exists to end.
+    /// The heading clauses that disown part of what the section is nevertheless listing, changed before deleted as the header orders them, and deletions a build without cleaning keeps last — never omitted when they apply, since a count that silently includes dead rows is the defect this whole path exists to end.
     ///
     /// Counted in **files**, whatever the section lists, and worded identically in both: the header's own count is in files, and two sections disowning in different units invite the reader to compare numbers that were never the same measurement. One `states` entry per distinct file is the caller's job.
     static func driftDetails(states: [OccurrenceState]) -> [String] {
         var details: [String] = []
         let deleted = states.count { $0 == .deleted }
+        let kept = states.count { $0 == .keptDeletion }
         let modified = states.count { $0 == .modifiedSinceBuild }
         if modified > 0 {
             details.append("\(modified) file\(modified == 1 ? "" : "s") changed since last build")
         }
         if deleted > 0 {
             details.append("\(deleted) file\(deleted == 1 ? "" : "s") deleted since last build")
+        }
+        if kept > 0 {
+            details.append("\(kept) deleted file\(kept == 1 ? "" : "s") kept until a clean build")
         }
         return details
     }

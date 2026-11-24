@@ -85,7 +85,7 @@ struct WindowMembersImportsWithheldTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 1 ... 75, in: root))
 
-        #expect(outcome == .withheld(.notExact))
+        #expect(outcome == .withheld(spelling == .read ? .notSmaller : .notExact))
     }
 
     /// A window over the imports and a nested type's members the digest names without their lines runs, rather than being answered with those members.
@@ -95,7 +95,7 @@ struct WindowMembersImportsWithheldTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Outer.swift", lines: 1 ... 27, in: root))
 
-        #expect(outcome == .withheld(.notExact))
+        #expect(outcome == .withheld(spelling == .read ? .notSmaller : .notExact))
     }
 
     /// Beside another file's window on one shell line, the window over the imports and unplaced members keeps the line from being answered with them.

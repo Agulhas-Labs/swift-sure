@@ -8,7 +8,9 @@ import SiftCore
 
 /// The build inputs one context's transcript shows it editing since its last green `swift-sure run` build or test.
 ///
-/// A successful `Write`, `Edit` or `MultiEdit` of a path ``TreeKey/isBuildInput(_:)`` accepts counts, in the order its result arrived; a `Bash` call running `swift-sure run` over a build or a test whose result is not an error clears the edits in the repository that run built, since everything before it there was validated by it, and none in any other. A call whose result is an error, or never arrived, counts for nothing, and so does a run whose success the call's result cannot vouch for (``validatedDirectories(of:cwd:)``).
+/// A successful `Write`, `Edit` or `MultiEdit` of a path ``TreeKey/isBuildInput(_:)`` accepts counts, in the order its result arrived; a `Bash` call running `swift-sure run` over a build or a test whose result is not an error clears the edits in the repository that run built, since everything before it there was validated by it, and none in any other. A call whose result is an error, or never arrived, counts for nothing, and so does a run whose success the call's result cannot vouch for (``validatedDirectories(of:cwd:)``) or one started with `run_in_background`, whose result arrives before the build has run.
+///
+/// A Swift file changed while one of the context's `Bash` calls ran, other than a `swift-sure run` that validates, counts as an edit too, by the call's own timestamps, whether or not the call failed; a call with no result or no timestamp counts for nothing.
 ///
 /// Read line by line off raw bytes, and a line is parsed only when it could hold such a call or the result of one already pending, so a long session costs a byte search rather than a JSON parse per line.
 public struct BuildInputEditsSinceGreenRun {
@@ -39,11 +41,15 @@ public struct BuildInputEditsSinceGreenRun {
         var xcodebuild: (command: String, directory: String?)?
         var builds = OtherServerBuilds()
         var lastEditAt: [String: Date] = [:]
+        var shells: [String: (start: Date, root: String)] = [:]
+        var spans: [String: [ClosedRange<Double>]] = [:]
         for line in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
-            let callsSomething = line.range(of: toolUseMarker) != nil
+            let toolUse = line.range(of: toolUseMarker) != nil
+            let callsWatched = toolUse
                 && (line.range(of: filePathMarker) != nil || line.range(of: mcpMarker) != nil || binaryMarkers.contains { line.range(of: $0) != nil })
+            let callsSomething = callsWatched || (toolUse && line.range(of: bashMarker) != nil)
             let answersPending = line.range(of: toolResultMarker) != nil
-                && [Array(pendingEdits.keys), Array(pendingRuns.keys), Array(builds.pending.keys)].joined().contains { line.range(of: Data($0.utf8)) != nil }
+                && [Array(pendingEdits.keys), Array(pendingRuns.keys), Array(shells.keys), Array(builds.pending.keys)].joined().contains { line.range(of: Data($0.utf8)) != nil }
             guard callsSomething || answersPending,
                   let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any]
             else {
@@ -58,11 +64,28 @@ public struct BuildInputEditsSinceGreenRun {
             for block in (object["message"] as? [String: Any])?["content"] as? [[String: Any]] ?? [] {
                 switch block["type"] as? String {
                 case "tool_use":
-                    note(call: block, cwd: object["cwd"] as? String, edits: &pendingEdits, runs: &pendingRuns, xcodebuild: &xcodebuild)
-                    builds.note(call: block, recognising: products)
+                    if callsWatched {
+                        note(call: block, cwd: object["cwd"] as? String, edits: &pendingEdits, runs: &pendingRuns, xcodebuild: &xcodebuild)
+                    }
+                    if block["name"] as? String == "Bash", let id = block["id"] as? String, pendingRuns[id] == nil,
+                       !(callsWatched && containsSiftRun(in: (block["input"] as? [String: Any])?["command"] as? String ?? "")),
+                       let start = (object["timestamp"] as? String).flatMap(TranscriptScan.instant),
+                       let repository = (object["cwd"] as? String).flatMap(root)
+                    {
+                        shells[id] = (start, repository)
+                    }
+                    if callsWatched {
+                        builds.note(call: block, recognising: products)
+                    }
                 case "tool_result":
                     guard let id = block["tool_use_id"] as? String else { continue }
                     let failed = block["is_error"] as? Bool == true
+                    if let shell = shells.removeValue(forKey: id) {
+                        if let end = (object["timestamp"] as? String).flatMap(TranscriptScan.instant) {
+                            spans[shell.root, default: []].append(shell.start.timeIntervalSince1970 ... max(shell.start, end).timeIntervalSince1970)
+                        }
+                        continue
+                    }
                     if let path = pendingEdits.removeValue(forKey: id), !failed {
                         edited.removeAll { $0 == path }
                         edited.append(path)
@@ -73,14 +96,23 @@ public struct BuildInputEditsSinceGreenRun {
                         }
                     } else if let directories = pendingRuns.removeValue(forKey: id), !failed {
                         let built = Set(directories.compactMap(root))
+                        built.forEach { spans[$0] = nil }
                         edited.removeAll { root(of: URL(fileURLWithPath: $0).deletingLastPathComponent().path).map(built.contains) ?? false }
                     } else if let built = builds.settle(result: block, id: id, failed: failed, root: root) {
+                        built.forEach { spans[$0] = nil }
                         edited.removeAll { root(of: URL(fileURLWithPath: $0).deletingLastPathComponent().path).map(built.contains) ?? false }
                     }
                 default:
                     continue
                 }
             }
+        }
+        for (repository, ranges) in spans {
+            let found = ChangedSwiftFiles.withSpanEnds(under: repository, changedWithin: ranges).filter { TreeKey.isBuildInput($0.path) }
+            guard let latest = found.map(\.spanEnd).max() else { continue }
+            edited.append(contentsOf: found.map(\.path).filter { !edited.contains($0) })
+            let last = Date(timeIntervalSince1970: latest)
+            lastEditAt[repository] = max(lastEditAt[repository] ?? .distantPast, last)
         }
         return Scan(
             files: edited,
@@ -169,7 +201,7 @@ public extension BuildInputEditsSinceGreenRun {
 public extension BuildInputEditsSinceGreenRun {
     /// What one read of a transcript found.
     struct Scan {
-        /// The files edited since its last green run, oldest first and each once.
+        /// The files edited since its last green run, oldest first and each once: those the edit tools wrote, then those changed while a `Bash` call ran.
         public let files: [String]
         /// The last `swift-sure run -- xcodebuild … build` it issued, whether or not that one succeeded: the segment of the Bash command as the shell ran it, with the directory it ran in, so a block can name it as it was.
         public let xcodebuild: (command: String, directory: String?)?
@@ -177,12 +209,18 @@ public extension BuildInputEditsSinceGreenRun {
         public let cwd: String?
         /// By canonical repository root, the server and tool of the newest build made through another MCP server since that repository's last edit whose result was no error and carried neither a success line nor a failure line; a repository with none has no entry.
         public let unconfirmedBuilds: [String: (server: String, tool: String)]
-        /// By canonical repository root, when the context's last build-input edit there landed, by the timestamp of the line carrying its result; a repository with no edit, or whose last edit's line carries no timestamp, has no entry.
+        /// By canonical repository root, when the context's last build-input edit there landed, by the timestamp of the line carrying its result, or the end of the last `Bash` call that changed a Swift file there if later; a repository with no edit, or whose last edit's line carries no timestamp, has no entry.
         public let lastEditAt: [String: Date]
     }
 }
 
 public extension BuildInputEditsSinceGreenRun {
+    /// Whether any statement of `command` executes a `swift-sure run`, validating or not.
+    static func containsSiftRun(in command: String) -> Bool {
+        guard let statements = Statements(command) else { return false }
+        return statements.located.contains { ShellSyntax.segments(of: $0.statement).contains { siftRun(ofSegment: $0) != nil } }
+    }
+
     /// The directory the last `swift-sure run` in `command` runs against, or `nil` where the command holds none or the directory cannot be told.
     ///
     /// A build prints its diagnostics' paths relative to the tree it ran in, which is the run's own `--root` (read against the directory any `cd` before it moved to, else `cwd`) or that `cd`'s directory, and not necessarily the hook payload's `cwd`; reading them against `cwd` located a worktree's compile error in the primary checkout.
@@ -205,6 +243,7 @@ private extension BuildInputEditsSinceGreenRun {
     static let toolResultMarker = Data("\"tool_result\"".utf8)
     static let filePathMarker = Data("\"file_path\"".utf8)
     static let mcpMarker = Data("\"mcp__".utf8)
+    static let bashMarker = Data("\"Bash\"".utf8)
     static let cwdMarker = Data("\"cwd\"".utf8)
 
     /// A shell command read as its statements and the operators between them, for finding the directory each statement runs in.
@@ -407,7 +446,7 @@ private extension BuildInputEditsSinceGreenRun {
         {
             edits[id] = file
         } else if name == "Bash", let command = input["command"] as? String {
-            let directories = validatedDirectories(of: command, cwd: cwd)
+            let directories = input["run_in_background"] as? Bool == true ? [] : validatedDirectories(of: command, cwd: cwd)
             if !directories.isEmpty {
                 runs[id] = directories
             }

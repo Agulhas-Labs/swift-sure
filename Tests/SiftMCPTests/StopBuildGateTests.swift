@@ -123,6 +123,20 @@ struct StopBuildGateTests {
         #expect(await fixture.hook(["transcript_path": transcript]).isEmpty)
     }
 
+    /// A `swift-sure run` started in the background has a result before its build runs, so it validates nothing.
+    @Test
+    func aSiftRunStartedInTheBackgroundLeavesTheEditStanding() async throws {
+        let fixture = try StopGateFixture()
+        let transcript = try fixture.transcript([
+            StopGateFixture.edit("t1", path: fixture.depot),
+            StopGateFixture.result("t1"),
+            StopGateFixture.bash("t2", command: "cd \(fixture.repo.path) && swift-sure run -- swift build 2>&1", background: true),
+            StopGateFixture.result("t2"),
+        ])
+
+        #expect(await !fixture.hook(["transcript_path": transcript]).isEmpty)
+    }
+
     /// A green `swift-sure run` after the last edit validated it; a red one did not, and neither does one before the edit.
     @Test(arguments: [(false, false), (true, true)])
     func aSiftRunAfterTheEditAnswersItOnlyWhenGreen(failed: Bool, blocks: Bool) async throws {

@@ -90,6 +90,10 @@ the design depends on, carried over from [../Docs/Design.md](../Docs/Design.md):
   (`SWIFT_SURE_TEST_HOOK_BUDGET`, `SWIFT_SURE_TEST_INPLACE_BUDGET`, `SWIFT_SURE_TEST_GIT_LIMIT`, `SWIFT_SURE_TEST_REPLAY_LIMIT`),
   unless the limit is the test's subject. A bound the test process widens for itself never reaches the child,
   and a merge gate runs at a load average in the hundreds: seven tests failed one that way, and passed alone.
+- **A fixture whose answer depends on store row ids fixes which file the index writes last.** A full index
+  writes files in the order their parses finish, and a reparse keeps a file's row ids only when its rows were
+  the store's newest, so leaving that order to the parse race makes a test pass or fail by load: edit or
+  reindex the file the test does not ask about after the one it does.
 - **A scripted test clock is never also the clock code reads for its own bounded waits.** A fake whose
   `Date` advances per read hands a waiting loop the reads a phase timing was scripted with, so the timings
   come out wrong, and a constant one makes the loop wait forever: give the waits their own ticking clock.

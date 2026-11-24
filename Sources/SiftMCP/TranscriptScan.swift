@@ -448,7 +448,7 @@ public struct TranscriptScan {
             ) else {
                 return []
             }
-            // Keyed on the arguments that decide the answer, exactly as `PreToolUseCommand.classified` keys
+            // Keyed on the arguments that decide the answer, exactly as `LookupClassifier.classified` keys
             // the ledger, so the search the hook let back through is the search excused here.
             let key = searchKey(tool: rule ?? name, input: input, directory: directory)
             // Scored a second time only where an earlier call of this turn, taken as answered, is this same
@@ -634,7 +634,7 @@ public struct TranscriptScan {
             // hook checked it against and the two ends name the same call — withheld outside a `--since`
             // window with every other probe, where the classification is discarded anyway.
             // A line of several lookups is about the first one the hook had not already answered, as the hook
-            // chooses it (`PreToolUseCommand.classified`): its answers are what `hookDenied` holds, so the
+            // chooses it (`LookupClassifier.classified`): its answers are what `hookDenied` holds, so the
             // lookup scored — and the key an answer to it is remembered by — is the one the hook spoke about.
             // An earlier call of this same turn counts as answered already: its hook ran, and recorded its
             // answer, before this call's hook did, though its result is written after this call. The line is
@@ -1192,7 +1192,7 @@ extension TranscriptScan {
             skipping: sanctioned
         )
         // Remembered by the reading stage alone — pattern, flags and paths — because that is what the
-        // hook allows the re-run on (`PreToolUseCommand.classified`). Keyed on the whole line instead,
+        // hook allows the re-run on (`LookupClassifier.classified`). Keyed on the whole line instead,
         // a retry that changed only what rides beside the grep — the `echo` label a session prints
         // between steps, an unrelated leg of a `&&` — would find no refusal to match, and the escape
         // hatch the hook had just granted would be scored as defiance, which is the one thing the

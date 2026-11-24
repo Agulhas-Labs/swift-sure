@@ -535,6 +535,7 @@ query's budget, `fresh`, `stale since last build (…)` counting the distinct fi
 their own build, by kind in the order changed, deleted, new (`1 cited file changed: <path>`, `3 cited files changed`, `2 new
 cited files`, `4 cited files: 1 changed, 1 deleted, 2 new`), and `fresh, N declarations not found in the store` when nothing is stale but the store
 has no unit covering a declaration — a different fact from staleness, and one a rebuild may not fix.
+A `where` that opened the store and found no declaration of the name (`no declarations found`, or the nearest-symbols list) reads `fresh, name not in the store` (`SemanticAxis.nameNotInStore`), never `syntactic-only`, which is for answers that never opened the store: no file such an answer cites can differ from its build, so the store's state is `fresh`, and the name is not in it.
 **`partial (N test files have no unit in the store — references from tests are a lower bound)`** when
 nothing is stale but some indexed test file (one importing XCTest or Testing) has no unit in any store the
 query reads: its target was never compiled — a plain `swift build` compiles no test target — so the store
@@ -598,7 +599,7 @@ file it drops in a bounded ledger in its own `meta` table, and `status` counts t
 the store may still cite: dropped after the anchor, or named by a unit still on disk. The second half is
 there because a build keeps a deleted file's unit until a clean build, so a query goes on citing the file
 whichever came first, the deletion, the build, or this index noticing either (a `git mv` and a build in
-one command is noticed after the build; one noticed in between is not). It reads only the deleted paths
+one command is noticed after the build; one noticed in between is not). A deletion's moment is the earlier of when the index noticed it and the modification time of its nearest surviving directory, which no later deletion can make earlier, so a `git mv` and a build in one command still reads as dropped before the build. It reads only the deleted paths
 the ledger names against one listing of the units directory, filed by stem once, opening only the units
 whose name begins with the file's stem, and a candidate counts when a path it records is the file's own
 absolute path: each unit's paths block is read as the bitstream it is, every path joined from its prefix
@@ -614,7 +615,39 @@ changed and deleted counts (`(2 files changed)`, `(3 files: 2 changed, 1 deleted
 every file counted is a deleted one dropped at or before the build and named by a unit on disk (nothing changed
 or new, no deletion after the build): then it reads `stale until a clean build` with the same parenthesis
 (`(1 file deleted: Sources/Lib/Caller.swift)`), since "since last build" would send the reader to a build that
-keeps the file's unit; a query citing such a file keeps `stale since last build`. And
+keeps the file's unit. A query applies the same test, one cited deleted file at a time. Citing a file does not
+prove that a unit on disk still names it: the store's records can outlive the unit file, and a path the syntactic
+index supplied proves nothing about units. So the query asks a unit, as `status` does (`StoreUnitMentions`, a
+listing of the units directory read once per query, opening only units whose name begins with the file's stem). A
+cited deleted file is **kept** when all three of these hold:
+- it lies inside the root (a checkout outside it, such as a package's, is fetched again by a plain build);
+- a unit on disk names it;
+- it was dropped at or before the anchor. That is, the ledger's date is not after the nudged build anchor (the
+  comparison `DeletionLedger.paths` makes), or its nearest surviving directory was last modified before that anchor.
+
+The anchor is the newest unit of the stores answering for the file (`newestAnswering`), and the store's own newest
+unit where none does. The file's own newest unit is never the anchor, since it predates the deletion by
+construction. A file the ledger has no entry for is judged by its directory alone. That errs towards `since last
+build`, the cheaper advice, except where a tool sets a directory's mtime back. As in `status`, a build of an
+unrelated project in the same store can date a later deletion as kept. A clean build still clears it.
+
+The ledger is read once per query, shared by every judge, and only when a cited file is missing. Directory stats
+are memoised. Where two stores judge one file differently, the plain deletion wins, since it is the worse kind, and
+every listing gets one state per file.
+
+A kept deletion's site heading and row label read `(file deleted; its record stays until a clean build)`. A
+section heading counts kept deletions apart, after changed and plain deleted files: `2 files changed since last
+build, 1 file deleted since last build, 1 deleted file kept until a clean build`, plural `<k> deleted files kept
+until a clean build`. The `--files` listing's `+ N files deleted since the last build also named it` splits the
+same way.
+
+The query's header reads `stale until a clean build (1 cited file deleted: <path>)` only where every file it counts
+is a kept deletion and no `partial` clause applies, since a build would add the units a partial answer lacks. Any
+changed or new file, a deletion after the build, or a refusal leaves it at `stale since last build`. A refusal
+counts a deleted declaring file as changed, and this errs safe. Code that recognises a marked row by its text
+(`ExactAnswer.locations`) matches every `OccurrenceState` marker, never a phrase, so a kept row is
+never taken for a located one. In code, `FileKind` and `OccurrenceState` each gain a `keptDeletion` case, and
+every comparison with `.deleted` goes through `isDeleted`. And
 the no-store state when discovery finds nothing. Its deleted count is the weaker one: only a query reads the
 occurrence that shows the store still holds something in the file. It errs
 by over-warning, never under-warning: a drop is recorded when the index notices it, and only when the file
@@ -1707,7 +1740,7 @@ declaration the store leaves unnamed is named by what it is and whose, `modify a
 protocol requirement's hits are headed "implementations", since the relation covers witnesses as well as
 class overrides; emptiness is one summary line.
 
-`--files` is the files-only form of that sweep (`where X --files`, `files: true` on the MCP tool; it implies `--refs`), for the question "which files contain X", where the per-site rows are most of the answer's size and none of what is asked. **The invariant:** no file the full `--refs` answer names, on any of its pages, is missing from its files, except one deleted since the last build (the next paragraph's fold): declaration and extension files, every reference row's file, every name-matched row's file (a type's uses by written name, a member's or caller's name-matched sites and the ones written with no call, a property wrapper's `@T` attribute sites, an undeclared initializer's sites), every `not code` row's file, the `file names:` entries, and the files a `not in the build` or `new since last build, not in the store, mention the name:` line names. One render of the sweep's first page carries a `WhereFilesCollector`, and each section records its whole list into it before any cap or page cuts the list; no answer text is read back. Where `--refs` truncates a list without paging it (a type's uses by written name past 40 files, `truncated: N more files — grep for the name to list them`, or past 30 lines in a file, `+N more`; a name-matched block past its call-site cap), `--files` lists more files than `--refs` shows, so `--refs`'s files are a subset of `--files`'s, and the extra ones reconcile against the section totals `--refs` prints. One row per file, sorted by path: `  <path> (<code lines>, declares, not code <N>)`, where the code count is the distinct lines the `--refs` block counts, `declares` marks a file holding a declaration or extension of the symbol, a file listed only under `file names:` reads `(file name)`, and a file changed since the last build keeps its `(file changed since last build)` mark. A file deleted since the last build is never a row, since `--files` lists files to open or edit and a deleted file is never an answer: one line after the rows, and after any `truncated:` line, on every page, counts them, `  + N files deleted since the last build also named it (`--refs` lists them)` (`+ 1 file deleted … `), and paging, the `truncated:` offset and the heading's file, code-site and mention counts and drift details cover the listed files only (#1072). The heading `files naming <qualified> (<N> files: <a> with code sites, <b> with not-code mentions[, …]):` keeps what the `--refs` heading says of drift and incompleteness (changed since last build, macro-generated lines not listed, `$flag` siblings, `by written name` where a name-matched section listed a file, and `N more files holding the name not scanned` where a mentions scan counted files it did not read), so the view never reads as complete where the sweep would not. Dropped: the declarations section (only where the query resolves to one owner; several owners keep it, it is their narrowing), the `used by` line, the per-site rows and the `not code` rows. Kept: the tree header and every line that says the answer is degraded or incomplete (`UNAVAILABLE`, the mode line, `references:`, the `new since last build` line). Paging: one row per file, `WhereFilesCollector.filesListCap` (100) per page, with the sweep's `truncated: N more files — pass offset K to continue` marker and the same offset. A `--syntactic` sweep takes the same view: its name-matched lists record into the collector as the store's do. Where the `--refs` answer names no file or is no sweep (a bare name answered with its owners' declarations, `--at`, no store and no stand-in, UNAVAILABLE), `--files` returns exactly what `--refs` returns. The hook's in-place answers (`standsInForSearch`) are untouched. (#791)
+`--files` is the files-only form of that sweep (`where X --files`, `files: true` on the MCP tool; it implies `--refs`), for the question "which files contain X", where the per-site rows are most of the answer's size and none of what is asked. **The invariant:** no file the full `--refs` answer names, on any of its pages, is missing from its files, except one deleted since the last build (the next paragraph's fold): declaration and extension files, every reference row's file, every name-matched row's file (a type's uses by written name, a member's or caller's name-matched sites and the ones written with no call, a property wrapper's `@T` attribute sites, an undeclared initializer's sites), every `not code` row's file, the `file names:` entries, and the files a `not in the build` or `new since last build, not in the store, mention the name:` line names. One render of the sweep's first page carries a `WhereFilesCollector`, and each section records its whole list into it before any cap or page cuts the list; no answer text is read back. Where `--refs` truncates a list without paging it (a type's uses by written name past 40 files, `truncated: N more files — grep for the name to list them`, or past 30 lines in a file, `+N more`; a name-matched block past its call-site cap), `--files` lists more files than `--refs` shows, so `--refs`'s files are a subset of `--files`'s, and the extra ones reconcile against the section totals `--refs` prints. One row per file, sorted by path: `  <path> (<code lines>, declares, not code <N>)`, where the code count is the distinct lines the `--refs` block counts, `declares` marks a file holding a declaration or extension of the symbol, a file listed only under `file names:` reads `(file name)`, and a file changed since the last build keeps its `(file changed since last build)` mark. A file deleted since the last build is never a row, since `--files` lists files to open or edit and a deleted file is never an answer: one line after the rows, and after any `truncated:` line, on every page, counts them, `  + N files deleted since the last build also named it (`--refs` lists them)` (`+ 1 file deleted … `), and paging, the `truncated:` offset and the heading's file, code-site and mention counts and drift details cover the listed files only (#1072). The heading `files naming <qualified> (<N> files: <a> with code sites, <b> with not-code mentions[, …]):` keeps what the `--refs` heading says of drift and incompleteness (changed since last build, macro-generated lines not listed, `$flag` siblings, `by written name` where a name-matched section listed a file, and `N more files holding the name not scanned` where a mentions scan counted files it did not read), so the view never reads as complete where the sweep would not. Dropped: the declarations section (only where the query resolves to one owner; several owners keep it, it is their narrowing), the `used by` line, the per-site rows and the `not code` rows. Kept: the tree header and every line that says the answer is degraded or incomplete (`UNAVAILABLE`, the mode line, `references:`, the `new since last build` line). Paging: one row per file, `WhereFilesCollector.filesListCap` (100) per page, with the sweep's `truncated: N more files — pass offset K to continue` marker and the same offset. A `--syntactic` sweep takes the same view: its name-matched lists record into the collector as the store's do. Where the `--refs` answer names no file or is no sweep (a bare name answered with its owners' declarations, `--at`, no store and no stand-in, UNAVAILABLE), `--files` returns exactly what `--refs` returns. A listing that names at least one file on its page ends with one line, `drop --files for each reference's line`, which says what the view left out and how to get it back (`WhereFilesCollector.dropFilesLine`); an empty listing, which is `--refs`'s own answer, carries none. The CLI and the MCP tool share the view, so both carry it. The hook's in-place answers (`standsInForSearch`) are untouched. (#791)
 
 `--decl` is the declarations-only form of `where` (`where X --decl`, `decl: true` on the MCP tool), for the question "where is X declared", where everything after the declarations block is most of the answer's size and none of what is asked. A protocol's plain answer on the benchmark corpus ran 4,878 characters (its declarations, every use, its extension, 18 conformers and the file accounting) where a grep for `protocol X` answers in about 50 tokens, and the lookup cost 34% more than grep at medium effort, 36% at high. A throwaway build of this view took it from about 2,700 tokens to about 270 (−2,141 and −2,243 per run, paired from one checkout), and agents passed the flag in 12 of 12 runs from the primer's bullet alone (#823). **It never opens or asks the index store**: every line it prints comes from the syntactic index, so its header is the one `digest` prints, with no `semantic:` field (a field that cannot vary measures nothing), and no line about the store follows it (no degraded note, stores note, project hint or store pointer); a store that is warming, failing or missing changes nothing in it, and the CLI pays no store open. An `--at` answer keeps its own header. **The view**, in order: that header; the lines under it that qualify the syntactic index (`index: in memory`, an `--at` answer's parsed-files line, and the parse-error banner and floor note, since a file the parser could not finish can hide a declaration); the declarations block as a plain `where` prints it (the heading, the rows with an extension's member count and marks, the compact form's `signatures:` line), **each row followed by its source where the declaration is small** (below); for a `T.init` query, the `declared with no init of their own (K):` block, its heading, rows and provenance lines without its call sites; and one line naming what it left out, `` `where <query>` without --decl covers its uses, extensions, conformers, callers and overrides. `` The renderer stops there; no answer text is read back or cut. **A small declaration's source follows its row.** A definition lookup should take one call, and the 022c bench transcripts show it taking two: on a 17-line enum, `--decl` was followed by a ranged Read in 3 of 3 runs while the grep arm's single `-A 40` answered, and on a 4-line function one run Read lines 110-119 for the body and another hedged that it had not opened the file to check which line held the `func` keyword; each Read costs a request, its result and the path-scoped rule's load (about 650 tokens net). So a declaration row whose own extent (its `start-end`) is at most `inlinedDeclarationLineCap` (30) lines is followed by exactly that range of its source, numbered as Read numbers lines (the number right-aligned to 6, a tab, the line; no `>` mark), and the doc comment above the range is not included (the row keeps its doc summary). Rows are taken in printed order while the answer's inlined total stays at most `inlinedAnswerLineCap` (40) lines; a row that would pass it gets no source and neither does any row after it, so the answer never shows a gap. Only that overflow ends inlining: a row over 30 lines, an extension row, and a row whose file cannot be read or ends before the row does (a stale row) are skipped, and the rows after them go on. The compact form (more than 5 declarations) inlines nothing. An `--at <rev>` answer inlines that revision's text. The plain `where` and the hook's in-place answers are unchanged. **A block cut by its cap** keeps its `truncated: N more declarations` line and points on from it, since `--offset` does not page it: where the plain answer's tail would name rows its extensions block lists, the line ends `— where <query> lists` and that tail's clauses (`truncated: 60 more declarations — where Gizmo lists 40 of them under extensions of Gizmo`). **A bare name several unrelated owners declare** prints the same plain block, not the per-owner form: the per-owner form stands in for the use listings, `--decl` lists none, and each row's module-qualified name resolves as a query of its own. **An initializer the type does not declare** keeps its declarations and its provenance sentence and leaves out its call sites; the sentence drops its clause about them (`which the calls below reach`, `the calls below reach …`), and the pointer line follows. **Answers that never reach the declarations block** (a miss, `could not resolve the path`, the nearest symbols, a `deinit`'s answer) keep their bodies under the view's header, with no store pointer and no pointer line: each already is the declaration answer, or its absence. **Beside other flags:** `--at <rev>` answers the same view of that revision, since "was X declared at base?" is a declaration question. `--refs` and `--files` are refused beside it, on the CLI as `--decl answers where <query> is declared, and --refs and --files every place it is written: pass one.`, and on the MCP tool, only where either is `true`, as `where's decl: answers where <query> is declared, and refs: and files: every place it is written: drop one.` An `--offset` has nothing to page and is named unused after the pointer line, as in any answer with no store and no paged list; `--syntactic` still answers from the source in memory. **Left as they are:** the hook's in-place answers (`standsInForSearch`) never take the view; the hook's suggestion for a declaration-shaped search still names a plain `where X`, and a CLI call carrying a flag still does not count as following one (`IndexSuggestion.callsMade`), a follow-up of its own (#825); `LoggedLookup` and the usage log record no flags, so adoption is read from transcripts, where `audit --verbs` gives `where --decl` its own row (#824). **Where it is named:** the MCP parameter's description is `Only where it is declared.`, and the tool's description is unchanged; the primer's `where` bullet reads `definition (--decl for only that), callers, conformers, overrides`, the wording measured; the agent rule's `where` row reads `` `--decl` for only that `` beside its `--files` clause, unmeasured.
 
@@ -2798,6 +2831,8 @@ kept every row. Returning only whole matches was measured and rejected: one of t
 three-word regex with `kind:func`, matches 35 declarations in the benchmark app, none of them whole, so it would
 answer nothing,
 and ordering already puts every whole match on the first page in each query measured.
+
+**A name-only query past 20 declarations ends with a pointer.** Where `name:` (any value: a word, an alternation, a `/regex/`) is the query's only selecting field, `path:` beside it not counting as another, and the answer lists more than `SearchRenderer.narrowingThreshold` (20) declarations, its last line (before the standing clause of `calls:`/`uses:`, which such a query has none of) is `narrow with kind:, modifier: or owner:`. Any other field in the query, or 20 declarations or fewer, leaves the answer unchanged. The grouped answer below has its own narrowing line and takes no second.
 
 **Past 40 matches, grouped by file (#1021).** At offset 0 a `search` of more than `SearchRenderer.groupThreshold` (40) matches answers grouped: the summary line ends `; grouped by file past 40` (without the whole-name clause), then up to 12 files as `  <count>  <path>`, most matches first and ties by path, `  + N more files (M matches)` for the rest, a `whole-name matches (k):` block of at most 5 of those matches as today's rows under path headings (with k at 0, a `first 5:` block of the first 5 matches in today's order), and one line `narrow with path:<top file's basename>, owner:<Type>, kind:, or a tighter name:; offset <r> continues the listing` (r the rows shown, at least 1; the basename is double-quoted when it holds whitespace). Counts are right-aligned. A result whose matches all sit in one file is not grouped: it renders today's shape. Why: a broad pattern's 120 full rows plus a names block ran 16-25k characters, as dear as reading the file it was meant to avoid. `offset` above 0, `--count` and 40 matches or fewer are unchanged. A `path:`, `owner:` or `name:` value may be double-quoted to hold spaces (`path:"Some Dir/"`).
 
@@ -6344,6 +6379,33 @@ Claude Code also makes each leading tab of a patch line two spaces, so where the
 Where the payload gives none of the three — no `tool_response`, or an empty patch on anything but a create
 — every error is reported, as for a file that parsed.
 
+**A `Bash` call gets the same check, on the files it changed rather than on a named file.** A stranger
+trial made four of six Swift edits through the shell (`sed -i` on named files, `xargs sed -i`, a Python
+heredoc), and a parser of the command would have missed the last two, so the command is never read. The call
+began when Claude Code wrote the assistant message holding its `tool_use` (the transcript entry whose content
+carries the payload's `tool_use_id`, found in the last 1 MiB of `transcript_path`; not found, nothing is
+checked). Every `.swift` file `git ls-files --cached --others --exclude-standard` lists under the caller's
+repository, tracked or untracked and not ignored, whose change time (the later of mtime and ctime) is at or
+after that entry's timestamp is parsed, in path order, as a Write of it would be. The cost is one `git
+ls-files`, one `stat` per Swift file, and a parse of only the changed ones, inside the same one-second
+budget. A file another process changed in the same window is checked too: it is the tree the agent builds. A
+Bash edit has no prior content, so every error in the file is named, once per content by the same mark; where
+several files fail, one block names each, its reason as an edit's, separated by a blank line. Run-only mode
+does not check: that install promises to act on build and test runs alone.
+
+**The `Stop` gate counts those edits by the same window, read back from the transcript.** Each `Bash` call
+in the stopping context's transcript that runs no `swift-sure run` at all, and whose result
+arrived (an error result too, since a failed `sed -i` may still have written), spans the time from its
+`tool_use` entry's timestamp to its result entry's, and belongs to the repository its line's `cwd` stands
+in. A green `swift-sure run` that builds that repository drops every span before it there, as it drops
+the Write and Edit edits. At the stop, a repository with spans left lists its `.swift` files as the parse
+check does, and each one whose change time falls inside a span counts as an edit made when that span
+ended. A call with no result, or a line with no timestamp, spans nothing; a `cd` inside the command is not
+followed. The cost is paid only where a span survives: one `git ls-files` and one `stat` per Swift file,
+per repository, inside the gate's one-second budget. A file another process changed while the call ran
+counts too, as it does for the parse check; a `swift-sure run` call never spans, so a parallel session's
+edits during a long suite run are not this context's.
+
 **`swift-sure stop` is the build the parse check cannot be: a gate at the end of the work, on `Stop` and
 `SubagentStop`.** One command serves both events, reading `hook_event_name`. The stopping context's own
 transcript decides whether it touched Swift — `transcript_path` for the session, skipping sidechain lines,
@@ -6356,7 +6418,9 @@ answers for the checkout (a linked worktree is its own) holding the directory it
 moved by each plain `cd` before it that `&&` joins to it, or what a `swift --package-path`/`-C` or an
 `xcodebuild -project`/`-workspace` names — and only where the call's result vouches for the run's: it ends
 its pipeline (`swift-sure run … | tail` has `tail`'s status), no `||` stands just before it, and only `&&`
-follows it. A line that is one subshell `( … )` or one brace group `{ …; }`, with nothing around it but blanks,
+follows it. A call made with `run_in_background` vouches for nothing: its result says only that the command
+started, before the build ran, so the edits stand and the run's own ledger record answers for the tree once it
+ends. A line that is one subshell `( … )` or one brace group `{ …; }`, with nothing around it but blanks,
 is read as its inside, which starts in the line's own directory and gives the line its status, so
 `(cd D && swift-sure run -- swift build)` validates D (#852). Any other subshell or compound statement, a `pushd`, a `cd` a `;` or a newline separates from the
 run (a newline joins statements as `;` does), or a relative path with no `cwd` places no run, and the edits
@@ -6541,7 +6605,7 @@ the whole of its own statement: one pipeline whose only other stage is a `head`,
 window keeping the printed lines at those positions; no substitution, no output to a file, no redirection but
 standard error's, nothing in front of either stage's command word (an environment assignment can change what
 grep prints, as `GREP_OPTIONS=-v` does), and no flag outside a short closed list (`-n`, `-H`, `-h`, `-s`,
-`-I`, `-r`, `-E`, `-F`, `-i`, `-w`, `-x`, an `--include=*.swift` beside a `-r`, and a context count for the
+`-I`, `-r`, `-E`, `-F`, `-i`, `-w`, `-x`, an `--include=*.swift` beside a `-r`, an `--exclude-dir=<plain name>` or `--exclude=*.<ext>` (a sweep narrowed by them is judged as the same sweep without those files), and a context count for the
 member shape alone).
 
 **A sweep is answered only where its whole refusal is smaller than what the command prints.** Both sweeps the
@@ -7257,8 +7321,8 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   it.
 - **A shell window is answered with its own lines, comment runs folded, or let through; never with an answer
   that drops its code lines (#1114).** This replaces, for every shell window, the digest and members answers the
-  next bullet describes; those stay the rule for a `Read` window (`offset`/`limit`) and for whole reads, by the
-  owner's ruling of 21 Nov, which kept this change to shell windows. Stranger trial 6 (21 Nov) showed why:
+  next bullet describes; those stay the rule for whole reads; a `Read` window (`offset`/`limit`) is folded first
+  (the bullet below this one) and keeps them only where the fold lets it through. Stranger trial 6 (21 Nov) showed why:
   `cat -n Gizmo.swift | sed -n 95,330p` (236 lines) was answered with the file's digest, which showed none of
   the lines asked for, and the agent re-read them at once. Across that trial's 21 windows a digest of the range
   was never smaller than the window (1.05–1.6× at 30 lines or more, up to 12.7×), so the one cut that keeps
@@ -7334,6 +7398,18 @@ doubled invocation of a possibly long command *and* the credibility of the next 
     `commentsFolded`, as does `awk 'NR>=230&&NR<=286{…}' Gizmo.swift` replayed alone; no other replayed
     call changes verdict token (rule names may change: a let-through window under the thresholds reads
     `notSmaller`, a mixed line `windowBeside`).
+- **An unlocated `Read` window of a Swift file is judged first as the shell window `cat -n F | sed -n a,bp`
+  (#1122).** `a` is the `offset` (at least 1) and `b` is `a + limit − 1` (`limit` 2000 where none is given);
+  the numbering is the Read tool's own, `cat -n`'s. Everything after is the shell window's: a window reaching
+  every line is a whole read, a window the ledger or the usage log locates goes the located way (`locatedWindow`),
+  and the fold's 25% and 400-byte floors and the answer budget apply. Two things differ. The re-run allowance is
+  keyed on the `Read` itself, so the identical `Read` re-run is allowed, and the framing line says "the
+  identical Read re-run prints them". Where the fold lets the window through, the `Read` keeps the reading the
+  21 Nov ruling kept for it (digest, `notWorthTheTurn`), with its own rule logged, not the fold's, and is never answered with members: over 26 `Read` windows on 22 Nov after the fold landed, the members answer served none, so it was dropped for a `Read` window (#1122).
+  A stranger trial showed the gap: `Read Gizmo.swift offset 40 limit 240` was let through `notWorthTheTurn`
+  (10.7 KB served) where `sed -n 40,280p` of the same file was answered folded. Over the 14 days to 22 Nov, of
+  105 `Read` windows on this machine whose files were still on disk, 17 that no digest located would be folded
+  as their `sed` form is, 10 of them let through `notWorthTheTurn` at the time.
 - **A window of a Swift file no index call in this context has located is a lookup, answered in place with the
   file's digest exactly as a whole `cat` is** (for a `Read` window; a shell window is the bullet above). A shell window — `sed -n '1,200p' F.swift`, `head`, `tail`, an
   `awk` program picking its lines by number, a `cat` piped into nothing but windows — and a `Read` with
@@ -7380,7 +7456,7 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   `digest File.swift:a-b` there serves the lines of the range inside the member, under a header naming it, about the window's own size), and any window saving under `windowSavingFloor` (4 KiB) whose answer does
   not hold the text of every non-blank line it prints — a denial that cannot stand in for the read makes the
   identical re-run certain, and a week of real sessions priced letting such a window run, under 4 KiB, cheaper than answering it (#480).
-  So does **a `Read` window whose members answer would list members of one top-level declaration only**
+  The same guard withholds `linesNotShown` before the whole digest is tried, for a `Read` window whose lines the answer would not show, as no members answer serves a `Read` window. So does **a `Read` window whose members answer would list members of one top-level declaration only**
   (a window inside one type or extension, across several of its members; #1098), unless the window prints at
   least `windowShare` of the file and is weighed as its whole read. Over 14 days to 20 Nov, 10 such windows
   were answered with their members and 9 were followed within three calls by a fetch of the same lines'
@@ -7432,8 +7508,8 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   more than the lines it stands in for**, measured as the whole refusal, framing included, against the window's
   own source, and the whole answer's own withholding stands in its place. Where several files are bounded on
   one line, the note names each bounded file beside its ranges, and only those are credited as located rather
-  than digested; a whole read on the same line keeps its whole digest. **A window's members answer it wherever
-  they are strictly smaller than the whole digest** (#357), paged or not, under the budget or over it: the
+  than digested; a whole read on the same line keeps its whole digest. **A shell window's members answer it wherever
+  they are strictly smaller than the whole digest** (#357; a `Read` window is never answered with members, and where the whole digest does not stand in for it, it is withheld `notSmaller`), paged or not, under the budget or over it: the
   digest answers a question about the file, the members the one the window asked. Alone on its line, the
   members answer has to be smaller both as listed and as the whole refusal the caller reads, framing and note
   included, so two answers differing in their notes alone, or tied, keep the whole digest; a line of several
@@ -7605,6 +7681,34 @@ doubled invocation of a possibly long command *and* the credibility of the next 
   asked of the offered call's own targets, not of the tree the caller stands in (`digest View` names a symbol
   and resolves out of the caller's own index; `digest /notes/Plan.md` can be answered nowhere), and only of a
   path that exists. A document outside any checkout, such as a vault note or a rule file, is the everyday case.
+
+**A variable the line itself assigns is read as its value, only to judge and record the line; one it does not
+is never read as a path.** A plain assignment statement `NAME=value` binds NAME for the statements after it on
+the same Bash line: its own statement, at the top of the line (in no subshell, group, loop or other compound
+command, and not run in the background), reached unconditionally (no `&&` or `||` just before it), and its
+value one literal word, quoted or not, holding no blank (bash splits an unquoted use of `F='a b'` and zsh does
+not), no `$`, backtick, backslash, glob character or `~` other than a leading `~/` (expanded as the shell
+expands it, where unquoted). Only a use in a top-level statement is substituted: a later `$NAME` or `${NAME}`,
+unquoted or inside double quotes, in a statement at the top of the line and outside every `( … )`, `$( … )`,
+backtick, `{ …; }`, function body and compound command (if, for, while, until, case, select), is replaced by
+that value before the line is judged or recorded (`ShellVariables`), single-quoted where it holds a character
+the shell would read again; a use anywhere else stays unexpanded, records nothing and keeps the verdict it had.
+So `F=Sources/Depot.swift; cat $F` is judged exactly as `cat Sources/Depot.swift` is, and `R=/repo; swift-sure
+digest --root $R Depot` files its digest under `/repo`. Nothing else binds: a prefix assignment (`NAME=v cmd`),
+an assignment off the top or in a pipeline, and a value that is not one literal word (`F=$(ls)`). Any `NAME=`
+or `NAME+=` word anywhere else on the line, a subshell, substitution or function body included (matched after
+`(`, `{`, `$(`, a backtick, `;` or a blank), and a `for` or `select` naming NAME, unbinds NAME from that point
+on, and also for every use before it inside the same compound (at the top, its own statement). A line holding anything that can assign without a plain `NAME=`
+word binds nothing at all: `eval`, `source`, `.` as a command, `printf -v`, `read`, `declare`, `typeset`,
+`local`, `export`, `readonly`, `mapfile`, `readarray`, `getopts`, `unset`, `let`, `((`, an assignment to `IFS`
+anywhere, and the like (`${NAME:=v}`, a command named by an expansion). No other parameter expansion form is
+read. **The expansion is never handed back**: every command the hook emits (the build's in-place rewrite, the
+wrapping a refusal names, an amended input) is built from the line exactly as written, so `D=build; rm -rf $D;
+swift test` is rewritten to `D=build; rm -rf $D; swift-sure run -- swift test`, and a build is judged a build
+only where the line as written is one. A word still holding an expansion after that (an unbound `$NAME`, `$1`,
+`${NAME:-x}`) is never resolved to a path: a Bash digest whose `--root` or target holds one is recorded in no
+ledger, where it once filed a digest under the directory the call ran from with `$R` appended, and the line
+keeps the verdict it had before (an operand the hook cannot read is no lookup of a file).
 
 **A rule that withholds a suggestion the metric would still count must be asked by the metric too, or the
 number stops meaning anything.** A search the hook declines to claim it could serve, still counted as a

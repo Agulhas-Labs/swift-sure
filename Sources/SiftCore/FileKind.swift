@@ -6,6 +6,8 @@
 enum FileKind: Int, Comparable {
     /// `stat` cannot read the file.
     case deleted
+    /// `stat` cannot read the file, and a build without cleaning keeps its record: it lies inside the root, was dropped at or before the build, and a unit on disk still names it (``KeptDeletions``).
+    case keptDeletion
     /// A store holds a unit for the file, and it changed after its newest one.
     case changed
     /// No store holds a unit for the file, its module is one a build of the store's project compiles, and it changed after the store's newest unit.
@@ -19,10 +21,16 @@ enum FileKind: Int, Comparable {
         lhs.rawValue < rhs.rawValue
     }
 
+    /// Whether the file is gone from the tree, whether or not a build keeps its record.
+    var isDeleted: Bool {
+        self == .deleted || self == .keptDeletion
+    }
+
     /// The axis state a row in a file of this kind takes.
     var occurrenceState: OccurrenceState {
         switch self {
         case .deleted: .deleted
+        case .keptDeletion: .keptDeletion
         case .changed, .new: .modifiedSinceBuild
         case .notBuilt, .current: .live
         }

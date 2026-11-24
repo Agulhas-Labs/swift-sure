@@ -59,7 +59,25 @@ struct SearchRenderer {
                 lines.append("… truncated: \(remaining) more matches — pass offset \(next)")
             }
         }
+        if selectsByNameOnly(query), page.count > narrowingThreshold {
+            lines.append(narrowingLine)
+        }
         return withClause(lines, query: query)
+    }
+
+    /// Declarations listed on the page past which an answer to a query selecting by `name:` alone ends with ``narrowingLine``.
+    static var narrowingThreshold: Int {
+        20
+    }
+
+    /// The one line that ends a long answer to a name-only query, naming the fields that narrow it.
+    static var narrowingLine: String {
+        "narrow with kind:, modifier: or owner:"
+    }
+
+    /// Whether `name:` is the query's only selecting field, a `path:` beside it not counting as another.
+    private static func selectsByNameOnly(_ query: StructuralQuery) -> Bool {
+        query.terms.contains { $0.field == .name } && query.terms.allSatisfy { $0.field == .name || $0.field == .path }
     }
 
     /// `lines` joined, ending in the clause on what `calls:` and `uses:` match when the query has such a term, empty answer or not, and on no other search answer.

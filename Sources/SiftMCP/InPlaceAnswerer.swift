@@ -604,8 +604,8 @@ private extension InPlaceAnswerer {
                   let members = try FileDigestParts.windowAnswers(path, windows: windows, in: directory, engine: engine, spelling: spelling)
             else {
                 // A window with no members to stand in, one that prints no lines, is still weighed on its own.
-                if case .fileDigest = call, let whole = part.calls.first, whole.weighsWindow, whole.served >= whole.source ?? 0 || !whole.standsInForWindow {
-                    return .withheld(whole.standsInForWindow ? .notSmaller : .notExact)
+                if case let .fileDigest(_, windows) = call, let whole = part.calls.first, whole.weighsWindow, whole.served >= whole.source ?? 0 || !whole.standsInForWindow {
+                    return .withheld(whole.standsInForWindow || windows.allSatisfy(\.isReadTool) ? .notSmaller : .notExact)
                 }
                 parts.append(part)
                 boundedParts.append(part)

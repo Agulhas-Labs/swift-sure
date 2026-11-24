@@ -133,11 +133,11 @@ struct WindowWholeReadWorthTests {
 
     // MARK: - The share of the file
 
-    /// A file of exactly 100 lines on disk, so the share a window prints is its line count in hundredths.
+    /// A file of exactly 100 lines on disk, so the share a window prints is its line count in hundredths, every line code, so no window of it is folded.
     private static func hundredLineFile() throws -> URL {
         let directory = try TemporaryDirectory.make("window-worth")
         let file = directory.appendingPathComponent("Depot.swift")
-        try ((1 ... 100).map { "// line \($0)" }.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+        try ((1 ... 100).map { "let line\($0) = \($0)" }.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
         return file
     }
 
@@ -222,7 +222,7 @@ struct WindowWholeReadWorthTests {
 
         let verdict = try await Self.decide({ Self.payload(command, in: root) }, in: root)
 
-        #expect(verdict.hasPrefix("in-place"), "\(verdict)")
+        #expect(command.hasPrefix("read:") ? verdict == "allowed\t\tnotSmaller" : verdict.hasPrefix("in-place"), "\(verdict)")
     }
 
     /// A nested file whose whole read is let through on worth lets its covering windows through too.
@@ -232,7 +232,7 @@ struct WindowWholeReadWorthTests {
 
         let verdict = try await Self.decide({ Self.payload(command, in: root) }, in: root)
 
-        #expect(verdict == "allowed\t\tnotWorthTheTurn", "\(verdict)")
+        #expect(verdict == (command.hasPrefix("read:") ? "allowed\t\tnotSmaller" : "allowed\t\tnotWorthTheTurn"), "\(verdict)")
     }
 
     /// A shell window of the same nested file is not weighed as a whole read: a window with nothing to fold is let through as `notSmaller`, and a several-range script as `notExact`.
@@ -334,12 +334,12 @@ struct WindowWholeReadWorthTests {
         #expect(Self.ruled(window) == Self.ruled(whole), "\(window)")
     }
 
-    /// Stepped across the context at which the whole read's margin crosses zero, from what `cat` is served, every covering window gets `cat`'s verdict at every step — on a file served its cut page and one whose whole digest fits the budget, its windows answered with members — and the steps reach both verdicts.
+    /// Stepped across the context at which the whole read's margin crosses zero, from what `cat` is served, every covering window of a file served its cut page gets `cat`'s verdict at every step, and every `Read` window of a file whose whole digest fits the budget is withheld as not smaller at every step, since its members answer is never served — and the steps reach both verdicts of `cat`.
     @Test(arguments: [
-        (true, ["read:Sources/App/Cut.swift:1:390", "read:Sources/App/Cut.swift:4:387"]),
-        (false, ["read:Sources/App/Depot.swift:3:198", "read:Sources/App/Depot.swift:3:198"]),
+        (true, ["read:Sources/App/Cut.swift:1:390", "read:Sources/App/Cut.swift:4:387"], nil),
+        (false, ["read:Sources/App/Depot.swift:3:198"], "allowed\t\tnotSmaller"),
     ])
-    func everyCoveringWindowAgreesWithTheWholeReadAcrossTheMargin(aboveBudget: Bool, windows: [String]) async throws {
+    func everyCoveringWindowAgreesWithTheWholeReadAcrossTheMargin(aboveBudget: Bool, windows: [String], windowVerdict: String?) async throws {
         let root = try await aboveBudget ? Self.cutRepository() : Self.nestedRepository(inner: 12, padding: 710)
         let whole = "cat " + (aboveBudget ? Self.cutPath : "Sources/App/Depot.swift")
         let answered = try await Self.answered(whole, in: root)
@@ -355,7 +355,7 @@ struct WindowWholeReadWorthTests {
             seen.insert(expected)
             for window in windows {
                 let verdict = try await Self.ruled(Self.decide({ Self.payload(window, in: root, context: context) }, in: root))
-                #expect(verdict == expected, "\(window) at \(context) tokens: \(verdict), \(whole): \(expected)")
+                #expect(verdict == (windowVerdict ?? expected), "\(window) at \(context) tokens: \(verdict), \(whole): \(expected)")
             }
         }
 

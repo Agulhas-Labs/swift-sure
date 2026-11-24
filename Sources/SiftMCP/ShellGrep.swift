@@ -7,7 +7,7 @@ import SiftCore
 
 /// A `grep` command read for everything that decides which lines it prints, and run in-process over the same files — the proof an in-place answer rests on (``InPlaceAnswerer``).
 ///
-/// **Read narrowly, run exactly, and undecided wherever exactness is out of reach.** The reading takes the pattern, the flags that change which lines match (`-E`, `-F`, `-i`, `-w`, `-x`), the flags that change nothing about which lines print (`-n`, `-H`, `-h`, `-s`, `-I`, recursion), a context count, an `--include=*.swift` beside a recursion, and a `head`, a `tail` or a one-range `sed -n` window cutting the output; any other flag reads as nothing. The run then works out the printed lines the way grep does — context groups with their `--` separators, the cut applied to what was printed — and reports the search undecided wherever it cannot be sure: a pattern outside the common core (``GrepPattern``), a line the locale decides, a file that is not text to every grep alike, a line ending in a carriage return or a first line opening on a byte-order mark where either changes its match, a symbolic link, a file or a directory it cannot read, a tree too large to read inside the budget, or a cut across several files, whose order grep does not fix.
+/// **Read narrowly, run exactly, and undecided wherever exactness is out of reach.** The reading takes the pattern, the flags that change which lines match (`-E`, `-F`, `-i`, `-w`, `-x`), the flags that change nothing about which lines print (`-n`, `-H`, `-h`, `-s`, `-I`, recursion), a context count, an `--include=*.swift` beside a recursion, an `--exclude-dir=<plain name>` or `--exclude=*.<ext>` (a sweep narrowed by them is judged as the same sweep without those files), and a `head`, a `tail` or a one-range `sed -n` window cutting the output; any other flag reads as nothing. The run then works out the printed lines the way grep does — context groups with their `--` separators, the cut applied to what was printed — and reports the search undecided wherever it cannot be sure: a pattern outside the common core (``GrepPattern``), a line the locale decides, a file that is not text to every grep alike, a line ending in a carriage return or a first line opening on a byte-order mark where either changes its match, a symbolic link, a file or a directory it cannot read, a tree too large to read inside the budget, or a cut across several files, whose order grep does not fix.
 ///
 /// **The grep a shell runs is not always the same program.** Claude Code's shell runs `ugrep` behind a function named `grep`, and other shells run the system's own; the two read a file differently where it holds a NUL, opens on a byte-order mark for UTF-16 or UTF-32 — which `ugrep` decodes and prints and the system grep reads as binary — or opens on a UTF-8 byte-order mark, which `ugrep` strips and the system grep reads as text. A byte-order mark for UTF-16 or UTF-32, either endianness of either (``decodedByteOrderMarks``), is undecided before anything else is asked of it, whether or not it holds the pattern as plain bytes, since a different reading of it could still find the pattern there; a NUL with no such mark is undecided only once the bytes as written could hold the pattern at all, and a first line of the UTF-8 kind is decided with and without the mark.
 ///
@@ -20,6 +20,8 @@ public struct ShellGrep: Equatable, Sendable {
     var paths: [String] = []
     var recursive = false
     var swiftOnly = false
+    /// The directories and extensions the search is told to leave out, which the walk leaves out as the real search does.
+    var excludes = GrepExcludes()
     var before = 0
     var after = 0
     var cut: Cut?
@@ -93,7 +95,7 @@ public struct ShellGrep: Equatable, Sendable {
             }
             index += 1
         }
-        guard sawPattern, !pattern.isEmpty else { return nil }
+        guard sawPattern, !pattern.isEmpty, excludes.isSafe(recursive: recursive, operands: paths) else { return nil }
         spellsDeclarationVocabulary = DeclarationVocabularyGrep.accepts(arguments)
         // A recursive search given no path walks the working directory as it would the operand `.`, under `ugrep`
         // and the system grep alike. `ugrep` reads its standard input as well, which adds no line only because the
@@ -141,6 +143,10 @@ public struct ShellGrep: Equatable, Sendable {
             default: break
             }
             return 1
+        }
+        if name == "--exclude" || name == "--exclude-dir" {
+            guard excludes.read(name, value: parts.count == 2 ? parts[1] : next) else { return nil }
+            return parts.count == 2 ? 1 : 2
         }
         guard name == "--include" else { return nil }
         let value = parts.count == 2 ? parts[1] : next
@@ -361,12 +367,12 @@ public extension ShellGrep {
                 files.append(absolute)
                 names[absolute] = path
             case .directory where recursive:
-                switch Self.files(under: absolute, swiftOnly: swiftOnly, skipping: program.skippedDirectories, ignoreScope: ignoreScope ?? program.ignoreScope, stopsAt: stopsAt) {
+                switch Self.files(under: absolute, swiftOnly: swiftOnly, skipping: program.skippedDirectories.union(excludes.directories), ignoreScope: ignoreScope ?? program.ignoreScope, stopsAt: stopsAt) {
                 case let .found(walk):
                     // The walk spells a path as the file system does (`/private/var` for `/var`), so what lies below
                     // the operand is cut from whichever spelling of it the path opens on.
                     let roots = [absolute, Self.resolved(absolute)].map { $0.hasSuffix("/") ? $0 : $0 + "/" }
-                    let found = walk.filter {
+                    let found = excludes.keeping(walk).filter {
                         let root = roots.first(where: $0.hasPrefix) ?? roots[0]
                         guard Self.isSiftStoreFile($0, below: root) else { return true }
                         return !skipsCache && (program == .system || !Self.opensBinary($0))
@@ -530,6 +536,7 @@ public extension ShellGrep {
     /// A glob is expanded as the shell expands it before grep runs, sorted and without hidden names, and read from disk now; a file searched recursively is searched as itself, which is what every grep does with a file operand under `-r`.
     func namedFiles(in directory: String?) -> [String]? {
         var files: [String] = []
+        guard excludes.isEmpty else { return nil }
         for path in paths {
             guard let absolute = Self.absolute(path, in: directory),
                   let expanded = SearchOperand(path: absolute).isGlob ? Self.expanded(absolute) : [absolute]

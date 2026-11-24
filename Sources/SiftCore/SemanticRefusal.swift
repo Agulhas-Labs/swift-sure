@@ -32,7 +32,7 @@ extension SemanticRefusal {
 
     /// The refusal for `row`, a declaration `holder` resolves in its indexed `file`, where that file is changed or gone since its own build (`kind`); `nil` where it is not.
     static func changed(_ row: SymbolRow, symbol: String, file: FileRow?, kind fileKind: FileKind, holder: SemanticStore, rootFlag: String) -> SemanticRefusal? {
-        guard fileKind == .changed || fileKind == .deleted else { return nil }
+        guard fileKind == .changed || fileKind.isDeleted else { return nil }
         let rebuild = Rebuild.skipping(row.module, changedAt: file?.mtime ?? 0, holder: holder)
             ?? Rebuild(provenance: holder.provenance, package: holder.package, rootFlag: rootFlag, imports: file?.imports ?? [])
         return SemanticRefusal(path: row.path, reason: .modifiedSinceBuild, symbol: symbol, kind: row.kind, rebuild: rebuild)
@@ -111,7 +111,7 @@ extension SemanticRefusal {
                 return .outsidePackage("\(clause) (\(outside.joined(separator: ", ")))")
             }
             switch file {
-            case .changed, .deleted: return .modifiedSinceBuild
+            case .changed, .deleted, .keptDeletion: return .modifiedSinceBuild
             case .new: return .newSinceBuild
             case .notBuilt, .current: break
             }

@@ -91,7 +91,7 @@ The server exposes only the query tools (`digest`, `where`, `search`, `strings`)
 
 **Guardrails on every change.** The lookup hooks also check what the agent is about to do. A whole-file `Read` of a big Swift
 file (about 12 KB and up in a typical 45k-token context, rising to about 20 KB by 120k; the line moves with the digest's size and the context) comes back as its digest,
-and a smaller one is read as asked; an edit that leaves a `.swift` file unparseable comes straight back with its
+and a smaller one is read as asked; an Edit or Write that leaves a `.swift` file unparseable (so does a `Bash` call that leaves one unparseable, such as `sed -i`) comes straight back with its
 errors; a bare `swift test` is pointed at `swift-sure run`. Asked by hand what the hook does with that command
 in an auto-mode session (`swift-sure pre-tool-use --command 'swift test' --permission-mode auto --verdict`), it prints one line:
 
@@ -107,8 +107,11 @@ The hook rules and what Cursor does differently are in [the guide](Docs/Guide.md
 brew install agulhas-labs/tap/swift-sure
 swift-sure install      # finds Claude Code, Cursor and Codex, asks once for each; the full set
 swift-sure doctor       # proves each agent runs what the install wrote
-swift-sure run -- swift build
+swift-sure run -- swift build --build-tests
 ```
+
+From a release tarball instead, the first command in the unpacked bundle is `sh install.sh`, which registers Claude Code only;
+`swift-sure install` afterwards covers Cursor and Codex too ([INSTALL.md](Distribution/INSTALL.md)).
 
 Then start a new agent session. The install is one per machine: the hooks apply in every project for that agent.
 For the build and test hooks only (no MCP server, rule, session primer or lookup hooks), `swift-sure install --run-only`;

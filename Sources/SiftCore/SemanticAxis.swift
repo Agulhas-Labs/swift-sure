@@ -28,8 +28,12 @@ public enum SemanticAxis: Sendable {
     case openFailed
     /// A semantic query ran, every declaration it answered for predates the store's newest unit, and so does every file the answer cites.
     case fresh
+    /// A semantic query opened the store and the name asked for is in none of its declarations: nothing the answer cites can differ from its build, so the store is as `fresh` says, and the name is not in it.
+    case nameNotInStore
     /// A semantic query ran and the store no longer matches the tree: the files it cited that were written since their own build (a declaring file among them refuses outright), are gone from the tree, or are new to it, each counted once under its worse kind.
-    case stale(StaleFiles)
+    ///
+    /// `kept` is the query's reading of a store a rebuild cannot clear: every file counted is a cited deletion a build without cleaning keeps, no refusal counted it, and no `partial` clause applies. It renders `stale until a clean build`, as ``staleByFileState(_:kept:)`` does.
+    case stale(StaleFiles, kept: Bool = false)
     /// No store was opened, and file state alone says the tree has moved past the last build: indexed files written since it are counted changed, and files this index dropped since it that are still gone are counted deleted.
     ///
     /// `status`'s reading of ``stale(_:)``, rendered in the same form. A query knows the store still cites each deleted file, because it read the occurrence; this reading never opened the store, so it cannot say the store holds anything in the file — only that the file was here and is not now (Docs/AnswerContract.md §8).
@@ -53,7 +57,8 @@ public enum SemanticAxis: Sendable {
         case .warming: "warming (index store still loading — ask again shortly)"
         case .openFailed: "none (index store found but failed to open)"
         case .fresh: "fresh"
-        case let .stale(files): "stale since last build (\(files.rendered(cited: true)))"
+        case .nameNotInStore: "fresh, name not in the store"
+        case let .stale(files, kept): "stale \(kept ? "until a clean build" : "since last build") (\(files.rendered(cited: true)))"
         case let .staleByFileState(files, kept): "stale \(kept ? "until a clean build" : "since last build") (\(files.rendered(cited: false)))"
         case let .unresolved(symbols): "fresh, \(symbols) declaration\(symbols == 1 ? "" : "s") not found in the store"
         case let .partial(testFiles, targets):
@@ -112,7 +117,10 @@ public enum SemanticAxis: Sendable {
     static func of(refusals: [SemanticRefusal], occurrences judges: [OccurrenceFreshness], testFilesWithoutUnit: Int = 0, targetsNotBuilt: TargetsNotBuilt = .empty, listedByName: [String: FileKind] = [:]) -> SemanticAxis {
         let counted = countedFiles(refusals: refusals, occurrences: judges, listedByName: listedByName)
         if !counted.isEmpty {
-            return .stale(StaleFiles(counted))
+            let refused = Set(refusals.filter(\.reason.isStale).map(\.path))
+            let partial = testFilesWithoutUnit > 0 || !targetsNotBuilt.isEmpty
+            let kept = !partial && counted.allSatisfy { $0.value == .keptDeletion && !refused.contains($0.key) }
+            return .stale(StaleFiles(counted), kept: kept)
         }
         if testFilesWithoutUnit > 0 || !targetsNotBuilt.isEmpty {
             return .partial(testFiles: testFilesWithoutUnit, targets: targetsNotBuilt)
@@ -127,7 +135,7 @@ public enum SemanticAxis: Sendable {
         return unresolved == 0 ? .fresh : .unresolved(symbols: unresolved)
     }
 
-    /// Each file a verdict over its refusals, judges and by-name files counts stale, under the worse of the kinds it was found to be (deleted, then changed, then new), so a file two stores cite is counted once.
+    /// Each file a verdict over its refusals, judges and by-name files counts stale, under the worse of the kinds it was found to be (deleted, then a deletion a build keeps, then changed, then new), so a file two stores cite is counted once.
     static func countedFiles(refusals: [SemanticRefusal], occurrences judges: [OccurrenceFreshness], listedByName: [String: FileKind] = [:]) -> [String: FileKind] {
         var counted: [String: FileKind] = [:]
         func count(_ path: String, _ kind: FileKind) {
@@ -142,6 +150,7 @@ public enum SemanticAxis: Sendable {
         }
         for judge in judges {
             judge.deletedFiles.forEach { count($0, .deleted) }
+            judge.keptDeletedFiles.forEach { count($0, .keptDeletion) }
             judge.modifiedFiles.forEach { count($0, .changed) }
             judge.newFiles.forEach { count($0, .new) }
         }

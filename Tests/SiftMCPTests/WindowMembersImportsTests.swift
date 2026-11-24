@@ -67,6 +67,11 @@ struct WindowMembersImportsTests {
             return
         }
 
+        guard spelling == .shell else {
+            #expect(answered.calls.map(\.target) == ["Sources/App/Imports.swift"])
+            return
+        }
+
         #expect(answered.calls.map(\.target) == ["Sources/App/Imports.swift:43-80"])
         #expect(answered.reason.contains("func step3() -> Int  :74-88"))
         #expect(answered.reason.contains(FileDigestParts.larger))

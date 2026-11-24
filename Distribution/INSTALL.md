@@ -6,7 +6,7 @@ measured cases it was a median 89% fewer bytes and every failure was located). T
 when grep is too noisy (callers, read and write sites, reference sweeps,
 structural search, string-catalog tracing) as an MCP stdio server, with hooks that answer a big file's whole read
 (about 12 KB and up in a typical 45k-token context, rising to about 20 KB by 120k; smaller files are read as asked)
-with its digest and check every edit parses. The default install is both. The index adds about 1.2k tokens of tool
+with its digest and check that every Edit or Write tool edit parses (a `Bash` call that leaves a Swift file unparseable, such as `sed -i`, is checked too). The default install is both. The index adds about 1.2k tokens of tool
 definitions to every session: on longer work in a large codebase it paid for itself (a pooled -9.5% over nine tasks on a
 private app), on short lookups it showed no detectable difference. `--run-only` installs the build and test side alone.
 
@@ -322,7 +322,7 @@ the full promise.
 **It dies instantly with no output (exit 137).** A new binary was copied over an installed one in
 place; see Install. Copy to a temporary name, then rename it over the old binary (new inode).
 
-**"no index store for this tree yet".** The semantic half needs a real build: `swift-sure run -- swift build`
+**"no index store for this tree yet".** The semantic half needs a real build: `swift-sure run -- swift build --build-tests`
 for a SwiftPM package, or `swift-sure run -- xcodebuild -scheme <Scheme> build` for a macOS project (add
 `-workspace <W>.xcworkspace` when there is one; a bare `xcodebuild build` with no scheme builds into
 `./build/` and is never discovered). An iOS project also needs a destination, or it targets a generic

@@ -19,8 +19,13 @@ struct InPlaceReparsedHeaderTests {
     }
 
     /// The fixture: `Depot` indexed at its commit, then `old` replaced by `new` behind the version control's back.
+    ///
+    /// `Alpha` is edited before the commit, so the index rewrites its rows after `Depot`'s whichever file the first build stored last: `Depot`'s rows are then not the store's newest, and rows written again for it are numbered afresh rather than given back the numbers they had.
     private static func editedRepository(replacing old: String, with new: String) async throws -> URL {
         let root = try await InPlaceAnswerTests.indexedRepository()
+        let alpha = root.appendingPathComponent("Sources/App/Alpha.swift")
+        try String(contentsOf: alpha, encoding: .utf8).replacingOccurrences(of: "func go() {}", with: "func go() {}\n    func stop() {}")
+            .write(to: alpha, atomically: true, encoding: .utf8)
         try MCPTestRepo.run(git: ["add", "-A"], in: root)
         try MCPTestRepo.run(git: ["commit", "-m", "depot", "--no-gpg-sign"], in: root)
         try MCPTestRepo.run(git: ["update-index", "--assume-unchanged", path], in: root)

@@ -81,9 +81,9 @@ struct FileDigestParts {
         return .fileDigest(path: path)
     }
 
-    /// The members each window on the file at `path` overlaps, one call per distinct run of lines — named `digest F.swift:a-b` and weighed against those lines — or `nil` where there are no windows, a window's lines cannot be read, or the index does not hold that file at exactly that path.
+    /// The members each window on the file at `path` overlaps, one call per distinct run of lines — named `digest F.swift:a-b` and weighed against those lines — or `nil` where there are no windows, every window is a `Read` tool's (a `Read` is never answered with members), a window's lines cannot be read, or the index does not hold that file at exactly that path.
     static func windowAnswers(_ path: String, windows: [LineWindow], in directory: String?, engine: SiftEngine, spelling: CallSpelling) throws -> [(call: ComputedCall, text: String)]? {
-        guard !windows.isEmpty,
+        guard !windows.isEmpty, !windows.allSatisfy(\.isReadTool),
               let file = try OperandFile.indexed(path, in: directory, engine: engine),
               let ranges = LineWindow.ranges(of: windows, in: file.lines, byteLengths: file.byteLengths), !ranges.isEmpty,
               let answers = try engine.membersAnswers(overlapping: ranges, inFile: file.relative, options: DigestOptions(spelling: spelling)),

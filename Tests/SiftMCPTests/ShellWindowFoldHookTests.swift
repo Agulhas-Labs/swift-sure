@@ -10,7 +10,7 @@ import Testing
 
 /// The hook answers a shell window of a file nothing in the context has located with the lines it prints, comment runs folded, or lets it through; never with a digest.
 ///
-/// A `Read` window and a window of a located file go the way they always did.
+/// A window of a located file goes the way it always did; a `Read` window is judged as its shell form (`ReadWindowFoldTests`).
 @Suite(.temporaryDirectories)
 struct ShellWindowFoldHookTests {
     /// The commented file's path in the repository.
@@ -216,18 +216,6 @@ struct ShellWindowFoldHookTests {
         #expect(decided.json == nil)
         #expect(decided.verdict.token == "allowed")
         #expect(decided.verdict.rule != "commentsFolded")
-    }
-
-    /// A `Read` window is not a shell window: it is never answered with the fold.
-    @Test
-    func aReadWindowIsNotFolded() async throws {
-        let root = try Self.repository()
-        let context = try Context()
-
-        let decided = try await Self.decide(tool: "Read", input: ["file_path": root.appendingPathComponent(Self.commented).path, "offset": 1, "limit": 120], in: root, context: context)
-
-        #expect(decided.verdict.rule != "commentsFolded")
-        #expect(decided.verdict.call?.hasPrefix("window ") != true)
     }
 
     /// A fold delivered as the hook's error result is scored as answered in place, as every in-place answer is.

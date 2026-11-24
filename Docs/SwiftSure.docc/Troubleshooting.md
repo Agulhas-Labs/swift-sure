@@ -20,7 +20,7 @@ tree: Shelf  head: ec26cde  dirty: 1  parse_errors: 0  semantic: stale since las
 declarations (1):
   Stacks.Library.count(for:) — func — public func count(for borrower: String) -> Int — Sources/Stacks/Library.swift:38-40
 
-semantic not used — changed since the last build; the answer below is by written name; rebuild with `swift-sure run -- swift build`, then retry
+semantic not used — changed since the last build; the answer below is by written name; rebuild with `swift-sure run -- swift build --build-tests`, then retry
 
 syntactic call sites — by written name over the working tree, never stale — see swift-sure help answers (call sites)
 
@@ -29,7 +29,7 @@ syntactic call sites — by written name over the working tree, never stale — 
     :20  in Library.lend(title:to:days:)  | guard count(for: borrower) < limit else {
 ```
 
-That is the contract working, not a bug. Build again with `swift-sure run -- swift build` and ask again. The
+That is the contract working, not a bug. Build again with `swift-sure run -- swift build --build-tests` and ask again. The
 declarations and the call sites by written name stay correct meanwhile, because an answer reparses the files
 you edited before it replies.
 

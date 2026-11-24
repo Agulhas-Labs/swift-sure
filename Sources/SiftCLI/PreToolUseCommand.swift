@@ -236,14 +236,14 @@ struct PreToolUseCommand: ParsableCommand {
             // where the reads were all there was.
             if let setAside {
                 let keys = Set(setAside.reading.statements.joined().compactMap { lookup.statementKeys[$0] }).union(lookup.usageLogHeldKeys)
-                guard let beside = Self.lookup(besideReads: keys, command: command, payload: payload, in: directory, context: context, ledger: ledger) else {
+                guard let beside = LookupClassifier.lookup(besideReads: keys, command: command, payload: payload, in: directory, context: context, ledger: ledger) else {
                     // A line of windows let through on what located their files is noted as a ranged read is; one held only because the context wrote the files notes nothing.
                     if setAside.rule == "noLookup" {
-                        notePass(ofWindows: setAside.reading.windowReads.filter { located($0.path, $0.windows) }, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
+                        LookupClassifier.notePass(ofWindows: setAside.reading.windowReads.filter { located($0.path, $0.windows) }, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
                     }
                     return (nil, Verdict(token: "allowed", rule: setAside.rule))
                 }
-                guard let asked = worthAsking(beside, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer) else {
+                guard let asked = LookupClassifier.worthAsking(beside, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer) else {
                     return (nil, Verdict(token: "allowed", rule: "noLookup"))
                 }
                 lookup = asked
@@ -256,14 +256,14 @@ struct PreToolUseCommand: ParsableCommand {
             let windows = lookup.readPath == nil ? [] : lookup.inPlace?.calls.first?.windows ?? []
             if everyReadLetThrough || !reads.isEmpty && reads.allSatisfy({ window ? located($0, windows) : DigestedFiles.isDigested($0, among: digests) }) {
                 guard everyReadLetThrough || !window else {
-                    notePass(ofWindows: reads.map { ($0, windows) }, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
+                    LookupClassifier.notePass(ofWindows: reads.map { ($0, windows) }, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
                     return (nil, Verdict(token: "allowed", rule: "noLookup"))
                 }
                 // The line is still let through for the read, but a lookup beside it — a grep whose output is filtered —
                 // goes through the gates it would meet alone and is logged under the rule that withholds it, so its miss
                 // is not hidden behind the read's. Its answer is never asked for: that would deny the read as well.
-                if let beside = Self.lookup(besideReadsOf: lookup, command: command, payload: payload, in: directory, allowed: { ledger.rerunsAllowed(session: context.key, among: $0) }) {
-                    _ = worthAsking(beside, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer)
+                if let beside = LookupClassifier.lookup(besideReadsOf: lookup, command: command, payload: payload, in: directory, allowed: { ledger.rerunsAllowed(session: context.key, among: $0) }) {
+                    _ = LookupClassifier.worthAsking(beside, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer)
                 }
                 guard everyWholeReadDigested else { return (nil, Verdict(token: "allowed", rule: "written")) }
                 suppressions.note(symbol: nil, directory: directory, rule: "alreadyDigested", call: payload["tool_use_id"] as? String)
@@ -428,7 +428,7 @@ struct PreToolUseCommand: ParsableCommand {
         allowed: ([String]) -> Set<String> = { _ in [] },
         folding: Bool = true
     ) -> Lookup? {
-        guard var lookup = classified(command: command, payload: payload, in: directory, allowed: allowed) else {
+        guard var lookup = LookupClassifier.classified(command: command, payload: payload, in: directory, allowed: allowed) else {
             // Three rules silence the hook without any suggestion ever being built, so they reach no other gate —
             // and no share counts what any lets through: a toolchain run is a write, and a search of another
             // revision's tree is no lookup at this end or the scan's. That leaves the fire rate as the only
@@ -450,7 +450,7 @@ struct PreToolUseCommand: ParsableCommand {
         // folded, or let through: never with a digest, so it passes every gate below, which weigh one.
         // The reading the line had before the fold rides along, its withholdings held back, for a line the ledger
         // turns out to locate.
-        if folding, let folded = ShellWindowHook.lookup(lookup, shell: shellText(command: command, payload: payload), in: directory, located: { ShellWindowHook.locatedByUsage($0, through: $1, payload: payload, digested: digested, resolve: resolve) }) {
+        if folding, let folded = ShellWindowHook.lookup(lookup, shell: ShellWindowHook.readWindowShell(payload: payload, in: directory) ?? shellText(command: command, payload: payload), in: directory, located: { ShellWindowHook.locatedByUsage($0, through: $1, payload: payload, digested: digested, resolve: resolve) }) {
             return ShellWindowHook.OrdinaryReading.carried(by: folded) { Self.lookup(command: command, payload: payload, in: directory, noting: $0, digested: digested, couldAnswer: couldAnswer, resolvingDigests: resolve, allowed: allowed, folding: false) }
         }
         // A whole read of a file this context has already had digested would be refused with the digest it was
@@ -491,10 +491,10 @@ struct PreToolUseCommand: ParsableCommand {
                     // and is no lookup only where the windows were all there was.
                     let windows = Set(inPlace.statements.joined().compactMap { lookup.statementKeys[$0] })
                     guard !windows.isEmpty,
-                          let beside = classified(command: command, payload: payload, in: directory, allowed: { allowed($0).union(windows) }),
+                          let beside = LookupClassifier.classified(command: command, payload: payload, in: directory, allowed: { allowed($0).union(windows) }),
                           !windows.contains(beside.key)
                     else {
-                        notePass(ofWindows: inPlace.windowReads, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
+                        LookupClassifier.notePass(ofWindows: inPlace.windowReads, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
                         return nil
                     }
                     lookup = beside
@@ -505,21 +505,21 @@ struct PreToolUseCommand: ParsableCommand {
                 // A ranged `Read`'s window is the one its answer would weigh; a shell line no answered shape covers has none read off it.
                 let windows = lookup.readPath == nil ? [] : lookup.inPlace?.calls.first?.windows ?? []
                 if !paths.isEmpty, paths.allSatisfy({ located($0, through: windows) }) {
-                    notePass(ofWindows: paths.map { ($0, windows) }, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
+                    LookupClassifier.notePass(ofWindows: paths.map { ($0, windows) }, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String)
                     return nil
                 }
             } else if case let paths = lookup.readPaths(from: directory), !paths.isEmpty, paths.allSatisfy(wholeDigest) {
                 // A whole `Read`, or a shell line whose reads are all of such files (`cat`, `cat A; echo done`), is let
                 // through as the ledger's held digest lets it; a lookup beside it is logged under the rule that
                 // withholds it, never answered, as there.
-                if let beside = Self.lookup(besideReadsOf: lookup, command: command, payload: payload, in: directory, allowed: allowed) {
-                    _ = worthAsking(beside, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer)
+                if let beside = LookupClassifier.lookup(besideReadsOf: lookup, command: command, payload: payload, in: directory, allowed: allowed) {
+                    _ = LookupClassifier.worthAsking(beside, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer)
                 }
                 suppressions.note(symbol: nil, directory: directory, rule: "alreadyDigested", call: payload["tool_use_id"] as? String)
                 return nil
             }
         }
-        guard let asked = worthAsking(lookup, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer) else {
+        guard let asked = LookupClassifier.worthAsking(lookup, in: directory, noting: suppressions, call: payload["tool_use_id"] as? String, couldAnswer: couldAnswer) else {
             return nil
         }
         // A whole read of a document the latest prompt names is a read the context was told to make, so the outline
@@ -548,6 +548,10 @@ struct PreToolUseCommand: ParsableCommand {
         ledger: AdviceLedger = .standard(),
         callers: CallAttribution = .standard()
     ) -> String? {
+        // What the line assigns itself is read as its value before anything is recorded of it; the amendment below
+        // hands the input back, so it starts from the input as written.
+        let writtenInput = payload["tool_input"] as? [String: Any] ?? [:]
+        let (payload, command) = ShellVariables.expanding(payload: payload, command: command)
         let input = payload["tool_input"] as? [String: Any] ?? [:]
         ledger.noteIndexCall(
             session: context.key,
@@ -562,7 +566,7 @@ struct PreToolUseCommand: ParsableCommand {
         noteCaller(session: session, payload: payload, command: command, into: callers)
         guard let amended = CallerRoot.amendment(
             toolName: payload["tool_name"] as? String,
-            input: input,
+            input: writtenInput,
             cwd: directory,
             serverDirectory: serverDirectory
         ) else {
@@ -694,11 +698,15 @@ extension PreToolUseCommand {
         agent: HookAgent = .claude,
         couldAnswer: (String, String?) -> Bool = { AdvisableName.couldAnswer($0, from: $1) }
     ) -> (json: String?, verdict: Verdict) {
+        // What the line assigns itself is read as its value before the line is judged or recorded; a build, whose
+        // wrapping or refusal hands a command back, is read from the line as written.
+        let written = (payload: payload, command: command)
+        let (payload, command) = ShellVariables.expanding(payload: payload, command: command)
         let decision = { () -> (json: String?, verdict: Verdict) in
             let noted = NotedRule()
             let log = SuppressionLog(fileURL: suppressions, noted: noted.record)
             let letThrough = { Verdict(token: "allowed", rule: noted.last ?? "noLookup") }
-            guard let lookup = lookup(
+            guard var lookup = lookup(
                 command: command,
                 payload: payload,
                 in: directory,
@@ -711,12 +719,17 @@ extension PreToolUseCommand {
                 }
                 return (nil, letThrough())
             }
+            let isRun = lookup.rule == "RunAdvice"
+            if isRun, let line = shellText(command: written.command, payload: written.payload), line != shellText(command: command, payload: payload) {
+                guard let run = LookupClassifier.runLookup(line) else { return (nil, letThrough()) }
+                lookup = run
+            }
             let decided = outcome(
                 to: lookup,
                 session: session,
                 context: context,
-                payload: payload,
-                command: command,
+                payload: isRun ? written.payload : payload,
+                command: isRun ? written.command : command,
                 cwd: directory,
                 ledger: ledger,
                 usage: usage,
@@ -741,7 +754,7 @@ extension PreToolUseCommand {
     /// Whether `target` — a path an offered `digest` would be answered by reading — sits where no root can be resolved for it.
     ///
     /// The file has to be there before the tree it sits in is anybody's claim: a target naming no file is a read that fails on its own, and a hook that withheld on it would be judging a tree it never found. Resolved against the call's own working directory exactly as ``SiftMCP/RepositoryIndex`` resolves the same path, so a repo-relative target is asked about where the caller stands and not where this process was started.
-    private static func cannotBeRooted(_ target: String, in directory: String?) -> Bool {
+    static func cannotBeRooted(_ target: String, in directory: String?) -> Bool {
         guard let resolved = SwiftTree.resolve(target, relativeTo: directory),
               FileManager.default.fileExists(atPath: resolved) else { return false }
         return RepositoryIndex.isRootless(for: resolved)
@@ -806,230 +819,6 @@ extension PreToolUseCommand {
         let documents = leg.calls.filter { $0.shape == .outline }.count
         let kind = what == "search" || documents == 0 ? "Swift " : documents == leg.calls.count ? "Markdown " : ""
         return HookOutput.preToolUseContext("\(ProductName.current.binary): the \(kind)\(what) on this line is answered by \(named) — put that on the line in place of the \(what)\(HeldReadsClause.text(for: leg.heldReads)).")
-    }
-
-    /// `lookup`, where the index could have served it with a call that can be made, or `nil` where a rule withholds it, logged under that rule and against `call`, the judged call's `tool_use_id`.
-    private static func worthAsking(
-        _ lookup: Lookup,
-        in directory: String?,
-        noting suppressions: SuppressionLog,
-        call: String?,
-        couldAnswer: (String, String?) -> Bool = { AdvisableName.couldAnswer($0, from: $1) }
-    ) -> Lookup? {
-        // The advisor built a suggestion because the miss is real and the metric must go on counting it;
-        // what this adds is that the index could not have served *this* question — a count, a sweep whose
-        // pattern names nothing, prose on one file, a literal, a merge's markers, a tree no index holds
-        // (`TextSearch`). Withheld here rather than in the advisor so that both ends still answer together,
-        // and logged under the rule that decided, like every other withholding.
-        if let reason = lookup.textSearch {
-            suppressions.note(symbol: lookup.suggestion.symbol, directory: directory, rule: reason.rawValue, call: call)
-            return nil
-        }
-        // A refusal has to offer a call that can be made, and a bare `search` asks the caller to write the query
-        // the advisor could not. It is built only where no index call answers the lookup — a phrase of ordinary
-        // words, or an alternation with one in it (`SweepPattern`) — so the scan scores it out of the share on the
-        // same property, and the two ends still agree.
-        if !lookup.suggestion.namesATarget {
-            suppressions.note(symbol: nil, directory: directory, rule: "untargeted", call: call)
-            return nil
-        }
-        // Several names are one `where` per name of an alternation — as many questions as the caller asked — and
-        // a `where` for a name no index declares answers "no symbol named". So the ask is answered whole or not
-        // at all: where any of the names is undeclared the hook says nothing and the search runs
-        // (`partlyDeclared`). Offering the declared subset instead would answer a question nobody asked, and
-        // silently — the caller wanted every branch, and the narrowing appears nowhere in the refusal. Staying
-        // quiet costs nothing, because the search the advice would have interrupted simply goes through; wrong
-        // advice is the expensive failure here, not a missed nudge. One file's digest standing on several names
-        // (`IndexSuggestion.forSearch`) is not that shape and would not be narrowed here: it answers for the file
-        // whatever the names are, so one declared name among them would be enough. Nothing reaches this gate in
-        // that shape, though — an alternation confined to the files it names is withheld a rule earlier, on the
-        // price of the offer rather than on the names (`TextSearch.Reason.severalNames`). The scan asks the same
-        // of both.
-        let symbols = lookup.suggestion.symbols
-        if !symbols.isEmpty {
-            let declared = symbols.filter { couldAnswer($0, directory) }
-            guard !declared.isEmpty else {
-                suppressions.note(symbol: symbols.joined(separator: " "), directory: directory, rule: "unknownName", call: call)
-                return nil
-            }
-            if lookup.suggestion.isOneCallPerName, declared.count < symbols.count {
-                suppressions.note(symbol: symbols.joined(separator: " "), directory: directory, rule: "partlyDeclared", call: call)
-                return nil
-            }
-        }
-        // No repository, no root: the one tree rule (``SiftMCP/RepositoryIndex/isRootless(for:relativeTo:)``),
-        // and the general form of the invariant every advisor states — a refusal has to offer a call that can
-        // be made. An unindexed checkout can answer the offered call, because the call indexes it on the way —
-        // measured in tenths of a second, and bounded by the hook's own time budget rather than by a gate
-        // here. A path standing outside every repository never can, because a call naming a *path* is answered
-        // by reading that exact path under a root, and a path with no repository above it resolves none. The
-        // answer is `… is in no repository to root at — read it directly`, so the refusal would deny the read
-        // and then charge a whole context re-send to ask for it.
-        //
-        // Asked of the call's own targets rather than of the lookup's anchor, which is what keeps it a claim
-        // about the offer: `digest View` names a symbol and is answered out of whatever index the caller's own
-        // root resolves to, wherever the file read happened to sit, while `digest /notes/Plan.md` can be
-        // answered nowhere. A document is the everyday case, since a `.md` target is always its own path —
-        // vault notes, rule files, a plan in a home directory — and the Swift analogue is the same rule.
-        //
-        // The rule takes nothing out of the share: the lookup still went around an index that could have held
-        // it, and the scan goes on counting it. What it decides is only whether the hook spends a turn.
-        //
-        // Asked only of a path that is *there*. The claim is about the tree a file sits in, and a path naming no
-        // file names no tree to make it about — the read is about to fail on its own, and withholding on a
-        // judgement the disk cannot support is the one direction this rule must not err in. It is the same
-        // preference every gate here has on doubt: say nothing about what cannot be judged, refuse as before.
-        if lookup.suggestion.pathTargets.contains(where: { Self.cannotBeRooted($0, in: directory) }) {
-            suppressions.note(symbol: nil, directory: directory, rule: "noRepository", call: call)
-            return nil
-        }
-        // A whole read of a small document is let through: the outline would save a fraction of a read that
-        // small, and a wrong guess — the caller wanted the exact text — costs the outline, the file and a round
-        // trip over the whole context (``SiftMCP/ReadAdvice/isSmallDocument(_:)``). Asked last, so it is logged
-        // only where no other rule had already withheld the read.
-        if let path = lookup.readPath, ReadAdvice.isSmallDocument(path) {
-            suppressions.note(symbol: nil, directory: directory, rule: "smallDocument", call: call)
-            return nil
-        }
-        return lookup
-    }
-
-    /// Notes a call let through because what located each file it reads through a window excuses the window: `digestHeldWindow` where the windows print more than ``SiftMCP/ListedWindow/widestExcused`` lines of a file, which only its whole digest excuses, `locatedWindow` otherwise, and nothing where `reads` is empty.
-    ///
-    /// The pass is the loop working and no lookup, so no share counts it, which is why it is written down: the log is the only record of how often a located window, or a wide one after the whole digest, is read rather than answered.
-    private static func notePass(ofWindows reads: [(path: String, windows: [LineWindow])], in directory: String?, noting suppressions: SuppressionLog, call: String?) {
-        guard !reads.isEmpty else { return }
-        let rule = reads.contains { ListedWindow.isWide($0.windows, ofFileAt: $0.path) } ? "digestHeldWindow" : "locatedWindow"
-        suppressions.note(symbol: nil, directory: directory, rule: rule, call: call)
-    }
-
-    /// The lookup beside the reads `reading` let through — a grep whose output is filtered — classified with those reads and the re-runs `allowed` names allowed, or `nil` where the reads were all the line asked.
-    ///
-    /// Only ever logged under the rule that withholds it, never answered: an answer would deny the reads as well.
-    private static func lookup(besideReadsOf reading: Lookup, command: String?, payload: [String: Any], in directory: String?, allowed: ([String]) -> Set<String>) -> Lookup? {
-        let keys = Set(reading.inPlace?.statements.joined().compactMap { reading.statementKeys[$0] } ?? []).union(reading.usageLogHeldKeys)
-        guard !keys.isEmpty, let beside = classified(command: command, payload: payload, in: directory, allowed: { allowed($0).union(keys) }), !keys.contains(beside.key) else { return nil }
-        return beside
-    }
-
-    /// The line `command` or `payload` carries classified again with `keys` — the statements of reads this context already holds — allowed as re-runs beside the ledger's own, or `nil` where those reads were all it asked.
-    private static func lookup(besideReads keys: Set<String>, command: String?, payload: [String: Any], in directory: String?, context: AdviceContext, ledger: AdviceLedger) -> Lookup? {
-        guard !keys.isEmpty,
-              let beside = classified(command: command, payload: payload, in: directory, allowed: { ledger.rerunsAllowed(session: context.key, among: $0).union(keys) }),
-              !keys.contains(beside.key)
-        else { return nil }
-        return beside
-    }
-
-    /// The toolchain run a shell line `written` is, as the run advice reads it, or `nil` where it is none.
-    private static func runLookup(_ written: String) -> Lookup? {
-        guard let suggestion = RunAdvice.suggestion(for: written) else { return nil }
-        var run = Lookup(key: AdviceLedger.key(forShell: written), suggestion: suggestion, textSearch: nil, rule: "RunAdvice")
-        run.alsoReaching = RunAdvice.reachedPaths(of: written)
-        return run
-    }
-
-    private static func classified(
-        command: String?,
-        payload: [String: Any],
-        in directory: String? = nil,
-        allowed: ([String]) -> Set<String>
-    ) -> Lookup? {
-        let input = payload["tool_input"] as? [String: Any] ?? [:]
-        let tool = command == nil ? LookupTool.rule(for: payload["tool_name"] as? String ?? "") ?? "" : "Bash"
-
-        switch tool {
-        case "Bash":
-            guard let written = command ?? input["command"] as? String, !written.isEmpty else {
-                return nil
-            }
-            // A lookup is read as though a `tee` ending its pipeline were absent, since what reaches the context
-            // is the same; a toolchain run below is read as written, where a `tee` is the caller keeping a log.
-            let shellCommand = ShellInspection.withoutPassThroughTees(written)
-            // Built once and handed to both readings, so the tree is walked once per call rather than
-            // once per question asked about it.
-            let holdsSource = SwiftTree.probe(relativeTo: directory)
-            // Run mode reads the line for a build or test alone.
-            if isRunOnly {
-                return runLookup(written)
-            }
-            // A lookup first, and a toolchain run only if it was not one. They cannot both match — a
-            // `swift build` is a write to `ShellInspection` long before it could be a lookup — and asking
-            // in this order keeps that an invariant rather than a coincidence of two advisors' rules.
-            // A line of several lookups is about the first one the ledger has not already allowed: every fact
-            // below is drawn from that one, so a new lookup behind the re-run of an allowed one is advised on
-            // as itself; the allowed one still prints, so the line runs rather than being answered. The ledger is asked only where there is a choice to
-            // make, so a line of one lookup reads nothing more than it ever did.
-            let keys = ShellAdvice.lookupKeys(for: shellCommand, holdsSource: holdsSource)
-            let sanctioned = keys.count > 1 ? allowed(keys) : []
-            if let suggestion = ShellAdvice.suggestion(
-                for: shellCommand,
-                holdsSource: holdsSource,
-                directory: directory,
-                skipping: sanctioned
-            ) {
-                // The re-run this refusal promises is recognised by the reading stage alone — pattern, flags
-                // and paths — never by the whole line, so a retry that only changes what rides beside the
-                // grep is still the same ask. Falls back to the whole command only where the key could not
-                // be drawn from a stage, which `suggestion` having matched makes unreachable in practice.
-                let key = ShellAdvice.lookupKey(for: shellCommand, holdsSource: holdsSource, skipping: sanctioned)
-                    ?? AdviceLedger.key(forShell: shellCommand)
-                // The answer runs nothing, so it says what the `tee`s taken out above would have written was not.
-                let teed = ShellInspection.passThroughTeeFiles(written)
-                let inPlace = ServedReading.match(forShell: shellCommand, in: directory, holdsSource: holdsSource, skipping: sanctioned)
-                    .map { teed.isEmpty ? $0 : $0.teeing(teed) }
-                return Lookup(
-                    key: key,
-                    suggestion: suggestion,
-                    textSearch: ShellAdvice.textSearchReason(shellCommand, holdsSource: holdsSource, cwd: directory, skipping: sanctioned),
-                    searchPath: ShellAdvice.namedPath(for: shellCommand, holdsSource: holdsSource, skipping: sanctioned),
-                    inPlace: inPlace,
-                    rule: "ShellAdvice",
-                    isWindow: ShellAdvice.readsThroughAWindow(shellCommand, holdsSource: holdsSource, skipping: sanctioned),
-                    windowPaths: ShellAdvice.windowedReadPaths(shellCommand, holdsSource: holdsSource, cwd: directory),
-                    statementKeys: ServedReading.statementKeys(of: inPlace) { ShellAdvice.lookupKey(for: $0, holdsSource: holdsSource) }
-                )
-            }
-            return runLookup(written)
-        case "Grep", "Glob":
-            guard let suggestion = SearchToolAdvice.suggestion(tool: tool, input: input, in: directory) else {
-                return nil
-            }
-            // Keyed on the arguments that decide the answer, so the retry is recognised however the tool
-            // orders or defaults the rest.
-            let pattern = input["pattern"] as? String ?? ""
-            let path = input["path"] as? String ?? directory ?? ""
-            return Lookup(
-                key: "\(tool) \(pattern) \(path)",
-                suggestion: suggestion,
-                textSearch: SearchToolAdvice.textSearchReason(tool: tool, input: input, in: directory),
-                searchPath: (input["path"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                inPlace: InPlaceShape.match(forSearchTool: tool, input: input, in: directory),
-                rule: "SearchToolAdvice"
-            )
-        case "Read":
-            guard let path = LookupTool.readPath(in: input) else { return nil }
-            // The same reading of "ranged" the transcript scan uses: `limit` alone bounds a read too, and
-            // an explicit JSON null is not a range.
-            let ranged = input["offset"] is NSNumber || input["limit"] is NSNumber
-            // A ranged read of a Swift file is judged as the whole read is, and let through as no lookup once
-            // this context has located the file; a document's ranged read stays the advisor's to wave through.
-            let window = ranged && path.hasSuffix(".swift")
-            guard let suggestion = ReadAdvice.suggestion(path: path, ranged: ranged && !window) else { return nil }
-            // A read names a file outright, so of `TextSearch`'s rules only the one about where it points can
-            // reach it: a file in a tree no index holds, which the scan scores out of the share on the same verdict.
-            return Lookup(
-                key: "Read \(path)",
-                suggestion: suggestion,
-                textSearch: TextSearch.reason(forWholeRead: path, cwd: directory),
-                readPath: path,
-                inPlace: InPlaceShape.match(forRead: path, in: directory, window: window ? LineWindow(offset: (input["offset"] as? NSNumber)?.intValue, limit: (input["limit"] as? NSNumber)?.intValue) : nil),
-                rule: "ReadAdvice",
-                isWindow: window
-            )
-        default:
-            return nil
-        }
     }
 
     /// The digest targets an index call asks for, keyed by the repository each is answered from: an MCP `digest`'s targets at its `root`, or each `swift-sure digest` in a Bash command at its `--root` — either one, where it names none, the caller's own repository, which for a Bash call is the one the literal `cd`s in front of it moved to.

@@ -198,6 +198,7 @@ struct WhereRenderer {
                     lines.insert(absence, at: bannerSlot)
                 }
                 lines.append("no declarations found")
+                axis = semantic.isActive ? .nameNotInStore : axis
                 try await lines.append(contentsOf: WhereUsesPointer.absenceLines(for: baseComponent(of: query), in: store, at: revision, paths: revisionPaths, spelling: options.spelling, usesFileCount: usesFileCount))
                 lines.append(contentsOf: storePointer)
                 lines.append(contentsOf: siblingPointerLines(for: query, spelling: options.spelling))
@@ -210,6 +211,7 @@ struct WhereRenderer {
                 lines.insert(absence, at: bannerSlot)
             }
             try await lines.append(contentsOf: WhereUsesPointer.absenceLines(for: baseComponent(of: query), in: store, at: revision, paths: revisionPaths, spelling: options.spelling, usesFileCount: usesFileCount) + ["no exact match; nearest symbols:"])
+            axis = semantic.isActive ? .nameNotInStore : axis
             for row in candidates {
                 lines.append("  \(row.name) — \(row.kind.rawValue) — \(row.module) — \(row.path):\(row.line)")
             }

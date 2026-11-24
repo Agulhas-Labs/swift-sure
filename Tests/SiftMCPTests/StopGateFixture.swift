@@ -84,16 +84,27 @@ struct StopGateFixture {
         return line
     }
 
-    static func bash(_ id: String, command: String, cwd: String? = nil) -> [String: Any] {
-        let use: [String: Any] = ["type": "tool_use", "id": id, "name": "Bash", "input": ["command": command]]
+    static func bash(_ id: String, command: String, cwd: String? = nil, at time: Date? = nil, background: Bool = false) -> [String: Any] {
+        let input: [String: Any] = background ? ["command": command, "run_in_background": true] : ["command": command]
+        let use: [String: Any] = ["type": "tool_use", "id": id, "name": "Bash", "input": input]
         var line: [String: Any] = ["type": "assistant", "isSidechain": false, "message": ["role": "assistant", "content": [use]]]
         line["cwd"] = cwd
+        line["timestamp"] = time.map(stamp)
         return line
     }
 
-    static func result(_ id: String, failed: Bool = false, sidechain: Bool = false) -> [String: Any] {
+    static func result(_ id: String, failed: Bool = false, sidechain: Bool = false, at time: Date? = nil) -> [String: Any] {
         let block: [String: Any] = ["type": "tool_result", "tool_use_id": id, "is_error": failed, "content": failed ? "Exit code 1" : "ok"]
-        return ["type": "user", "isSidechain": sidechain, "message": ["role": "user", "content": [block]]]
+        var line: [String: Any] = ["type": "user", "isSidechain": sidechain, "message": ["role": "user", "content": [block]]]
+        line["timestamp"] = time.map(stamp)
+        return line
+    }
+
+    /// ISO-8601 with fractional seconds, as a transcript line carries it.
+    static func stamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 
     /// Files the tree `checkout` holds now as `swift-sure run` does after a green `swift build` there: in that checkout's own green-build file, spelled out here rather than through the API that names it.

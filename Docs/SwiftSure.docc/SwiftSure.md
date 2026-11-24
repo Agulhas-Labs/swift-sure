@@ -17,7 +17,7 @@ What pays from the first command:
 - **Build and test output without the log.** `swift-sure run` wraps `swift build`, `swift test` and
   `xcodebuild` and prints the verdict and what failed, not the log.
 - **Answers in place, from the hooks.** A whole-file Read of a large Swift file is answered with its
-  digest, and an edit that leaves a `.swift` file unparseable comes straight back with its errors.
+  digest, and an Edit or Write that leaves a `.swift` file unparseable comes straight back with its errors (so does a `Bash` call that leaves one unparseable, such as `sed -i`).
 
 Semantic lookups, for when grep is too noisy:
 

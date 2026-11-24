@@ -16,6 +16,14 @@ struct WhereMovedCallerTests {
     /// The headings of the two deleted files under `release`'s callers, in either order: the order among labelled files is not the answer's.
     private static let deletedHeadings: Set = ["  Sources/Lib/Parallel.swift (2):  \(deleted)", "  Sources/Lib/Check.swift (1):  \(deleted)"]
 
+    /// The label of a file deleted before the build, whose record that build kept.
+    private static var kept: String {
+        "(file deleted; its record stays until a clean build)"
+    }
+
+    /// The same two headings once a build has run after the deletion and kept their records.
+    private static let keptHeadings: Set = ["  Sources/Lib/Parallel.swift (2):  \(kept)", "  Sources/Lib/Check.swift (1):  \(kept)"]
+
     /// A package whose two members are called from two files the test deletes, one of them holding several calls, and from one file it keeps.
     private static func makeBuiltRepo() async throws -> URL {
         let root = try TestSources.makeTempRepo()
@@ -67,7 +75,7 @@ struct WhereMovedCallerTests {
         #expect(MentionRows.compacted(answer).contains("new since last build, not in the store, mention the name: Sources/Lib/GizmoTools.swift:2"), "\(answer)")
     }
 
-    /// After a rebuild the store still holds the deleted files' units: their rows stay labelled, and the moved call is a caller row of its own.
+    /// After a rebuild the store still holds the deleted files' units: their rows stay labelled as kept until a clean build, and the moved call is a caller row of its own.
     @Test
     func aRebuildAfterTheMoveListsTheMovedCallerAndStillLabelsTheDeletedFiles() async throws {
         let root = try await Self.makeBuiltRepo()
@@ -82,11 +90,11 @@ struct WhereMovedCallerTests {
         let release = try await engine.lookup(symbol: "DepotStore.release", freshness: engine.ensureFresh())
         let stop = try await engine.lookup(symbol: "DepotBox.stop", freshness: engine.ensureFresh())
 
-        #expect(release.contains("semantic: stale since last build (2 cited files deleted)"), "\(release)")
+        #expect(release.contains("semantic: stale until a clean build (2 cited files deleted)"), "\(release)")
         let headings = Self.fileHeadings(under: "callers of Lib.DepotStore.release(_:) (", in: release)
         #expect(headings.prefix(2) == ["  Sources/Lib/Live.swift (1):", "  Sources/Lib/GizmoTools.swift (1):"], "\(release)")
-        #expect(Set(headings.dropFirst(2)) == Self.deletedHeadings, "\(release)")
+        #expect(Set(headings.dropFirst(2)) == Self.keptHeadings, "\(release)")
         #expect(stop.contains("    :3  crateData(_:)  | parallel.stop.stop()"), "\(stop)")
-        #expect(Self.fileHeadings(under: "callers of Lib.DepotBox.stop() (", in: stop).last == "  Sources/Lib/Parallel.swift (1):  \(Self.deleted)", "\(stop)")
+        #expect(Self.fileHeadings(under: "callers of Lib.DepotBox.stop() (", in: stop).last == "  Sources/Lib/Parallel.swift (1):  \(Self.kept)", "\(stop)")
     }
 }

@@ -7,7 +7,7 @@ import SiftCore
 @testable import SiftMCP
 import Testing
 
-/// A `Read` window whose members answer would list members of one top-level declaration only runs, as a window inside one member does; a shell window there, and a `Read` window across two top-level declarations, are still answered with their members.
+/// A `Read` window whose members answer would list members of one top-level declaration only runs, as a window inside one member does; a shell window there is still answered with its members.
 @Suite(.temporaryDirectories)
 struct InPlaceWindowOneDeclarationTests {
     /// `source` written to `Sources/App/<name>` in a fresh indexed repository, every one of `widened` (1-based) padded with a trailing comment wide enough that the window's own source outweighs its members answer by more than ``InPlaceAnswer/windowSavingFloor``.
@@ -94,18 +94,13 @@ struct InPlaceWindowOneDeclarationTests {
         #expect(answered.reason.contains("func a3() -> Int"))
     }
 
-    /// A `Read` across members of two top-level declarations is still answered with them.
+    /// A `Read` across members of two top-level declarations is no longer answered with them: its answer saves under the floor, so it runs.
     @Test
-    func aReadAcrossTwoTopLevelDeclarationsIsAnswered() async throws {
+    func aReadAcrossTwoTopLevelDeclarationsRuns() async throws {
         let root = try await Self.twoDeclarations()
         let match = try WindowReadSpelling.read.match(path: "Sources/App/Two.swift", lines: 10 ... 17, in: root)
 
-        let outcome = try await Self.outcome(match)
-
-        #expect(Self.answeredTargets(outcome) == ["Sources/App/Two.swift:10-17"])
-        guard case let .answered(answered) = outcome else { return }
-        #expect(answered.reason.contains("struct Alpha"))
-        #expect(answered.reason.contains("struct Beta"))
+        #expect(try await Self.outcome(match) == .withheld(.linesNotShown))
     }
 
     /// A `Read` inside one extension printing most of the file is weighed as its whole read, as the same lines through `sed -n` are, rather than run for lying in one declaration.
@@ -132,13 +127,13 @@ struct InPlaceWindowOneDeclarationTests {
         let outcome = try await Self.outcome(read)
         let shellOutcome = try await Self.outcome(shell)
 
-        #expect(Self.answeredTargets(outcome) == ["Sources/App/Most.swift:2-11"])
+        #expect(Self.answeredTargets(outcome) == ["Sources/App/Most.swift"])
+        #expect(Self.answeredTargets(shellOutcome) == ["Sources/App/Most.swift:2-11"])
         guard case let .answered(answered) = outcome, case let .answered(answeredShell) = shellOutcome else {
             Issue.record("expected both spellings answered, got \(outcome) and \(shellOutcome)")
             return
         }
         #expect(answered.wholeRead != nil, "weighed as the whole read of the file")
         #expect(answered.wholeRead == answeredShell.wholeRead)
-        #expect(answered.reason == answeredShell.reason)
     }
 }

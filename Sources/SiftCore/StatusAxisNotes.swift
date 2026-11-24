@@ -23,7 +23,8 @@ struct StatusAxisNotes {
         store may still cite: ones this index saw go after that build, and ones the store's files on disk still \
         name. A build keeps a deleted file's record until a clean build, so a file renamed or deleted before a \
         build stays counted, and stays marked in every query citing it, through each build that does not clean; \
-        where that is all `status` counts, it says `stale until a clean build`, since another build changes nothing. \
+        where that is all `status` counts, it says `stale until a clean build`, since another build changes nothing, \
+        as a query does. \
         It also counts files git showed as deleted when this index first started keeping that count. Only a query \
         shows a declaration the store has no record of, unbuilt test files, a file a partial build skipped, a \
         store that fails to open, or one still loading. So do three deletions: a file git never tracked, whose \

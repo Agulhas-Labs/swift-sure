@@ -213,8 +213,8 @@ struct WhereRefsFilesTests {
         let second = collector.lines(query: "X", kept: [], offset: 2, cap: 2)
         let past = collector.lines(query: "X", kept: [], offset: 9, cap: 2)
 
-        #expect(first.suffix(3) == ["  Sources/F1.swift (1)", "  Sources/F2.swift (2)", "  truncated: 3 more files — pass offset 2 to continue"])
-        #expect(second.suffix(4) == ["  (…2 files skipped)", "  Sources/F3.swift (3)", "  Sources/F4.swift (4)", "  truncated: 1 more file — pass offset 4 to continue"])
+        #expect(first.suffix(4) == ["  Sources/F1.swift (1)", "  Sources/F2.swift (2)", "  truncated: 3 more files — pass offset 2 to continue", "drop --files for each reference's line"])
+        #expect(second.suffix(5) == ["  (…2 files skipped)", "  Sources/F3.swift (3)", "  Sources/F4.swift (4)", "  truncated: 1 more file — pass offset 4 to continue", "drop --files for each reference's line"])
         #expect(past.last == "  offset 9 is past the last of 5 files — drop offset to see them")
         #expect(WhereFilesCollector.filesListCap == 100)
     }
@@ -230,7 +230,7 @@ struct WhereRefsFilesTests {
         let lines = collector.lines(query: "X", kept: [], offset: 0)
 
         #expect(lines.contains("files naming X (1 file: 1 with code sites, 0 with not-code mentions, 1 file changed since last build, 1 more line a macro generated, not listed):"), "\(lines)")
-        #expect(lines.last == "  A.swift (4)  (file changed since last build)", "\(lines)")
+        #expect(lines.suffix(2) == ["  A.swift (4)  (file changed since last build)", "drop --files for each reference's line"], "\(lines)")
     }
 
     /// A path holding a space keeps its row whole, a code file's and a Markdown file's alike, and a `file names:` path holding a comma is one row.

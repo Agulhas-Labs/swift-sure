@@ -53,6 +53,11 @@ struct PagedAnswerTests {
         text.split(separator: "\n").compactMap { $0.firstMatch(of: /func take(\d+)\(/).flatMap { Int($0.1) } }
     }
 
+    /// The window `sed -n first,lastp` is, as a shell command's rather than a `Read`'s.
+    private static func shellWindow(_ first: Int, _ last: Int) -> LineWindow {
+        LineWindow(stages: [["tail", "-n", "+\(first)"], ["head", "-n", "\(last - first + 1)"]])
+    }
+
     /// What `digestAnswer` computes for a read of the file through `windows`, cutting as the hook does, and how many pages it rendered to size the cut.
     private static func computed(_ windows: [LineWindow], in root: URL) async throws -> (computation: InPlaceAnswerer.Computation, renders: Int) {
         let engine = try SiftEngine(directory: root)
@@ -256,7 +261,7 @@ struct PagedAnswerTests {
     @Test
     func aWindowEndingLinesNotShownRendersNoPage() async throws {
         let root = try await Self.repository()
-        let (computation, renders) = try await Self.computed([LineWindow(offset: 1, limit: 12)], in: root)
+        let (computation, renders) = try await Self.computed([Self.shellWindow(1, 12)], in: root)
         let outcome = try await Self.answered("sed -n 1,12p \(Self.path)", in: root)
 
         #expect(outcome == .withheld(.linesNotShown), "\(outcome)")
@@ -271,7 +276,7 @@ struct PagedAnswerTests {
     func aWindowTheMembersAnswerWinsRendersNoPage() async throws {
         let root = try await Self.repository(padding: 600)
         let last = 2 + 20 * 5
-        let (_, renders) = try await Self.computed([LineWindow(offset: 1, limit: last)], in: root)
+        let (_, renders) = try await Self.computed([Self.shellWindow(1, last)], in: root)
         let outcome = try await Self.answered("sed -n 1,\(last)p \(Self.path)", in: root)
 
         guard case let .answered(answered) = outcome else {

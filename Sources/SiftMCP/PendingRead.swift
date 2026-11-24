@@ -28,7 +28,7 @@ public struct PendingRead: Sendable, Equatable {
 
     /// What the advice hook would have remembered this search by, so a refusal of it can be recognised when the same search comes back.
     ///
-    /// Computed the way `PreToolUseCommand.classified` keys the ledger, because the two have to agree about what "the same search" is: the hook allows the re-run on the strength of its own key, and the scan has to excuse exactly the calls the hook let through. Empty for a `Read` and for a windowed shell read, neither of which the sanctioned re-run applies to.
+    /// Computed the way `LookupClassifier.classified` keys the ledger, because the two have to agree about what "the same search" is: the hook allows the re-run on the strength of its own key, and the scan has to excuse exactly the calls the hook let through. Empty for a `Read` and for a windowed shell read, neither of which the sanctioned re-run applies to.
     var key: String = ""
 
     /// The readings the hook could answer this shell line as, in the order it tries them, so an answer is remembered under exactly the lookups the served one stands for (``ServedReading``) — empty wherever `key` alone is what an answer is remembered by.

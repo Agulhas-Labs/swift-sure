@@ -79,6 +79,11 @@ struct WindowNamingOneMemberTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Screen.swift", lines: 6 ... 15, in: root))
 
+        guard spelling == .shell else {
+            #expect(outcome == .withheld(.linesNotShown))
+            return
+        }
+
         guard case let .answered(answered) = outcome else {
             Issue.record("a window inside a view body is answered, got \(outcome)")
             return
@@ -87,9 +92,9 @@ struct WindowNamingOneMemberTests {
         #expect(answered.reason.contains("VStack :5"))
     }
 
-    /// A window across a view's body and a helper of the same view stays answered with the outline, a `Read` as much as a shell window.
+    /// A window across a view's body and a helper of the same view is answered with the outline as a shell window, and withheld as lines not shown as a `Read` window.
     @Test(arguments: WindowReadSpelling.allCases)
-    func aWindowAcrossAViewBodyAndAHelperIsAnswered(spelling: WindowReadSpelling) async throws {
+    func aWindowAcrossAViewBodyAndAHelperIsAnsweredAsShellAndWithheldAsRead(spelling: WindowReadSpelling) async throws {
         let root = try await InPlaceAnswerTests.indexedRepository()
         let rows = (1 ... 12).map { "            Text(\"row \($0)\")\(Self.padding)\(Self.padding)\(Self.padding)" }
         let filler = (1 ... 80).map { "func filler\($0)(value: Int) -> Int { value }" }
@@ -98,6 +103,11 @@ struct WindowNamingOneMemberTests {
         try await SiftEngine(directory: root).ensureFresh()
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Screen.swift", lines: 6 ... 21, in: root))
+
+        guard spelling == .shell else {
+            #expect(outcome == .withheld(.linesNotShown))
+            return
+        }
 
         guard case let .answered(answered) = outcome else {
             Issue.record("a window across a view body and a helper is answered, got \(outcome)")

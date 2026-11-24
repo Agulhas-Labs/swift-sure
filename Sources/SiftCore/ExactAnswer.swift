@@ -139,7 +139,10 @@ public struct ExactAnswer {
     /// The source of every member of `file` whose declaration spans one of `lines`, each resolved as `digest` resolves it, or `nil` where none does or any resolves to some other declaration.
     ///
     /// A declaration spans its first line through the line its name stands on, so an attribute on a line of its own is part of it. Every member of the file is a candidate, whatever type holds it: a file of two views has two `body` properties, and a grep for one prints both.
+    ///
+    /// A file changed under its rows is reparsed before they are read, not by the first member's digest: the rows chosen are then the ones every member's digest renders from, and their ids still name them.
     public static func memberSources(in engine: SiftEngine, file: String, declaredOn lines: [Int], source: [String]) throws -> [ServedSource]? {
+        try engine.reparseIfStale(file)
         let members = try engine.store.symbols(inFile: file).filter { !$0.kind.isContainer }
         var chosen: [SymbolRow] = []
         for line in lines {
@@ -208,7 +211,7 @@ public struct ExactAnswer {
                 continue
             }
             heading = nil
-            guard !line.contains("since last build") else { continue }
+            guard !Self.stateMarks.contains(where: line.contains) else { continue }
             if let match = line.wholeMatch(of: declarationLine), let start = Int(match.output.2) {
                 located.insert(Location(path: String(match.output.1), line: start))
             } else if let match = line.wholeMatch(of: referenceLine) {
@@ -345,6 +348,9 @@ extension ExactAnswer {
     /// A `where` entry that locates one line — a declaration, `  Module.Name — kind — signature — path.swift:12-40` with any doc summary after, or a listed row, `  caller — path.swift:12` with the access or a conformer's mark (`— direct`, `— indirect`, `— direct; the index store does not have it`, `— direct; the index store has it through another type`, `— writes <Name>, which the index store resolves to <Declaration>`, `— through typealias <alias>`, `— inherited through <Name>`), unit count and folded sites a row may close on (`— read via $flag`, `  ×2 units`, `(3 sites)`).
     nonisolated(unsafe) static let declarationLine =
         /\s+.* — (.+\.swift):(\d+)(?:-\d+)?(?: — (?:read and write|read|write|used|referenced|direct; the index store does not have it|direct; the index store has it through another type|writes \S+, which the index store resolves to \S+|through typealias \S+|inherited through \S+|direct|indirect)(?: via \S+)?)?(?:  ×\d+ units)?(?: \(\d+ sites\))?(?:  \/\/\/ ?(.*))?/
+
+    /// Every mark a row or site heading carries for a file changed or deleted since the build, by which such a row is never taken for a located one.
+    static let stateMarks = OccurrenceState.allCases.compactMap { $0.marker?.trimmingCharacters(in: .whitespaces) }
 
     /// A `where` reference line, `  path.swift (3): 4, 5, 6`, whole or capped, `  path.swift (60): 4, 10, +58 more`, whose listed lines are the only ones it locates.
     nonisolated(unsafe) static let referenceLine = /\s+(.+\.swift) \(\d+\): (\d+(?:, \d+)*)(?:, \+\d+ more)?/

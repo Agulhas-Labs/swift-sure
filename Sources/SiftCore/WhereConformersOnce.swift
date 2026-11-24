@@ -101,7 +101,7 @@ extension ConformersOnce {
             case .indirect: .indirect
             case .alias: .alias
             case .inherited: .inherited
-            case let .unread(state): state == .deleted ? .deletedFile : .changedFile
+            case let .unread(state): state.isDeleted ? .deletedFile : .changedFile
             }
         }
 
@@ -117,7 +117,7 @@ extension ConformersOnce {
                 } else {
                     try entry.row.flatMap(resolution).map(Self.resolvedElsewhere) ?? .unrecorded
                 }
-            } else if state == .deleted || (state == .modifiedSinceBuild && !standing(entry)) {
+            } else if state.isDeleted || (state == .modifiedSinceBuild && !standing(entry)) {
                 self = .unread(state)
             } else {
                 self = .indirect

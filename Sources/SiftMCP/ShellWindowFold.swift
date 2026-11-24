@@ -15,8 +15,10 @@ public struct ShellWindowFold {
 
     /// The answer for `line`, which holds no leg but windows and `echo`s, read relative to `directory`.
     ///
+    /// `rerun` names what the framing line says re-running prints the folded lines: the command, or the tool call the line stands for.
+    ///
     /// `parsesWithError` is asked, with a file's absolute path, whether the index holds that file with a parse error.
-    public static func answer(_ line: ShellWindowLine, in directory: String?, parsesWithError: (String) -> Bool) -> Outcome {
+    public static func answer(_ line: ShellWindowLine, in directory: String?, rerun: String = "command", parsesWithError: (String) -> Bool) -> Outcome {
         guard !line.runsOthers else { return .letThrough(rule: "notExact") }
         var body = ""
         var printed = 0
@@ -49,7 +51,7 @@ public struct ShellWindowFold {
             }
         }
         guard printed > 0, Double(printed - body.utf8.count) / Double(printed) >= foldSavingShare else { return .letThrough(rule: "notSmaller") }
-        let head = "\(ProductName.current.binary) answered \(calls.map { "`\($0)`" }.joined(separator: ", ")) instead of running it: \(folded) comment lines in \(runs) runs folded; the identical command re-run prints them. "
+        let head = "\(ProductName.current.binary) answered \(calls.map { "`\($0)`" }.joined(separator: ", ")) instead of running it: \(folded) comment lines in \(runs) runs folded; the identical \(rerun) re-run prints them. "
         let fixed = head.utf8.count + 1 + body.utf8.count
         guard let text = framed(head: head, body: body, fixed: fixed, source: printed) else { return .letThrough(rule: "notSmaller") }
         let served = text.utf8.count

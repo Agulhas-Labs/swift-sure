@@ -48,6 +48,10 @@ struct WindowDocCommentReadTests {
         let withDeclaration = try await Self.outcome(spelling.match(path: "Sources/App/Spawner.swift", lines: 2 ... 11, in: root))
 
         #expect(docOnly == .withheld(.linesNotShown))
+        guard spelling == .shell else {
+            #expect(withDeclaration == .withheld(.notSmaller))
+            return
+        }
         guard case .answered = withDeclaration else {
             Issue.record("the window taking in the declaration is answered, got \(withDeclaration)")
             return
@@ -74,6 +78,10 @@ struct WindowDocCommentReadTests {
         let withDeclaration = try await Self.outcome(spelling.match(path: "Sources/App/Spawner.swift", lines: 5 ... 11, in: root))
 
         #expect(docOnly == .withheld(.linesNotShown))
+        guard spelling == .shell else {
+            #expect(withDeclaration == .withheld(.notSmaller))
+            return
+        }
         guard case .answered = withDeclaration else {
             Issue.record("the window taking in the container's line is answered, got \(withDeclaration)")
             return

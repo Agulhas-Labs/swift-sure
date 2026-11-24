@@ -156,4 +156,26 @@ extension StringsPropertyHolderShapeTests {
         #expect(asked.first?.count == SourceLiteralSearch.propertyUseCap)
         #expect(followed.count(where: { $0.uses != nil }) == SourceLiteralSearch.propertyUseCap)
     }
+
+    @Test
+    func aStaticHolderIgnoresSelfOfTheSameNameInAnotherType() throws {
+        let holder = """
+        struct Gizmo {
+            static let missing = "Gizmo went missing"
+            func show() { present(Self.missing) }
+        }
+        """
+        let other = """
+        struct Widget {
+            static func missing(of value: Int) -> Int { value }
+            func go() -> Int { Self.missing(of: 1) }
+        }
+        """
+        let engine = try Self.makeRepo(files: ["Sources/Gizmo/Gizmo.swift": holder, "Sources/Gizmo/Widget.swift": other])
+
+        let output = try engine.strings(query: "Gizmo went missing")
+
+        #expect(output.contains("Gizmo.swift:3 in Gizmo.show()"))
+        #expect(!output.contains("Widget.swift"))
+    }
 }

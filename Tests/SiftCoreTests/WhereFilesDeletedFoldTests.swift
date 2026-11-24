@@ -28,9 +28,9 @@ struct WhereFilesDeletedFoldTests {
         let plural = Self.collector(deleted: 2).lines(query: "X", kept: [], offset: 0)
         let singular = Self.collector(deleted: 1).lines(query: "X", kept: [], offset: 0)
 
-        #expect(plural.suffix(2) == ["  Live.swift (2)", Self.fold], "\(plural)")
+        #expect(plural.suffix(3) == ["  Live.swift (2)", Self.fold, "drop --files for each reference's line"], "\(plural)")
         #expect(!plural.contains { $0.contains("Gone") || $0.contains("(file deleted") }, "\(plural)")
-        #expect(singular.last == "  + 1 file deleted since the last build also named it (`--refs` lists them)", "\(singular)")
+        #expect(singular.suffix(2) == ["  + 1 file deleted since the last build also named it (`--refs` lists them)", "drop --files for each reference's line"], "\(singular)")
     }
 
     /// The heading counts the listed files only and says nothing of deletion, while a changed file keeps its count and mark.
@@ -60,8 +60,8 @@ struct WhereFilesDeletedFoldTests {
         let second = collector.lines(query: "X", kept: [], offset: 2, cap: 2)
         let past = collector.lines(query: "X", kept: [], offset: 9, cap: 2)
 
-        #expect(first.suffix(4) == ["  F1.swift (1)", "  F2.swift (1)", "  truncated: 1 more file — pass offset 2 to continue", Self.fold], "\(first)")
-        #expect(second.suffix(3) == ["  (…2 files skipped)", "  F3.swift (1)", Self.fold], "\(second)")
+        #expect(first.suffix(5) == ["  F1.swift (1)", "  F2.swift (1)", "  truncated: 1 more file — pass offset 2 to continue", Self.fold, "drop --files for each reference's line"], "\(first)")
+        #expect(second.suffix(4) == ["  (…2 files skipped)", "  F3.swift (1)", Self.fold, "drop --files for each reference's line"], "\(second)")
         #expect(past.suffix(2) == ["  offset 9 is past the last of 3 files — drop offset to see them", Self.fold], "\(past)")
     }
 
@@ -86,7 +86,7 @@ struct WhereFilesDeletedFoldTests {
 
         #expect(files.contains("  Sources/Lib/Make.swift (2)"), "\(files)")
         #expect(!files.contains("\n  Sources/Lib/Other.swift"), "\(files)")
-        #expect(files.hasSuffix("  + 1 file deleted since the last build also named it (`--refs` lists them)"), "\(files)")
+        #expect(files.hasSuffix("  + 1 file deleted since the last build also named it (`--refs` lists them)\n\("drop --files for each reference's line")"), "\(files)")
         #expect(refs.contains("Sources/Lib/Other.swift"), "\(refs)")
         #expect(refs.contains("(file deleted since last build)"), "\(refs)")
     }

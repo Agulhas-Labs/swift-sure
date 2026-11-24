@@ -20,12 +20,14 @@ struct SemanticContext {
     var outsideNote: String?
     /// The root flag a build command printed for this answer carries (``StoreRemedy/rootFlag(root:currentDirectory:)``), empty where the caller's directory is the root.
     var rootFlag = ""
+    /// The query's judgement of which cited deleted files a build without cleaning keeps, shared by every judge and every context derived from this one.
+    var keptDeletions = KeptDeletions()
 
     /// The context of the first store — this one's, then each in-tree store's — that resolves `row`, with the USR it resolved to.
     func owner(of row: SymbolRow) -> (context: SemanticContext, usr: String)? {
         for candidate in [store] + inTreeStores where candidate.answers(forFile: row.path) {
             if let usr = candidate.usr(for: row) {
-                return (SemanticContext(store: candidate, repoRoot: repoRoot, rejectedSettings: rejectedSettings, rootFlag: rootFlag), usr)
+                return (SemanticContext(store: candidate, repoRoot: repoRoot, rejectedSettings: rejectedSettings, rootFlag: rootFlag, keptDeletions: keptDeletions), usr)
             }
         }
         return nil

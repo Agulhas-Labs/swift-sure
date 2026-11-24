@@ -698,17 +698,34 @@ public extension SiftEngine {
         let first = try render(renderer)
         guard !renderer.sourceReader.stalePaths.isEmpty else { return first }
         let stale = renderer.sourceReader.stalePaths.sorted()
-        let parsed = stale.compactMap { FileParser.parse(absoluteURL: repoRoot.appendingPathComponent($0), repoRelativePath: $0) }
-        try store.replaceFiles(parsed) { [resolver] in (resolver.module(for: $0), resolver.resolvedModule(for: $0) == nil) }
+        let reparsed = try reparse(stale)
         let second = try render(makeDigestRenderer())
-        let reparsed = Set(parsed.map(\.path))
-        servedReparses.record(reparsed: stale.filter(reparsed.contains), unreparsed: stale.filter { !reparsed.contains($0) })
         let parseErrorFiles = try store.counts().parseErrorFiles
         return MeasuredAnswer(
             text: second.text, bytes: second.bytes, missed: second.missed,
             reparsedPaths: stale.filter(reparsed.contains), unreparsedPaths: stale.filter { !reparsed.contains($0) },
             parseErrorFiles: parseErrorFiles, parts: second.parts
         )
+    }
+
+    /// Reparses `path` from the live file where its bytes are not the ones its row was parsed from, as a digest serving its source would, and notes it for the header.
+    ///
+    /// For a caller that reads the file's rows before it renders a digest of them: a reparse writes the rows afresh, under new ids unless they were the store's newest, so a row read before it names a symbol the store no longer holds.
+    func reparseIfStale(_ path: String) throws {
+        let reader = ServedSourceReader(checkingAgainst: store)
+        _ = reader.text(of: path, under: repoRoot)
+        guard !reader.stalePaths.isEmpty else { return }
+        try reparse(reader.stalePaths.sorted())
+    }
+
+    /// The paths of `stale` reparsed from the live file and stored, each noted for the header, and the rest noted as left on their old rows.
+    @discardableResult
+    private func reparse(_ stale: [String]) throws -> Set<String> {
+        let parsed = stale.compactMap { FileParser.parse(absoluteURL: repoRoot.appendingPathComponent($0), repoRelativePath: $0) }
+        try store.replaceFiles(parsed) { [resolver] in (resolver.module(for: $0), resolver.resolvedModule(for: $0) == nil) }
+        let reparsed = Set(parsed.map(\.path))
+        servedReparses.record(reparsed: stale.filter(reparsed.contains), unreparsed: stale.filter { !reparsed.contains($0) })
+        return reparsed
     }
 
     /// `digest` asked of a past revision: answered from a transient parse of that revision's tree (``RevisionQuery``), never from the store.

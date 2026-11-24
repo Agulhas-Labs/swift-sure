@@ -8,7 +8,7 @@
 public struct StaleFiles: Sendable, Equatable {
     /// Files written since their own build.
     public let changed: Int
-    /// Files gone from the tree.
+    /// Files gone from the tree, whether or not a build keeps their record.
     public let deleted: Int
     /// Files no store holds a unit for, written since the build that would compile them.
     public let new: Int
@@ -28,7 +28,7 @@ public struct StaleFiles: Sendable, Equatable {
         let counted = files.filter { $0.value < .notBuilt }
         self.init(
             changed: counted.values.count { $0 == .changed },
-            deleted: counted.values.count { $0 == .deleted },
+            deleted: counted.values.count(where: \.isDeleted),
             new: counted.values.count { $0 == .new },
             path: counted.count == 1 ? counted.keys.first : nil
         )

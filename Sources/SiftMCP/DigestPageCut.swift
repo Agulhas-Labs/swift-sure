@@ -39,7 +39,7 @@ extension InPlaceAnswerer {
         // accounts for none of what the window prints there: the members stand in, or the read runs — as it does
         // where the window prints `import` lines, which the members leave without a trace.
         guard digest.call.standsInForWindow else {
-            guard var members = bounded, !members.calls.contains(where: \.overlapsImports) else { return .withheld(.notExact) }
+            guard var members = bounded, !members.calls.contains(where: \.overlapsImports) else { return .withheld(!windows.isEmpty && windows.allSatisfy(\.isReadTool) ? .notSmaller : .notExact) }
             members.note = members.note.map { "\($0); \(FileDigestParts.whyNotStandingIn(digest.call))" }
             return .answer(members, bounded: nil)
         }

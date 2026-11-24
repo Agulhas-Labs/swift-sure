@@ -30,11 +30,11 @@ struct ReadWindowWorthTests {
 
     // MARK: - Through the hook, with a stubbed answer
 
-    /// A file of exactly 100 lines on disk, so the share a window prints is its line count in hundredths.
+    /// A file of exactly 100 lines on disk, so the share a window prints is its line count in hundredths, every line code, so no window of it is folded.
     private static func hundredLineFile() throws -> URL {
         let directory = try TemporaryDirectory.make("read-window-worth")
         let file = directory.appendingPathComponent("Depot.swift")
-        try ((1 ... 100).map { "// line \($0)" }.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+        try ((1 ... 100).map { "let line\($0) = \($0)" }.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
         return file
     }
 

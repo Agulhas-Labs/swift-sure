@@ -80,19 +80,20 @@ extension SourceLiteralSearch.Site {
             return call.arguments.contains { $0.expression.is(StringLiteralExprSyntax.self) }
         }
 
-        /// Whether a write of the name at `use` can be this property: always for an instance property; for a `static` one only `Type.name`, `Self.name`, or the bare name inside the declaring type.
+        /// Whether a write of the name at `use` can be this property: always for an instance property; for a `static` one `Type.name` anywhere, and `Self.name` or the bare name only inside the declaring type, since `Self` elsewhere is another type.
         func reaches(_ use: StringsAccessorFollow.Site) -> Bool {
             guard isStatic else { return true }
             let escaped = NSRegularExpression.escapedPattern(for: name)
-            var qualifiers = ["Self"]
-            if let last = typeChain?.split(separator: ".").last {
-                qualifiers.append(String(last))
-            }
-            if qualifiers.contains(where: { use.text.range(of: "\\b\(NSRegularExpression.escapedPattern(for: $0))\\.\(escaped)\\b", options: .regularExpression) != nil }) {
+            let qualified = { (qualifier: String) in "\\b\(NSRegularExpression.escapedPattern(for: qualifier))\\.\(escaped)\\b" }
+            if let last = typeChain?.split(separator: ".").last, Self.writes(use.text, qualified(String(last))) {
                 return true
             }
             guard let chain = typeChain, use.enclosing.hasPrefix(chain + ".") else { return false }
-            return use.text.range(of: "(?<![\\w.])\(escaped)\\b", options: .regularExpression) != nil
+            return Self.writes(use.text, qualified("Self")) || Self.writes(use.text, "(?<![\\w.])\(escaped)\\b")
+        }
+
+        private static func writes(_ text: String, _ pattern: String) -> Bool {
+            text.range(of: pattern, options: .regularExpression) != nil
         }
 
         /// `uses` as the answer lists them: the declaring file's first, then the other files of the declaring type, then the rest, each group in the order given.

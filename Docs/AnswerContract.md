@@ -271,6 +271,15 @@ caller's, a conformer's, one listed by written name. A file without a unit is no
 store's project compiles its module (another project in the tree, a module the manifest declares no target
 for), or when a build ran after its last change and left it out; it is declared as before (§6).
 
+**§1, a deletion only a clean build clears:** this applies to a cited file inside the root that was deleted at or
+before the build, where a unit on disk still names it (Docs/Design.md §2), since a build without cleaning keeps
+that unit. Such a file is labelled `  (file deleted; its record stays until a clean build)` in place of `  (file
+deleted since last build)`. A heading clause counts these files after the changed and plain deleted ones: `1 deleted
+file kept until a clean build`, plural `<k> deleted files kept until a clean build`. The `--files` listing's
+deleted tail splits the same way. Where every file a header counts is one of these and no `partial` clause applies,
+the header reads `stale until a clean build (…)` with the same parenthesis. Anything else it counts leaves it at
+`stale since last build (…)`.
+
 **§1, what a partial header names:** a header never says `fresh` while the answer is a lower bound for want of
 a build. Where indexed test files have no unit it says `partial (N test files have no unit in the store —
 references from tests are a lower bound)`; where a non-test target the store's project declares has files,

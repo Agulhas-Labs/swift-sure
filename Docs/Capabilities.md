@@ -308,7 +308,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
 - **Sample:**
 
   ```
-  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.4.4","name":"swift-sure"}},"jsonrpc":"2.0"}
+  {"id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"version":"0.4.5","name":"swift-sure"}},"jsonrpc":"2.0"}
   ```
 
 - **Mentioned in:** Guide §3, §4, §11, DocC (Installing, Troubleshooting).
@@ -361,7 +361,7 @@ Installing SwiftSure into an agent, checking it, and the server it runs.
   claude hooks: pass — registered for SessionStart, SubagentStart, PreToolUse, PostToolUse, PostToolUseFailure, Stop, SubagentStop
   claude server: pass — swift-sure — ~/.local/bin/swift-sure mcp
   claude binary: pass — ~/.local/bin/swift-sure runs
-  claude version: pass — registered 0.4.4, running 0.4.4
+  claude version: pass — registered 0.4.5, running 0.4.5
   claude hook SessionStart: pass — exit 0, silent
   claude hook SubagentStart: pass — exit 0, silent
   ```
@@ -428,7 +428,7 @@ What SwiftSure registers with an agent, one row per event, and what the check do
 | --- | --- | --- |
 | SessionStart, SubagentStart (Cursor `sessionStart`, Codex `SessionStart`) | `session-start` | Prints the session primer: which lookup answers what, and whether this directory has an index. Silent outside Swift work. The subagent copy adds a line for its case. |
 | PreToolUse (Cursor `preToolUse`, Codex `PreToolUse`) | `pre-tool-use` | Judges a shell, Read, Grep or Glob lookup of Swift source and refuses it with the index call that answers it (the identical re-run is allowed); rewrites a raw `swift build`, `swift test` or `xcodebuild` to its `swift-sure run --` wrapping where no permission prompt can follow; backs off after a run of denials. |
-| PostToolUse (Cursor `postToolUse`, Codex `PostToolUse`) | `post-tool-use` | After a Write, Edit or MultiEdit of a `.swift` file (Codex: `apply_patch`), parses it and blocks with the errors if the edit left it unparseable; reads a failed build's output. |
+| PostToolUse (Cursor `postToolUse`, Codex `PostToolUse`) | `post-tool-use` | After a Write, Edit or MultiEdit of a `.swift` file (Codex: `apply_patch`), parses it and blocks with the errors if the edit left it unparseable, and after a `Bash` call the same for each Swift file it changed (Claude Code, not run-only); reads a failed build's output. |
 | PostToolUseFailure (Cursor `postToolUseFailure`) | `post-tool-use` | The same reading for a Bash call that exited non-zero: compiler error locations are located as for a success, nothing else of the PostToolUse hook runs. |
 | Stop, SubagentStop | `stop` | When a context edited Swift since its last green `swift-sure run` build or test of that tree, blocks the stop once with the build to run. |
 

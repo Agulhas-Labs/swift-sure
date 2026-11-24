@@ -76,6 +76,10 @@ struct WindowMembersPlacedTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Outer.swift", lines: 2 ... 104, in: root))
 
+        guard spelling == .shell else {
+            #expect(outcome == .withheld(.notSmaller))
+            return
+        }
         guard case let .answered(answered) = outcome else {
             Issue.record("expected an answer, got \(outcome)")
             return

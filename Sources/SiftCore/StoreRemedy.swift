@@ -144,11 +144,11 @@ extension SiftEngine {
         return "index store: \(discovered.label) — \(discovered.path.path)\(passedOver)"
     }
 
-    /// The deleted paths the ledger names that are still missing and that the store may still cite: dropped after the build `anchor`, or named by a unit still on disk, since a build keeps a deleted file's unit until a clean build; sorted, as the ledger's own list is.
+    /// The deleted paths the ledger names that are still missing and that the store may still cite: dropped after the build `anchor` (a deletion whose nearest surviving directory was last changed before the build counts as dropped before it, whenever the index noticed), or named by a unit still on disk, since a build keeps a deleted file's unit until a clean build; sorted, as the ledger's own list is.
     ///
     /// `namedByAUnit` says whether a unit names any of them, every missing path asked, those dated after the build too. `kept` says there is at least one and each was dropped at or before the build and is named by a unit: what only a clean build clears.
     static func deletedFilesTheStoreMayCite(ledger: DeletionLedger, anchor: Double, in discovered: DiscoveredStore, root: URL) -> DeletedFilesCited {
-        let droppedAfterBuild = Set(ledger.paths(droppedAfter: anchor))
+        let droppedAfterBuild = Set(ledger.paths(droppedAfter: anchor).filter { !KeptDeletions.certainlyDeletedBefore(anchor, path: $0, root: root) })
         let mentions = StoreUnitMentions(store: discovered.path, root: root)
         var paths: [String] = []
         var namedByAUnit = false

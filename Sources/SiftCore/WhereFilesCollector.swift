@@ -46,9 +46,7 @@ final class WhereFilesCollector {
     func recordCode(path: String, lines: some Sequence<Int>, state: OccurrenceState = .live) {
         var file = files[path] ?? File()
         file.codeLines.formUnion(lines)
-        if file.state.isLive {
-            file.state = state
-        }
+        file.state = file.state.settled(with: state)
         files[path] = file
     }
 
@@ -160,8 +158,9 @@ final class WhereFilesCollector {
 
     /// The view's lines for the page starting at `offset`, under `kept`.
     func lines(query: String, kept: [String], offset: Int, cap: Int = WhereFilesCollector.filesListCap) -> [String] {
-        let paths = files.filter { $0.value.state != .deleted }.keys.sorted()
-        let deleted = files.count - paths.count
+        let paths = files.filter { !$0.value.state.isDeleted }.keys.sorted()
+        let deleted = files.values.count { $0.state == .deleted }
+        let keptDeletions = files.values.count { $0.state == .keptDeletion }
         var block = kept + ["", heading(query: query, count: paths.count)]
         let skipped = min(max(0, offset), paths.count)
         if PastEndLine.applies(offset: offset, count: paths.count) {
@@ -178,7 +177,18 @@ final class WhereFilesCollector {
         if deleted > 0 {
             block.append("  + \(deleted) file\(deleted == 1 ? "" : "s") deleted since the last build also named it (`--refs` lists them)")
         }
+        if keptDeletions > 0 {
+            block.append("  + \(keptDeletions) deleted file\(keptDeletions == 1 ? "" : "s") kept until a clean build also named it (`--refs` lists them)")
+        }
+        if !page.isEmpty {
+            block.append(Self.dropFilesLine)
+        }
         return block
+    }
+
+    /// The closing line of a listing that names at least one file: the view gives files, and the lines come back without `--files`.
+    static var dropFilesLine: String {
+        "drop --files for each reference's line"
     }
 
     private func heading(query: String, count: Int) -> String {
@@ -188,7 +198,7 @@ final class WhereFilesCollector {
             let more = names.count - Self.namedOwnerCap
             subject = "\(query), \(names.count) owners: " + names.prefix(Self.namedOwnerCap).joined(separator: ", ") + (more > 0 ? ", and \(more) more" : "")
         }
-        let listed = files.values.filter { $0.state != .deleted }
+        let listed = files.values.filter { !$0.state.isDeleted }
         let code = listed.count { !$0.codeLines.isEmpty }
         let mentions = listed.count { $0.notCodeLines > 0 }
         var details = ["\(count) file\(count == 1 ? "" : "s"): \(code) with code sites, \(mentions) with not-code mentions"]

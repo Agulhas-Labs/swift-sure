@@ -40,12 +40,17 @@ struct PostToolUseCommand: ParsableCommand {
             return
         }
         if payload["hook_event_name"] as? String == Self.failureEvent {
-            Self.answerFailure(to: payload)
+            Self.answerFailure(to: payload, withShellEdits: Self.parsesBashCalls(runOnly: runOnly))
             return
         }
         guard !CursorHookPayload.recognises(payload) else { return }
         Self.forgetMissedDigest(payload: payload)
-        Self.answer(toEach: CodexApplyPatch.claudePayloads(from: payload) ?? [payload], timeBudget: Self.timeBudget())
+        Self.answer(toEach: CodexApplyPatch.claudePayloads(from: payload) ?? [payload], timeBudget: Self.timeBudget(), withShellEdits: Self.parsesBashCalls(runOnly: runOnly))
+    }
+
+    /// Whether the hook parse-checks the Swift files a `Bash` call changed: it does, except in run-only mode.
+    static func parsesBashCalls(runOnly: Bool) -> Bool {
+        !runOnly
     }
 
     /// Whether `payload` reports a shell call, the one call run mode answers: Cursor's `Shell`, else a `Bash` call, as Claude Code and Codex name it.
@@ -58,17 +63,21 @@ struct PostToolUseCommand: ParsableCommand {
         "PostToolUseFailure"
     }
 
-    /// The diagnostics note for a `Bash` call that failed, or nothing.
+    /// The parse block for the Swift files a failed `Bash` call left broken, else the diagnostics note for it, or nothing.
     ///
-    /// Its output is the payload's `error`, less the `Exit code <n>` line Claude Code puts first. No other tool's failure is read, and none of the edit checks apply, since a failed edit wrote nothing.
-    static func answerFailure(to payload: [String: Any], output: CommandOutput = .standard, lookUp: (_ directory: String) -> String? = CallerRoot.root(forCallerIn:)) {
+    /// The note's output is the payload's `error`, less the `Exit code <n>` line Claude Code puts first. No other tool's failure is read, and none of the edit checks apply, since a failed edit wrote nothing.
+    static func answerFailure(to payload: [String: Any], output: CommandOutput = .standard, lookUp: (_ directory: String) -> String? = CallerRoot.root(forCallerIn:), marks: HookMarks = .standard(), withShellEdits: Bool = true, timeBudget budget: TimeInterval = timeBudget()) {
         guard payload["tool_name"] as? String == "Bash", let error = payload["error"] as? String else { return }
         var lines = error.split(separator: "\n", omittingEmptySubsequences: false)
         if let first = lines.first, first.hasPrefix("Exit code "), Int(first.dropFirst("Exit code ".count)) != nil {
             lines.removeFirst()
         }
         let read: [String: Any] = ["tool_name": "Bash", "tool_input": payload["tool_input"] as Any, "tool_response": lines.joined(separator: "\n"), "cwd": payload["cwd"] as Any, "is_interrupt": payload["is_interrupt"] as Any]
-        let deadline = Date(timeIntervalSinceNow: timeBudget())
+        let deadline = Date(timeIntervalSinceNow: budget)
+        if withShellEdits, let json = BashEditParseCheck.block(for: payload, marks: marks, timeBudget: budget) {
+            output.emit(json)
+            return
+        }
         if let json = diagnosticNote(for: read, lookUp: lookUp, deadline: deadline, event: failureEvent) {
             output.emit(json)
         }
@@ -104,16 +113,18 @@ struct PostToolUseCommand: ParsableCommand {
     }
 
     /// Everything the hook does with one payload: a block on an edit that left the file unparseable, printed to `output` — the standard streams in every real run, a recorder in a test — or nothing.
-    static func answer(to payload: [String: Any], output: CommandOutput = .standard, marks: HookMarks = .standard(), timeBudget: TimeInterval = defaultTimeBudget) {
-        answer(toEach: [payload], output: output, marks: marks, timeBudget: timeBudget)
+    ///
+    /// A `Bash` call is parse-checked too (``BashEditParseCheck``) unless the caller turns that off, as run-only mode does.
+    static func answer(to payload: [String: Any], output: CommandOutput = .standard, marks: HookMarks = .standard(), timeBudget: TimeInterval = defaultTimeBudget, withShellEdits: Bool = true, parse: @escaping BashEditParseCheck.FileParse = BashEditParseCheck.standardParse) {
+        answer(toEach: [payload], output: output, marks: marks, timeBudget: timeBudget, withShellEdits: withShellEdits, parse: parse)
     }
 
     /// The one answer for an edit of several files, as a Codex `apply_patch` makes: the first block across `payloads`, all of them sharing the one budget.
     ///
     /// The files are taken in order until the budget is spent, and then no further, so a patch of hundreds of files costs the budget and not a check of each. Each file is judged against the repository that holds it, as the `Write` of that file alone would be, so a patch made from a folder above several checkouts is answered for each; the repository is looked up once per directory, so a patch of many files in one directory costs one lookup.
-    static func answer(toEach payloads: [[String: Any]], output: CommandOutput = .standard, marks: HookMarks = .standard(), timeBudget: TimeInterval = defaultTimeBudget) {
+    static func answer(toEach payloads: [[String: Any]], output: CommandOutput = .standard, marks: HookMarks = .standard(), timeBudget: TimeInterval = defaultTimeBudget, withShellEdits: Bool = true, parse: @escaping BashEditParseCheck.FileParse = BashEditParseCheck.standardParse) {
         answer(toEach: payloads, output: output, timeBudget: timeBudget) { payload, root, left in
-            parseBlock(for: payload, root: root, marks: marks, timeBudget: left)
+            parseBlock(for: payload, root: root, marks: marks, timeBudget: left, withShellEdits: withShellEdits, parse: parse)
         }
     }
 
@@ -200,7 +211,10 @@ struct PostToolUseCommand: ParsableCommand {
     /// The hook JSON blocking on an edit that left a Swift file unparseable, or `nil` where the file parses or the block has been given.
     ///
     /// Once per context for each content the file is left holding, so the hook can never wedge a session: an edit that leaves the same broken bytes goes through the second time, and only a change to the file can draw a block again. Silent without a `session_id` to record that against, on a file it cannot read, and past `timeBudget`.
-    static func parseBlock(for payload: [String: Any], root: String?, marks: HookMarks, timeBudget: TimeInterval) -> String? {
+    static func parseBlock(for payload: [String: Any], root: String?, marks: HookMarks, timeBudget: TimeInterval, withShellEdits: Bool = true, parse: @escaping BashEditParseCheck.FileParse = BashEditParseCheck.standardParse) -> String? {
+        if withShellEdits, payload["tool_name"] as? String == "Bash" {
+            return BashEditParseCheck.block(for: payload, marks: marks, timeBudget: timeBudget, parse: parse)
+        }
         guard let (file, sessionID) = editedSwiftFile(in: payload) else { return nil }
         let (prior, hunks) = editPrior(in: payload)
         let result = ResultBox<EditParseCheck>()

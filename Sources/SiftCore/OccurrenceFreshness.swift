@@ -36,6 +36,8 @@ final class OccurrenceFreshness {
     /// Distinct files found absent, and found newer than the build, keyed the same way refusals are (repo-relative where the path is inside the repo) so the header can union the two without counting one file twice.
     private(set) var deletedFiles: Set<String> = []
     private(set) var modifiedFiles: Set<String> = []
+    /// Distinct files found absent whose record a build without cleaning keeps (``FileKind/keptDeletion``), never also in ``deletedFiles``.
+    private(set) var keptDeletedFiles: Set<String> = []
     /// Distinct files no store holds a unit for whose module a build of the store's project compiles, changed after the store's newest unit; a file is in at most one of the three sets, under the worse kind.
     private(set) var newFiles: Set<String> = []
     /// How many `stat` calls this query actually paid for, which is what makes the cost claim checkable.
@@ -71,6 +73,7 @@ final class OccurrenceFreshness {
         switch resolved {
         case .live: break
         case .deleted: deletedFiles.insert(relative)
+        case .keptDeletion: keptDeletedFiles.insert(relative)
         case .modifiedSinceBuild: modifiedFiles.insert(relative)
         }
         return resolved
@@ -87,6 +90,7 @@ final class OccurrenceFreshness {
             switch state(of: absolutePath) {
             case .live: return .current
             case .deleted: return .deleted
+            case .keptDeletion: return .keptDeletion
             case .modifiedSinceBuild: return .changed
             }
         }
@@ -122,6 +126,21 @@ final class OccurrenceFreshness {
         let absolutePath = context.repoRoot.standardizedFileURL.path + "/" + path
         let unit = newestUnit(of: absolutePath, relative: path, citedBy: citing, in: context) ?? newestAnswering(path, in: context)
         return SemanticContext.buildAnchor(newestUnit: unit ?? context.store.newestUnitDate)
+    }
+
+    /// Records `kind` for `relative`, keeping only the worse of it and what the path was judged before, so a file is in one set at most.
+    func record(_ kind: FileKind, for relative: String) {
+        let before = worst[relative] ?? .current
+        guard kind < before else { return }
+        worst[relative] = kind
+        set(of: before, removing: relative)
+        switch kind {
+        case .deleted: deletedFiles.insert(relative)
+        case .keptDeletion: keptDeletedFiles.insert(relative)
+        case .changed: modifiedFiles.insert(relative)
+        case .new: newFiles.insert(relative)
+        case .notBuilt, .current: break
+        }
     }
 
     private func resolve(_ absolutePath: String, relative: String) -> OccurrenceState {
@@ -168,9 +187,16 @@ private extension OccurrenceFreshness {
     }
 
     func judge(_ absolutePath: String, relative: String, citedBy citing: SemanticStore?, in context: SemanticContext) -> FileKind {
-        guard exists(absolutePath) else { return .deleted }
+        guard exists(absolutePath) else { return deletionKind(of: relative, in: context) }
         guard let row = try? store.fileRow(path: relative) else { return .current }
         return builtKind(of: row, absolutePath: absolutePath, relative: relative, citedBy: citing, in: context)
+    }
+
+    /// The kind of a file the tree no longer holds: a deletion a build without cleaning keeps where the query's ``KeptDeletions`` finds it one, measured against the newest unit of the stores answering for it (else the store's own), never the file's own unit, which predates the deletion.
+    func deletionKind(of relative: String, in context: SemanticContext) -> FileKind {
+        let anchor = SemanticContext.buildAnchor(newestUnit: newestAnswering(relative, in: context) ?? context.store.newestUnitDate)
+        let stores = ([context.store] + context.inTreeStores).filter { $0.answers(forFile: relative) }
+        return context.keptDeletions.isKept(relative, anchor: anchor, stores: stores, root: context.repoRoot, index: store) ? .keptDeletion : .deleted
     }
 
     /// The kind of a file the tree holds, from its index row: against its newest unit where a store holds one, else by build membership and then the store's newest unit.
@@ -223,23 +249,10 @@ private extension OccurrenceFreshness {
         return found
     }
 
-    /// Records `kind` for `relative`, keeping only the worse of it and what the path was judged before, so a file is in one set at most.
-    func record(_ kind: FileKind, for relative: String) {
-        let before = worst[relative] ?? .current
-        guard kind < before else { return }
-        worst[relative] = kind
-        set(of: before, removing: relative)
-        switch kind {
-        case .deleted: deletedFiles.insert(relative)
-        case .changed: modifiedFiles.insert(relative)
-        case .new: newFiles.insert(relative)
-        case .notBuilt, .current: break
-        }
-    }
-
     func set(of kind: FileKind, removing relative: String) {
         switch kind {
         case .deleted: deletedFiles.remove(relative)
+        case .keptDeletion: keptDeletedFiles.remove(relative)
         case .changed: modifiedFiles.remove(relative)
         case .new: newFiles.remove(relative)
         case .notBuilt, .current: break

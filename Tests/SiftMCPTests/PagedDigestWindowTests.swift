@@ -77,6 +77,10 @@ struct PagedDigestWindowTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 237, in: root))
 
+        guard spelling == .shell else {
+            #expect(outcome == .withheld(.notSmaller))
+            return
+        }
         guard let answered = Self.answered(outcome) else { return }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-237"])
@@ -119,6 +123,10 @@ struct PagedDigestWindowTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 50, in: root))
 
+        guard spelling == .shell else {
+            #expect(Self.answered(outcome)?.calls.map(\.target) == ["Sources/App/Big.swift"])
+            return
+        }
         guard let answered = Self.answered(outcome) else { return }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-50"])
@@ -134,6 +142,10 @@ struct PagedDigestWindowTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 61, in: root))
 
+        guard spelling == .shell else {
+            #expect(Self.answered(outcome)?.calls.map(\.target) == ["Sources/App/Big.swift"])
+            return
+        }
         guard let answered = Self.answered(outcome) else { return }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-61"])
@@ -148,6 +160,10 @@ struct PagedDigestWindowTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 62, in: root))
 
+        guard spelling == .shell else {
+            #expect(outcome == .withheld(.notSmaller))
+            return
+        }
         guard let answered = Self.answered(outcome) else { return }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-62"])
@@ -162,6 +178,10 @@ struct PagedDigestWindowTests {
 
         let outcome = try await Self.outcome(spelling.match(path: "Sources/App/Big.swift", lines: 2 ... 62, in: root))
 
+        guard spelling == .shell else {
+            #expect(outcome == .withheld(.notSmaller))
+            return
+        }
         guard let answered = Self.answered(outcome) else { return }
 
         #expect(answered.calls.map(\.target) == ["Sources/App/Big.swift:2-62"])

@@ -19,8 +19,8 @@ import Testing
 
         let (helper, status) = try await Self.axes(in: root)
 
-        #expect(helper.contains("semantic: stale since last build (1 cited file deleted: Sources/Lib/Caller.swift)"))
-        #expect(status.contains("semantic: stale since last build (2 files deleted)"))
+        #expect(helper.contains("semantic: stale until a clean build (1 cited file deleted: Sources/Lib/Caller.swift)"))
+        #expect(status.contains("semantic: stale until a clean build (2 files deleted)"))
         #expect(Self.linesAfterTheStoreLine(of: status) == [SiftEngine.statusAxisNote, SiftEngine.statusDeletedNote])
     }
 
@@ -34,7 +34,7 @@ import Testing
 
         let (helper, status) = try await Self.axes(in: root)
 
-        #expect(helper.contains("semantic: stale since last build (1 cited file deleted: Sources/Lib/Caller.swift)"))
+        #expect(helper.contains("semantic: stale until a clean build (1 cited file deleted: Sources/Lib/Caller.swift)"))
         #expect(status.contains("semantic: stale until a clean build (2 files deleted)"))
         #expect(status.contains(SiftEngine.statusDeletedNote))
     }
@@ -50,8 +50,8 @@ import Testing
 
         let (helperAfterNoOp, statusAfterNoOp) = try await Self.axes(in: root)
 
-        #expect(helperAfterNoOp.contains("semantic: stale since last build (1 cited file deleted: Sources/Lib/Caller.swift)"))
-        #expect(statusAfterNoOp.contains("semantic: stale since last build (2 files deleted)"))
+        #expect(helperAfterNoOp.contains("semantic: stale until a clean build (1 cited file deleted: Sources/Lib/Caller.swift)"))
+        #expect(statusAfterNoOp.contains("semantic: stale until a clean build (2 files deleted)"))
 
         try FileManager.default.removeItem(at: root.appendingPathComponent(".build"))
         try await TestSources.swiftBuild(packageAt: root)

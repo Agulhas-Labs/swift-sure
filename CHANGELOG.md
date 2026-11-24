@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.5
+
+- Changed: `where <Name> --files` (`files: true`) ends a listing that names at least one file with `drop --files for each reference's line`, where it ended at the last row.
+- Changed: a `search` whose only selecting field is `name:` (a `path:` beside it allowed) and that lists more than 20 declarations ends with `narrow with kind:, modifier: or owner:`, where it ended at the last row.
+- Changed: a `where` that opened the index store and found no declaration of the name reads `semantic: fresh, name not in the store`, where it read `syntactic-only` right after the same tree's `status` said `fresh`.
+- Fixed: the hook reads a variable a Bash line assigns itself, at the top of the line, as its value when it judges and records the line (any command it hands back keeps the line as written), so `F=Sources/App.swift; cat $F` is judged as `cat Sources/App.swift` and `R=/repo; swift-sure digest --root $R App` files the digest under `/repo`, and a word still holding an unbound variable is never recorded as a path, where `cat $F` escaped the hook and the digest was filed under the working directory with `$R` appended.
+- Fixed: `strings` no longer lists `Self.<name>` written in another type among the uses of a static property holding the literal; only the declaring type's own `Self.<name>` reaches it.
+- Changed: a recursive `grep` narrowed by `--exclude-dir=<name>` or `--exclude=*.<ext>` is judged as the same sweep without those files, where it was let through unjudged.
+- Changed: a ranged `Read` of a Swift file is no longer answered with the members its lines overlap; where its folded lines or the file's digest do not answer it, it runs.
+- Fixed: a query citing a file deleted before the last build, whose record that build kept, labels it `(file deleted; its record stays until a clean build)`, and its header reads `stale until a clean build` where nothing else is stale, where both sent the reader to a build that changes nothing.
+- Fixed: a `grep` matching several members of a Swift file changed since it was indexed, where git does not report the change (`--assume-unchanged`, or a write the status had not caught up with), is answered with those members' source again; it was let through unanswered whenever the file's rows were not the newest in the index.
+- Fixed: the Stop gate no longer takes a `swift-sure run` started in the background as a green build: its result arrives before the build has run, so the edits before it still ask for a build unless that run's own record answers for the tree.
+- Changed: the Stop gate also counts a Swift file changed while one of the context's `Bash` calls ran, such as `sed -i`, as an edit to build before stopping.
+- Fixed: `swift-sure status` reads `stale until a clean build` for a file renamed or deleted and then built over before any swift-sure call, where it read `stale since last build` however many builds followed.
+- Changed: the hook answers a ranged `Read` of a Swift file nothing has located the way it answers the same lines read with `sed -n`: with those lines, numbered as the Read tool numbers them, each run of comment lines folded to one marker, or lets it through; the identical Read re-run prints the file as asked.
+- Changed: a Bash call that leaves a Swift file in the repository unparseable, such as `sed -i` or a script writing the file, now gets the same block with each error placed as an edit made with the Edit or Write tool.
+
 ## 0.4.4
 
 - Changed: the hook answers a shell window of a Swift file (`sed -n`, `head`, `awk` by line, `cat -n | sed`) with the lines it asked for, each run of comment lines folded to one marker, where that saves at least a quarter, and lets it run otherwise; it no longer answers a window with the file's digest, which hid the lines asked for. A window on a line beside a grep or another command runs.

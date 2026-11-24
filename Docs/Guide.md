@@ -254,8 +254,9 @@ A `Glob` is never refused: it lists file names, which no index answer reproduces
 A read is only interrupted when interrupting it could save something. A **ranged** read of a file
 whose digest the same context already holds passes untouched, and so does any file below the compression
 floor and a whole read of a file the same context has already had digested. Any other window (a ranged
-`Read`, `sed -n 95,215p`) is answered only where the answer saves at least 4 KiB against the lines it
-asks for (the 4 KiB floor is for windows alone); when that answer leaves out the lines you needed, the identical re-run goes through. A whole-file
+`Read`, `sed -n 95,215p`) is answered with its own lines, each run of comment lines folded to one marker, where
+that saves enough; a ranged `Read` the fold lets through is answered only where the answer saves at least 4 KiB against the lines it
+asks for (the 4 KiB floor is for windows alone); when an answer leaves out the lines you needed, the identical re-run goes through. A whole-file
 `Read` is answered with the file's whole digest, every member and no `offset` cursor (only a digest past the
 10 kB answer budget is cut to fit), and only where that digest spares more than the follow-up it usually causes, which the hook
 estimates from the file's size, the digest's size and the session's context (45k tokens where it cannot be read): in practice
@@ -302,7 +303,7 @@ Refusals never trap you:
 
 A sweep across a directory — `grep -rn UsageWindow Sources/` — names no `.swift`, so the target is
 resolved from the session's working directory: a search of a tree that holds Swift for something
-symbol-shaped is a lookup.
+symbol-shaped is a lookup. A sweep narrowed by `--exclude-dir=<name>` or `--exclude=*.<ext>` is judged as the same sweep without those files.
 
 ### What it deliberately stays quiet about
 
@@ -367,14 +368,22 @@ from the fix, is blocked). A
 clean parse prints nothing; so do a file it cannot read and an overrun of its one-second budget. This
 checks syntax only: a type error still needs a build.
 
+A `Bash` call is checked after it runs, failed or not, in the main session or a subagent, whatever the command was (`sed -i`, `xargs sed -i`, a script): every
+Swift file in the repository, tracked or untracked and not ignored, that changed since the call began is parsed,
+and one block names the errors of each that does not parse. It has no earlier content to compare, so every
+error in such a file is named. `install --run-only` does not do this, and the `Stop` gate does not yet count
+these edits.
+
 ### Before stopping
 
 The `Stop` and `SubagentStop` hooks run `swift-sure stop` when the session or a subagent ends its turn. If that
-context made a successful Write, Edit or MultiEdit of a `.swift` file since its own last green `swift-sure run`
-build or test in that repository, and no green `swift-sure run` is on record for the repository's tree as it
-stands, it blocks the stop once with the build to run: the `swift-sure run -- xcodebuild … build` that context last ran,
-else `swift-sure run -- swift build` where `Package.swift` sits at the root and does not leave macOS out (its `platforms:`
-list names `.macOS`, or it has none; Mac Catalyst does not count), else, where the root holds no `Package.swift`, `swift-sure run -- swift build --package-path <dir>` for each package below the root that encloses an edited file (one build per package, in path order, joined with `&&`). A package that declares other platforms and not
+context made a successful Write, Edit or MultiEdit of a `.swift` file, or a `.swift` file changed while one of its Bash calls
+(not one running `swift-sure run`) ran, since its own last green `swift-sure run` build or test in that repository, and no green
+`swift-sure run` is on record for the repository's tree as it stands, it blocks the stop once with the build to run: the
+`swift-sure run -- xcodebuild … build` that context last ran, else `swift-sure run -- swift build` where `Package.swift` sits at
+the root and does not leave macOS out (its `platforms:` list names `.macOS`, or it has none; Mac Catalyst does not count), else,
+where the root holds no `Package.swift`, `swift-sure run -- swift build --package-path <dir>` for each package below the root that
+encloses an edited file (one build per package, in path order, joined with `&&`). A package that declares other platforms and not
 macOS (an iOS-only one), including one of several the edits fall in, is still blocked once, with no command named: the text says `swift build` on this Mac may
 not build it and asks for the project's `xcodebuild … build` for a simulator destination. It is named bare where you already
 stand in the directory it runs in, and otherwise as a subshell that runs it there without moving your shell,

@@ -106,7 +106,7 @@ extension AffectedRenderer {
             Evidence(
                 depth: min(depth, other.depth),
                 resolved: resolved || other.resolved,
-                state: state.isLive || other.state.isLive ? .live : state,
+                state: state.isLive || other.state.isLive ? .live : state.settled(with: other.state),
                 path: path,
                 line: line
             )
@@ -434,7 +434,7 @@ extension AffectedRenderer {
         try context.store.references(ofUSR: usr).compactMap { hit in
             // Every cited path is judged, so the header's axis sees the deleted and drifted files this answer drew on (Docs/Design.md §2).
             let state = occurrences.state(of: hit.path)
-            guard state != .deleted else { return nil }
+            guard !state.isDeleted else { return nil }
             let path = context.relativePath(hit.path)
             guard let enclosing = try reader.enclosingSymbol(path: path, line: hit.line) else { return nil }
             let test = try reader.testSymbol(enclosing: enclosing)

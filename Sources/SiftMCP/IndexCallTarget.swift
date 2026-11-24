@@ -111,8 +111,15 @@ public struct IndexCallTarget {
             guard let arguments = query.wordsAfterBinary(), let rawArguments = query.wordsAfterBinary(raw: true) else { continue }
             let cut = rawArguments.prefix { $0.firstMatch(of: /^(\d*|&)[<>]/) == nil }.count
             var words = Array(arguments.prefix(cut))
+            // A word still holding an expansion names no path the text carries, so it is never recorded.
+            var expands = rawArguments.prefix(cut).map { ShellOperand(raw: $0) == nil }
+            if expands.count != words.count {
+                expands = words.map { $0.contains("$") || $0.contains("`") }
+            }
             guard let subcommand = words.firstIndex(where: { !$0.hasPrefix("-") }), words[subcommand] == "digest" else { continue }
             words.remove(at: subcommand)
+            expands.remove(at: subcommand)
+            var rootExpands = false
             var root: String?
             var targets: [String] = []
             var atRevision = false
@@ -122,6 +129,7 @@ public struct IndexCallTarget {
                 if word == "--root" || word == "--offset" || word == "--at" {
                     if word == "--root", index + 1 < words.count {
                         root = words[index + 1]
+                        rootExpands = expands[index + 1]
                     }
                     if word == "--at" {
                         atRevision = true
@@ -131,14 +139,15 @@ public struct IndexCallTarget {
                 }
                 if word.hasPrefix("--root=") {
                     root = String(word.dropFirst("--root=".count))
+                    rootExpands = expands[index]
                 } else if word.hasPrefix("--at=") {
                     atRevision = true
-                } else if !word.hasPrefix("-") {
+                } else if !word.hasPrefix("-"), !expands[index] {
                     targets.append(word)
                 }
                 index += 1
             }
-            guard !atRevision else { continue }
+            guard !atRevision, !rootExpands else { continue }
             found += targets.map { (root, $0) }
         }
         return found
